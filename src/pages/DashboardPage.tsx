@@ -15,6 +15,10 @@ import {
   useNavigate,
   useParams,
 } from 'react-router-dom'
+import {
+  grantAdminAccess,
+  revokeAdminAccess,
+} from '../auth/adminAccess'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import type { PlatformModuleId } from '../config/platform'
 import { defaultProfile, documentTypes, fundingTracks } from '../data/demo'
@@ -2549,7 +2553,11 @@ function GrantsLoansPage() {
             workspace administrator.
           </p>
         </div>
-        <Link to="/admin#data-sources" className="funding-directory-admin">
+        <Link
+          to="/admin#data-sources"
+          className="funding-directory-admin"
+          onClick={() => grantAdminAccess()}
+        >
           <Glyph type="settings" />
           Manage data sources
         </Link>
@@ -2976,7 +2984,11 @@ function TemplatesPage() {
             and checklists from every source enabled by your administrator.
           </p>
         </div>
-        <Link to="/admin#data-sources" className="funding-directory-admin">
+        <Link
+          to="/admin#data-sources"
+          className="funding-directory-admin"
+          onClick={() => grantAdminAccess()}
+        >
           <Glyph type="settings" />
           Manage data sources
         </Link>
@@ -3435,7 +3447,11 @@ function SocialResourcesPage() {
             companies relevant to your business and funding stage.
           </p>
         </div>
-        <Link to="/admin#data-sources" className="funding-directory-admin">
+        <Link
+          to="/admin#data-sources"
+          className="funding-directory-admin"
+          onClick={() => grantAdminAccess()}
+        >
           <Glyph type="settings" />
           Manage data sources
         </Link>
@@ -3914,7 +3930,11 @@ function ToolsPage() {
             credit cards selected for entrepreneurs and growing companies.
           </p>
         </div>
-        <Link to="/admin#data-sources" className="funding-directory-admin">
+        <Link
+          to="/admin#data-sources"
+          className="funding-directory-admin"
+          onClick={() => grantAdminAccess()}
+        >
           <Glyph type="settings" />
           Manage data sources
         </Link>
@@ -5056,7 +5076,8 @@ function QuickGeneratePage() {
       setWorkspaceThoughts(storedPackage.thoughts)
       setSelectedSectionId(storedPackage.sections[0]?.id ?? null)
       setWorkspacePhase('complete')
-      setActiveStep('workspace')
+      setEditorMode(false)
+      setFormMessage('Last generated package restored. Review your inputs or resume the workspace when ready.')
     } catch {
       removePersistentItem(generatedDocumentsStorageKey)
     }
@@ -5581,6 +5602,20 @@ function QuickGeneratePage() {
       }),
     )
     setFormMessage('Draft saved securely to your workspace.')
+  }
+
+  function resumeGeneratedWorkspace() {
+    if (!generatedPackage) {
+      return
+    }
+
+    setWorkspaceSections(hydrateWorkspaceSections(generatedPackage))
+    setWorkspaceThoughts(generatedPackage.thoughts)
+    setSelectedSectionId(generatedPackage.sections[0]?.id ?? null)
+    setWorkspacePhase('complete')
+    setEditorMode(false)
+    setActiveStep('workspace')
+    setFormMessage(`Reopened ${generatedPackage.title}.`)
   }
 
   function continueToBusiness() {
@@ -6280,6 +6315,23 @@ function QuickGeneratePage() {
                   </p>
                 </div>
               </div>
+
+              {generatedPackage ? (
+                <div className="generator-review-callout">
+                  <Glyph type="grid" />
+                  <div>
+                    <strong>Last generated package is ready to reopen</strong>
+                    <p>
+                      {generatedPackage.title} was restored from this workspace. You can
+                      keep editing the three-step brief, or reopen the finished package
+                      when you need exports, edits, or sharing.
+                    </p>
+                  </div>
+                  <button type="button" className="generator-inline-action" onClick={resumeGeneratedWorkspace}>
+                    Resume last package
+                  </button>
+                </div>
+              ) : null}
 
               <div className="generator-stage-actions">
                 <button type="button" className="is-secondary" onClick={() => setActiveStep(2)}>
@@ -7321,6 +7373,7 @@ export function DashboardPage() {
       'bconomics-refresh-token',
     ]
     authStorageKeys.forEach((key) => window.localStorage.removeItem(key))
+    revokeAdminAccess()
     window.sessionStorage.clear()
     setSidebarOpen(false)
     navigate('/', { replace: true })
@@ -7680,7 +7733,10 @@ export function DashboardPage() {
           ))}
           <NavLink
             to="/admin"
-            onClick={() => setSidebarOpen(false)}
+            onClick={() => {
+              grantAdminAccess()
+              setSidebarOpen(false)
+            }}
             className={({ isActive }) =>
               `clone-footer-link ${isActive ? 'is-active' : ''}`
             }

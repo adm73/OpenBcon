@@ -4197,6 +4197,23 @@
   font-size: 0.59rem;
 }
 
+.generator-inline-action {
+  margin-left: auto;
+  padding: 10px 14px;
+  border: 1px solid rgba(83, 109, 226, 0.18);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #3047b0;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.generator-inline-action:hover {
+  border-color: rgba(83, 109, 226, 0.28);
+  background: #f7f9ff;
+}
+
 .generator-review-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5572,6 +5589,163 @@
   background:
     radial-gradient(circle at 78% 3%, rgba(227, 108, 54, 0.1), transparent 24rem),
     #f5f3ee;
+}
+
+.admin-lock-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background:
+    radial-gradient(circle at top, rgba(98, 87, 242, 0.12), transparent 24rem),
+    #f5f7fd;
+}
+
+.admin-lock-card {
+  width: min(100%, 560px);
+  display: grid;
+  gap: 18px;
+  padding: 28px;
+  border: 1px solid #e3e8f5;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 20px 50px rgba(18, 28, 49, 0.08);
+}
+
+.admin-lock-badge {
+  justify-self: start;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4e5ed1;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-lock-card h1 {
+  margin: 0;
+  color: #1d2538;
+  font-size: clamp(1.8rem, 3.6vw, 2.5rem);
+  line-height: 1.05;
+}
+
+.admin-lock-card > p,
+.admin-lock-note p {
+  margin: 0;
+  color: #5f6a7f;
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.admin-lock-card code {
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: #edf1fb;
+  color: #27314a;
+  font-size: 0.84em;
+}
+
+.admin-lock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-lock-primary,
+.admin-lock-secondary {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border-radius: 14px;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.admin-lock-primary {
+  background: #1c2743;
+  color: #ffffff;
+}
+
+.admin-lock-secondary {
+  border: 1px solid #dbe1ef;
+  background: #ffffff;
+  color: #32405f;
+}
+
+.admin-lock-form {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-lock-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-lock-form span {
+  color: #42506b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-lock-form input {
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid #d9deec;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #26314a;
+  font-size: 0.92rem;
+}
+
+.admin-lock-form input:disabled {
+  background: #f4f6fb;
+  color: #94a0b7;
+}
+
+.admin-lock-form button {
+  min-height: 48px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6257f2, #435fdf);
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-lock-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.admin-lock-notice {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #f1d7d7;
+  border-radius: 14px;
+  background: #fff7f7;
+  color: #8e4545;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-lock-note {
+  display: grid;
+  gap: 8px;
+  padding-top: 18px;
+  border-top: 1px solid #e7ebf5;
+}
+
+.admin-lock-note strong {
+  color: #24304a;
+  font-size: 0.9rem;
 }
 
 .admin-rail {
