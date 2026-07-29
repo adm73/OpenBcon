@@ -21,7 +21,7 @@ router = APIRouter()
 )
 def generate_business_plan(request: GeneratePlanRequest) -> GenerationRunResult:
     settings = get_settings()
-    gateway = build_model_gateway(settings)
+    gateway = build_model_gateway(settings, force_mock=request.force_mock)
     graph = build_plan_graph(PlanNodes(gateway))
 
     with get_connection() as connection:
@@ -29,6 +29,7 @@ def generate_business_plan(request: GeneratePlanRequest) -> GenerationRunResult:
 
         try:
             context = repository.load_generation_context(request)
+            repository.ensure_context_records(context)
             package_id = repository.create_package(context, request)
             run = repository.create_run(
                 package_id,

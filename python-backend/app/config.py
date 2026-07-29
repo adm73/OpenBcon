@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     api_host: str = "0.0.0.0"
     api_port: int = 8010
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     db_dsn: str = Field(
         default="postgresql://bconomics:bconomics@localhost:5432/bconomics",
     )

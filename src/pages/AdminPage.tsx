@@ -112,6 +112,7 @@ export function AdminPage() {
   const [deleteSourceId, setDeleteSourceId] = useState('')
   const [sourceNotice, setSourceNotice] = useState('')
   const enabledModuleCount = Object.values(draft.modules).filter(Boolean).length
+  const generationModeLabel = draft.ai.mockModeEnabled ? 'Mock mode' : 'Live backend'
   const visibleDataSources = draft.dataSources.filter((source) => {
     const matchesQuery = `${source.name} ${source.provider} ${source.module}`
       .toLowerCase()
@@ -784,11 +785,13 @@ export function AdminPage() {
               <div className="admin-management-status admin-ai-status">
                 <span className={aiTestStatus === 'connected' ? 'is-online' : ''}>
                   <i />
-                  {aiTestStatus === 'testing'
-                    ? 'Testing connection'
-                    : aiTestStatus === 'connected'
-                      ? 'Connection healthy'
-                      : 'Connection not tested'}
+                  {draft.ai.mockModeEnabled
+                    ? 'Mock mode enabled'
+                    : aiTestStatus === 'testing'
+                      ? 'Testing connection'
+                      : aiTestStatus === 'connected'
+                        ? 'Connection healthy'
+                        : 'Connection not tested'}
                 </span>
                 <button
                   type="button"
@@ -797,6 +800,15 @@ export function AdminPage() {
                 >
                   {aiTestStatus === 'testing' ? 'Testing…' : 'Test connection'}
                 </button>
+              </div>
+
+              <div className="admin-secret-note">
+                <strong>Current generation mode: {generationModeLabel}</strong>
+                <p>
+                  {draft.ai.mockModeEnabled
+                    ? 'Quick Generate will return deterministic demo output until you switch back to the live backend.'
+                    : 'Quick Generate will send generation requests to the Python backend and use the configured model stack.'}
+                </p>
               </div>
 
               <div className="admin-fields">
@@ -829,6 +841,22 @@ export function AdminPage() {
                       <option key={model}>{model}</option>
                     ))}
                   </select>
+                </label>
+                <label>
+                  <span>Generation mode</span>
+                  <select
+                    value={draft.ai.mockModeEnabled ? 'mock' : 'live'}
+                    onChange={(event) =>
+                      updateAIField('mockModeEnabled', event.target.value === 'mock')
+                    }
+                  >
+                    <option value="live">Live backend</option>
+                    <option value="mock">Mock mode</option>
+                  </select>
+                  <small>
+                    Mock mode returns deterministic demo output for Quick Generate
+                    and skips live model usage inside the Python backend.
+                  </small>
                 </label>
                 <label className="admin-field-wide">
                   <span>Server API endpoint</span>
@@ -892,8 +920,9 @@ export function AdminPage() {
               <div className="admin-secret-note">
                 <strong>Server-side credentials required</strong>
                 <p>
-                  The open-source frontend stores only configuration references.
-                  Connect `/api/ai` to a secured backend before enabling production generation.
+                  {draft.ai.mockModeEnabled
+                    ? 'Mock mode is currently active, so live provider credentials are not required for local demos.'
+                    : 'The open-source frontend stores only configuration references. Connect `/api/ai` to a secured backend before enabling production generation.'}
                 </p>
               </div>
             </div>

@@ -3,17 +3,63 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class DirectCompanyInfo(BaseModel):
+    name: str
+    founder_name: str
+    business_summary: str
+    legal_name: str | None = None
+    industry: str | None = None
+    location: str | None = None
+    stage: str | None = None
+    revenue_model: str | None = None
+    team_background: str | None = None
+    traction: str | None = None
+    use_of_funds: str | None = None
+    annual_revenue: Decimal | None = None
+    monthly_revenue: Decimal | None = None
+    employee_count: int | None = None
+    website: str | None = None
+    external_id: str | None = None
+    metadata: dict = Field(default_factory=dict)
+
+
+class DirectFundingProgramInfo(BaseModel):
+    name: str
+    provider: str | None = None
+    category: str | None = None
+    program_url: str | None = None
+    funding_amount: Decimal | None = None
+    location: str | None = None
+    raw_guidelines_text: str | None = None
+    target_outcome: str | None = None
+    external_id: str | None = None
+    metadata: dict = Field(default_factory=dict)
 
 
 class GeneratePlanRequest(BaseModel):
     workspace_id: UUID
-    company_id: UUID
-    funding_program_id: UUID
+    company_id: UUID | None = None
+    funding_program_id: UUID | None = None
     requested_by_user_id: UUID
     package_name: str | None = None
     target_language: str = "en"
     section_limit: int = Field(default=7, ge=4, le=12)
+    force_mock: bool = False
+    company_info: DirectCompanyInfo | None = None
+    program_info: DirectFundingProgramInfo | None = None
+
+    @model_validator(mode="after")
+    def validate_input_mode(self):
+        has_direct_payload = self.company_info is not None and self.program_info is not None
+        has_database_ids = self.company_id is not None and self.funding_program_id is not None
+        if not has_direct_payload and not has_database_ids:
+            raise ValueError(
+                "Provide either company_id + funding_program_id or company_info + program_info.",
+            )
+        return self
 
 
 class CompanyRecord(BaseModel):

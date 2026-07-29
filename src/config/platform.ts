@@ -27,6 +27,7 @@ export type AIConfig = {
   apiKeyReference: string
   temperature: string
   enabledModels: string[]
+  mockModeEnabled: boolean
 }
 
 export type PlatformConfig = {
@@ -72,6 +73,7 @@ export const defaultPlatformConfig: PlatformConfig = {
     apiKeyReference: 'OPENAI_API_KEY',
     temperature: '0.3',
     enabledModels: ['gpt-5-mini', 'gpt-5.2', 'claude-sonnet-4-5'],
+    mockModeEnabled: true,
   },
   dataSources: defaultFundingDataSources,
   modules: {

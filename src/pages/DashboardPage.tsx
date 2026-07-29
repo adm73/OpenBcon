@@ -56,6 +56,11 @@ import {
   type ToolType,
 } from '../data/tools'
 import { buildDocument } from '../lib/generator'
+import {
+  generateBusinessPlanViaApi,
+  type BusinessPlanGenerateResponse,
+  type BusinessPlanSectionResponse,
+} from '../lib/businessPlanApi'
 import type {
   GeneratedDocument,
   GeneratedPackage,
@@ -4724,6 +4729,9 @@ type WorkspaceSectionState = GeneratedPackageSection & {
   preview: string
 }
 
+const demoUserId = '00000000-0000-4000-8000-000000000001'
+const demoWorkspaceId = '00000000-0000-4000-8000-000000000002'
+
 const quickGeneratePhaseRank: Record<WorkspacePhase, number> = {
   idle: 0,
   analyzing: 1,
@@ -4883,6 +4891,94 @@ function buildPackageExport(packageRecord: GeneratedPackage, sections: Workspace
   ].join('\n')
 }
 
+function classifyBackendSection(
+  section: BusinessPlanSectionResponse,
+): Pick<GeneratedPackageSection, 'agent' | 'documentLabel'> {
+  if (
+    /financial|forecast|cash-flow|cash_flow|use-of-funds|use_of_funds/iu.test(
+      section.section_key,
+    )
+  ) {
+    return {
+      agent: 'Financial Analyst',
+      documentLabel: 'Cash Flow Forecast',
+    }
+  }
+  if (/risk|review/iu.test(section.section_key)) {
+    return {
+      agent: 'Reviewer',
+      documentLabel: 'AI Review',
+    }
+  }
+  if (/narrative|funding|implementation/iu.test(section.section_key)) {
+    return {
+      agent: 'Grant Writer',
+      documentLabel: 'Funding Narrative',
+    }
+  }
+  return {
+    agent: 'Business Consultant',
+    documentLabel: 'Business Plan',
+  }
+}
+
+function createGeneratedPackageFromBackend(
+  response: BusinessPlanGenerateResponse,
+  fundingRequest: string,
+  sourceMaterial: string,
+): GeneratedPackage {
+  const document = response.document
+  if (!document) {
+    throw new Error('The generation backend did not return a document.')
+  }
+
+  const sections: GeneratedPackageSection[] = document.sections.map((section) => ({
+    id: section.section_key.replace(/_/gu, '-'),
+    title: section.title,
+    body: section.content,
+    ...classifyBackendSection(section),
+  }))
+
+  const readinessScore = Math.min(
+    96,
+    Math.max(72, 70 + document.sections.length * 3 + Math.min(document.key_strengths.length, 3)),
+  )
+
+  const businessPlanDocument: GeneratedDocument = {
+    title: document.title,
+    readinessScore,
+    summary: document.executive_summary,
+    sections: document.sections.map((section) => ({
+      title: section.title,
+      body: section.content,
+    })),
+    metrics: [
+      { label: 'Funding Request', value: fundingRequest },
+      { label: 'Program', value: document.program_name },
+      { label: 'Business', value: document.business_name },
+      { label: 'Sections', value: `${document.sections.length}` },
+    ],
+    milestones: document.next_steps,
+  }
+
+  return {
+    title: document.title,
+    programName: document.program_name,
+    businessName: document.business_name,
+    fundingRequest,
+    sourceMaterial,
+    completedAt: response.completed_at ?? new Date().toISOString(),
+    readinessScore,
+    thoughts: [
+      ...document.key_strengths.map((item) => `Strength detected: ${item}`),
+      ...document.risks.map((item) => `Risk considered: ${item}`),
+      ...document.next_steps.map((item) => `Next step: ${item}`),
+    ].slice(0, 8),
+    documents: [businessPlanDocument],
+    sections,
+  }
+}
+
 function QuickGeneratePage() {
   const draftStorageKey = 'bconomics-quick-generate-draft-v1'
   const generatedDocumentsStorageKey = 'bconomics-generated-documents-v1'
@@ -4904,6 +5000,10 @@ function QuickGeneratePage() {
   const [workspaceThoughts, setWorkspaceThoughts] = useState<string[]>([])
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
   const [editorMode, setEditorMode] = useState(false)
+  const [selectedCompanyRecord, setSelectedCompanyRecord] = useState<CompanyRecord | null>(null)
+  const [selectedFundingProgram, setSelectedFundingProgram] = useState<FundingProgramRecord | null>(
+    null,
+  )
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false)
   const [companyOptions, setCompanyOptions] = useState<CompanyRecord[]>([])
   const [companyQuery, setCompanyQuery] = useState('')
@@ -4971,6 +5071,7 @@ function QuickGeneratePage() {
       setProgramName(program.name)
       setProgramUrl(program.url)
       setAmount(program.amount.toLocaleString('en-CA'))
+      setSelectedFundingProgram(program)
       setFormMessage(`${program.name} imported from Grants & Loans.`)
     } catch {
       // Ignore stale selections from older local builds.
@@ -5336,6 +5437,7 @@ function QuickGeneratePage() {
     setAmount('')
     setUseWinningTemplate(false)
     setFileName('')
+    setSelectedFundingProgram(null)
     setFormMessage('')
   }
 
@@ -5350,6 +5452,7 @@ function QuickGeneratePage() {
     setWorkspaceThoughts([])
     setSelectedSectionId(null)
     setEditorMode(false)
+    setSelectedCompanyRecord(null)
     setGeneratedPackage(null)
     removePersistentItem(generatedDocumentsStorageKey)
     setFormMessage('')
@@ -5371,6 +5474,7 @@ function QuickGeneratePage() {
     setProgramName(program.name)
     setProgramUrl(program.url)
     setAmount(program.amount.toLocaleString('en-CA'))
+    setSelectedFundingProgram(program)
     setProgramPickerOpen(false)
     setFormMessage(`${program.name} imported from Grants & Loans.`)
   }
@@ -5384,8 +5488,81 @@ function QuickGeneratePage() {
         company.industry ? company.industry.toLowerCase() : 'business'
       } team in ${company.location || 'Canada'}.`,
     )
+    setSelectedCompanyRecord(company)
     setCompanyPickerOpen(false)
     setFormMessage(`${company.name} imported from My Companies.`)
+  }
+
+  async function fetchGeneratedPackageFromBackend(
+    sourceMaterial: string,
+    fundingNeed: number,
+    forceMock: boolean,
+  ) {
+    const resolvedCompany = selectedCompanyRecord
+    const resolvedProgram = selectedFundingProgram
+    const targetAmount = Number.isFinite(fundingNeed) ? fundingNeed : undefined
+    const monthlyRevenue = Number(
+      String(resolvedCompany?.monthlyRevenue ?? '').replace(/[^0-9.]/gu, ''),
+    )
+
+    const response = await generateBusinessPlanViaApi({
+      workspace_id: demoWorkspaceId,
+      requested_by_user_id: demoUserId,
+      package_name: `${businessName || resolvedCompany?.name || 'Business'} - ${programName} package`,
+      target_language: 'en',
+      section_limit: 7,
+      force_mock: forceMock,
+      company_info: {
+        external_id: resolvedCompany?.id,
+        name: businessName || resolvedCompany?.name || 'Unnamed business',
+        founder_name: fullName || resolvedCompany?.owner || 'Unknown founder',
+        legal_name: resolvedCompany?.legalName || undefined,
+        business_summary: businessIdea || resolvedCompany?.description || 'No business summary provided.',
+        industry: resolvedCompany?.industry || undefined,
+        location: resolvedCompany?.location || undefined,
+        stage: resolvedCompany?.stage || undefined,
+        revenue_model: businessIdea || resolvedCompany?.description || undefined,
+        team_background: teamIntro || undefined,
+        traction:
+          resolvedCompany && resolvedCompany.readiness > 0
+            ? `Current readiness score: ${resolvedCompany.readiness}.`
+            : undefined,
+        use_of_funds: targetAmount
+          ? `Use up to ${targetAmount.toLocaleString('en-CA')} CAD to support growth milestones for ${programName}.`
+          : undefined,
+        monthly_revenue: Number.isFinite(monthlyRevenue) ? monthlyRevenue : undefined,
+        annual_revenue:
+          Number.isFinite(monthlyRevenue) && monthlyRevenue > 0 ? monthlyRevenue * 12 : undefined,
+        employee_count: Number(
+          String(resolvedCompany?.employees ?? '').replace(/[^0-9]/gu, ''),
+        ) || undefined,
+        website: resolvedCompany?.website || undefined,
+        metadata: {
+          email: resolvedCompany?.email || null,
+          phone: resolvedCompany?.phone || null,
+        },
+      },
+      program_info: {
+        external_id: resolvedProgram?.id,
+        name: programName,
+        provider: resolvedProgram?.provider || undefined,
+        category: resolvedProgram?.type || undefined,
+        program_url: programUrl || resolvedProgram?.url || undefined,
+        funding_amount: targetAmount,
+        location: resolvedProgram?.location || undefined,
+        raw_guidelines_text:
+          useWinningTemplate && fileName
+            ? `Use the uploaded or selected structure: ${fileName}.`
+            : undefined,
+        target_outcome: `Generate a funding-ready business plan package for ${programName}.`,
+        metadata: {
+          source_name: resolvedProgram?.sourceName || null,
+          source_material: sourceMaterial,
+        },
+      },
+    })
+
+    return createGeneratedPackageFromBackend(response, `$${amount} CAD`, sourceMaterial)
   }
 
   function saveDraft() {
@@ -5496,28 +5673,28 @@ function QuickGeneratePage() {
       fundingNeed,
       differentiation: businessIdea,
     }
-    const nextPackage = createGeneratedPackage(
-      profile,
-      programName,
-      `$${amount} CAD`,
-      fileName || (useWinningTemplate ? 'Bconomics structure' : 'Official URL'),
-    )
-    const startingSections = nextPackage.sections.map((section) => ({
-      ...section,
-      status: 'waiting' as const,
-      progress: 0,
-      preview: '',
-    }))
+    const sourceMaterial = fileName || (useWinningTemplate ? 'Bconomics structure' : 'Official URL')
+    const usingMockGeneration = config.ai.mockModeEnabled
 
     setActiveStep('workspace')
     setEditorMode(false)
     setWorkspacePhase('analyzing')
-    setWorkspaceSections(startingSections)
+    setWorkspaceSections([])
     setWorkspaceThoughts([
       `Analyzing ${programName} and matching the package structure to the official funding source.`,
     ])
-    setSelectedSectionId(startingSections[0]?.id ?? null)
-    setFormMessage(`AI workspace launched with ${config.ai.defaultModel}.`)
+    setSelectedSectionId(null)
+    setFormMessage(
+      usingMockGeneration
+        ? `AI workspace launched in mock mode with ${config.ai.defaultModel}.`
+        : `AI workspace launched with ${config.ai.defaultModel}.`,
+    )
+
+    const backendPromise = fetchGeneratedPackageFromBackend(
+      sourceMaterial,
+      fundingNeed,
+      usingMockGeneration,
+    )
 
     await waitForWorkspace(700)
     if (generationRun.current !== currentRun) {
@@ -5545,6 +5722,33 @@ function QuickGeneratePage() {
       return
     }
 
+    let nextPackage: GeneratedPackage
+    try {
+      nextPackage = await backendPromise
+    } catch (error) {
+      setWorkspaceThoughts((previous) => [
+        ...previous,
+        usingMockGeneration
+          ? 'Mock mode is enabled in Admin Console, so the workspace continued with the local demo generator.'
+          : 'Python backend was unavailable, so the workspace fell back to the local mock generator.',
+      ])
+      nextPackage = createGeneratedPackage(
+        profile,
+        programName,
+        `$${amount} CAD`,
+        sourceMaterial,
+      )
+    }
+
+    const startingSections = nextPackage.sections.map((section) => ({
+      ...section,
+      status: 'waiting' as const,
+      progress: 0,
+      preview: '',
+    }))
+
+    setWorkspaceSections(startingSections)
+    setSelectedSectionId(startingSections[0]?.id ?? null)
     setWorkspacePhase('generating')
     for (const section of startingSections) {
       setWorkspaceThoughts((previous) => [
@@ -5579,7 +5783,11 @@ function QuickGeneratePage() {
     setWorkspaceThoughts((previous) => [...previous, 'Funding package ready for editing, export, and sharing.'])
     setSelectedSectionId(nextPackage.sections[0]?.id ?? null)
     removePersistentItem(draftStorageKey)
-    setFormMessage(`Funding-ready workspace generated successfully with ${config.ai.defaultModel}.`)
+    setFormMessage(
+      usingMockGeneration
+        ? `Funding-ready workspace generated in mock mode with ${config.ai.defaultModel}.`
+        : `Funding-ready workspace generated successfully with ${config.ai.defaultModel}.`,
+    )
   }
 
   function cancelGeneration() {

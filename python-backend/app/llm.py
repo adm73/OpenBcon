@@ -204,7 +204,7 @@ class MockModelGateway:
         )
 
 
-def build_model_gateway(settings: Settings) -> ModelGateway:
-    if settings.use_mock_llm:
+def build_model_gateway(settings: Settings, force_mock: bool = False) -> ModelGateway:
+    if force_mock or settings.use_mock_llm:
         return MockModelGateway()
     return OpenAIModelGateway(settings)
