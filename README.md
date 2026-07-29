@@ -59,40 +59,91 @@ The repository currently includes three product surfaces:
 
 Every workspace module uses a flat route such as `/funding-readiness`, `/quick-generate`, and `/grants-loans`.
 
+Built-in auth entry flows are also included for `/login`, `/signup`, `/forgot-password`, and `/reset-password`.
+
 ## Demo Preview
 
 Live demo and short product walkthroughs are planned. Until then, the repository includes a visual snapshot of the current product experience.
 
-<p align="center">
-  <img src="./public/images/openbcon-screenshot-01.png" alt="OpenBcon landing page" width="32%" />
-  <img src="./public/images/openbcon-screenshot-02.png" alt="OpenBcon dashboard workspace" width="32%" />
-  <img src="./public/images/openbcon-screenshot-03.png" alt="OpenBcon quick generate workflow" width="32%" />
-</p>
+<table>
+  <tr>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-01.png" alt="OpenBcon landing page" width="100%" /><br />
+      <sub>Landing Page</sub>
+    </td>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-02.png" alt="OpenBcon dashboard workspace" width="100%" /><br />
+      <sub>Dashboard Overview</sub>
+    </td>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-03.png" alt="OpenBcon quick generate workflow" width="100%" /><br />
+      <sub>Quick Generate</sub>
+    </td>
+  </tr>
+</table>
 
 ## Screenshot Gallery
 
 The current repository snapshot includes the landing experience, dashboard workspace, directories, and Quick Generate flow.
 
-<p align="center">
-  <img src="./public/images/openbcon-screenshot-04.png" alt="OpenBcon screenshot 04" width="32%" />
-  <img src="./public/images/openbcon-screenshot-05.png" alt="OpenBcon screenshot 05" width="32%" />
-  <img src="./public/images/openbcon-screenshot-06.png" alt="OpenBcon screenshot 06" width="32%" />
-</p>
-<p align="center">
-  <img src="./public/images/openbcon-screenshot-07.png" alt="OpenBcon screenshot 07" width="32%" />
-  <img src="./public/images/openbcon-screenshot-08.png" alt="OpenBcon screenshot 08" width="32%" />
-  <img src="./public/images/openbcon-screenshot-09.png" alt="OpenBcon screenshot 09" width="32%" />
-</p>
-<p align="center">
-  <img src="./public/images/openbcon-screenshot-10.png" alt="OpenBcon screenshot 10" width="32%" />
-  <img src="./public/images/openbcon-screenshot-11.png" alt="OpenBcon screenshot 11" width="32%" />
-  <img src="./public/images/openbcon-screenshot-12.png" alt="OpenBcon screenshot 12" width="32%" />
-</p>
-<p align="center">
-  <img src="./public/images/openbcon-screenshot-13.png" alt="OpenBcon screenshot 13" width="32%" />
-  <img src="./public/images/openbcon-screenshot-14.png" alt="OpenBcon screenshot 14" width="32%" />
-  <img src="./public/images/openbcon-screenshot-15.png" alt="OpenBcon screenshot 15" width="32%" />
-</p>
+<table>
+  <tr>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-04.png" alt="Funding Readiness page" width="100%" /><br />
+      <sub>Funding Readiness</sub>
+    </td>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-05.png" alt="My Company page" width="100%" /><br />
+      <sub>My Company</sub>
+    </td>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-06.png" alt="Saved Programs page" width="100%" /><br />
+      <sub>Saved Programs</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-07.png" alt="My Applications page" width="100%" /><br />
+      <sub>My Applications</sub>
+    </td>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-08.png" alt="Grants and Loans page" width="100%" /><br />
+      <sub>Grants &amp; Loans</sub>
+    </td>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-09.png" alt="Templates page" width="100%" /><br />
+      <sub>Templates</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-10.png" alt="Social Resources page" width="100%" /><br />
+      <sub>Social Resources</sub>
+    </td>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-11.png" alt="Tools page" width="100%" /><br />
+      <sub>Tools Directory</sub>
+    </td>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-12.png" alt="Admin Console page" width="100%" /><br />
+      <sub>Admin Console</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-13.png" alt="Quick Generate step 1" width="100%" /><br />
+      <sub>Quick Generate · Step 1</sub>
+    </td>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-14.png" alt="Quick Generate step 2" width="100%" /><br />
+      <sub>Quick Generate · Step 2</sub>
+    </td>
+    <td align="center">
+      <img src="./public/images/openbcon-screenshot-15.png" alt="Quick Generate step 3 review" width="100%" /><br />
+      <sub>Quick Generate · Final Review</sub>
+    </td>
+  </tr>
+</table>
 
 ## Current features
 
@@ -174,8 +225,8 @@ stored in the state database.
 
 Before production deployment:
 
-1. Add authentication and role-based authorization.
-2. Replace the seeded development identity with the authenticated user context.
+1. Replace the demo auth flow and seeded development identity with production authentication and user provisioning.
+2. Add role-based authorization for founder, advisor, admin, and partner workflows.
 3. Add row-level workspace authorization before accepting user-supplied IDs.
 4. Keep secrets and API keys in a secret manager, not browser or state storage.
 5. Configure TLS and a managed PostgreSQL backup policy.
@@ -280,6 +331,8 @@ The commercial edition is intended for customers that need:
 - private modifications without AGPL disclosure obligations
 - white-label, OEM, or embedded distribution rights
 - paid implementation, customization, or ongoing support
+
+In the community edition, OpenBcon attribution in the landing page and dashboard footer is required. Commercial license holders can negotiate white-label controls, including whether that attribution is visible.
 
 See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) for the commercial
 licensing model and [CLA.md](./CLA.md) for the contributor agreement required
