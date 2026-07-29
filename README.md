@@ -10,6 +10,36 @@ The repository currently includes three product surfaces:
 
 Every workspace module uses a flat route such as `/funding-readiness`, `/quick-generate`, and `/grants-loans`.
 
+## Screenshots
+
+The current repository snapshot includes the landing experience, dashboard workspace, directories, and Quick Generate flow.
+
+<p align="center">
+  <img src="./public/images/openbcon-screenshot-01.png" alt="OpenBcon screenshot 01" width="32%" />
+  <img src="./public/images/openbcon-screenshot-02.png" alt="OpenBcon screenshot 02" width="32%" />
+  <img src="./public/images/openbcon-screenshot-03.png" alt="OpenBcon screenshot 03" width="32%" />
+</p>
+<p align="center">
+  <img src="./public/images/openbcon-screenshot-04.png" alt="OpenBcon screenshot 04" width="32%" />
+  <img src="./public/images/openbcon-screenshot-05.png" alt="OpenBcon screenshot 05" width="32%" />
+  <img src="./public/images/openbcon-screenshot-06.png" alt="OpenBcon screenshot 06" width="32%" />
+</p>
+<p align="center">
+  <img src="./public/images/openbcon-screenshot-07.png" alt="OpenBcon screenshot 07" width="32%" />
+  <img src="./public/images/openbcon-screenshot-08.png" alt="OpenBcon screenshot 08" width="32%" />
+  <img src="./public/images/openbcon-screenshot-09.png" alt="OpenBcon screenshot 09" width="32%" />
+</p>
+<p align="center">
+  <img src="./public/images/openbcon-screenshot-10.png" alt="OpenBcon screenshot 10" width="32%" />
+  <img src="./public/images/openbcon-screenshot-11.png" alt="OpenBcon screenshot 11" width="32%" />
+  <img src="./public/images/openbcon-screenshot-12.png" alt="OpenBcon screenshot 12" width="32%" />
+</p>
+<p align="center">
+  <img src="./public/images/openbcon-screenshot-13.png" alt="OpenBcon screenshot 13" width="32%" />
+  <img src="./public/images/openbcon-screenshot-14.png" alt="OpenBcon screenshot 14" width="32%" />
+  <img src="./public/images/openbcon-screenshot-15.png" alt="OpenBcon screenshot 15" width="32%" />
+</p>
+
 ## Current features
 
 - Responsive landing page and dashboard shell
