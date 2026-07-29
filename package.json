@@ -1,0 +1,52 @@
+{
+  "name": "bconomics-web",
+  "private": true,
+  "version": "0.0.0",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:web": "vite",
+    "dev:api": "tsx watch server/index.ts",
+    "build": "npm run typecheck:server && tsc -b && vite build",
+    "typecheck:server": "tsc -p tsconfig.server.json",
+    "lint": "node scripts/run-oxlint.mjs",
+    "test": "vitest run",
+    "check": "npm run lint && npm run test && npm run build",
+    "preview": "vite preview",
+    "start": "tsx server/index.ts",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "tsx server/db/migrate.ts",
+    "db:seed": "tsx server/db/seed.ts",
+    "db:setup": "npm run db:up && npm run db:migrate && npm run db:seed"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "pg": "^8.22.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.18.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.13.2",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@types/supertest": "^7.2.1",
+    "@vitejs/plugin-react": "^6.0.3",
+    "concurrently": "^10.0.4",
+    "oxlint": "^1.71.0",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vitest": "^3.2.7"
+  }
+}

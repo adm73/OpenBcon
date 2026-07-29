@@ -1,0 +1,553 @@
+import { setPersistentItem } from '../persistence/storage'
+
+export type FundingProgramRecord = {
+  id: string
+  name: string
+  type: 'Grant' | 'Loan'
+  provider: string
+  amount: number
+  deadline: string
+  match: number
+  url: string
+  location: string
+  sourceId?: string
+  sourceName?: string
+}
+
+export type SyncedResourceRecord = {
+  id: string
+  module: Exclude<DataSourceModule, 'grants-loans'>
+  title: string
+  description: string
+  category: string
+  status: 'Active' | 'In Review' | 'Saved'
+  url: string
+  updatedAt: string
+  sourceId: string
+  sourceName: string
+}
+
+export type FundingDataSourceProvider = 'google-sheets' | 'airtable'
+export type FundingDataSourceStatus = 'draft' | 'connected' | 'error'
+export type FundingDataSourceFrequency = 'manual' | 'hourly' | 'daily'
+export type DataSourceModule =
+  | 'grants-loans'
+  | 'templates'
+  | 'social-resources'
+  | 'tools'
+
+export type FundingDataSource = {
+  id: string
+  name: string
+  module: DataSourceModule
+  provider: FundingDataSourceProvider
+  enabled: boolean
+  frequency: FundingDataSourceFrequency
+  spreadsheetUrl: string
+  sheetName: string
+  airtableBaseId: string
+  airtableTableName: string
+  airtableView: string
+  proxyUrl: string
+  credentialReference: string
+  status: FundingDataSourceStatus
+  recordCount: number
+  lastSyncedAt: string
+  lastError: string
+}
+
+export const defaultFundingDataSources: FundingDataSource[] = [
+  {
+    id: 'google-sheets-funding-catalog',
+    name: 'Google Sheets funding catalog',
+    module: 'grants-loans',
+    provider: 'google-sheets',
+    enabled: true,
+    frequency: 'daily',
+    spreadsheetUrl: '/funding-programs-demo.csv',
+    sheetName: 'Programs',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'draft',
+    recordCount: 0,
+    lastSyncedAt: '',
+    lastError: '',
+  },
+  {
+    id: 'airtable-opportunity-pipeline',
+    name: 'Airtable opportunity pipeline',
+    module: 'grants-loans',
+    provider: 'airtable',
+    enabled: false,
+    frequency: 'manual',
+    spreadsheetUrl: '',
+    sheetName: '',
+    airtableBaseId: '',
+    airtableTableName: 'Funding Programs',
+    airtableView: 'Published',
+    proxyUrl: '/api/integrations/airtable/sync',
+    credentialReference: 'AIRTABLE_ACCESS_TOKEN',
+    status: 'draft',
+    recordCount: 0,
+    lastSyncedAt: '',
+    lastError: '',
+  },
+  {
+    id: 'google-sheets-template-library',
+    name: 'Template library',
+    module: 'templates',
+    provider: 'google-sheets',
+    enabled: false,
+    frequency: 'daily',
+    spreadsheetUrl: '/template-resources-demo.csv',
+    sheetName: 'Templates',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'draft',
+    recordCount: 0,
+    lastSyncedAt: '',
+    lastError: '',
+  },
+  {
+    id: 'airtable-social-library',
+    name: 'People & organization network',
+    module: 'social-resources',
+    provider: 'airtable',
+    enabled: false,
+    frequency: 'daily',
+    spreadsheetUrl: '',
+    sheetName: '',
+    airtableBaseId: '',
+    airtableTableName: 'Network Directory',
+    airtableView: 'Published',
+    proxyUrl: '/api/integrations/airtable/sync',
+    credentialReference: 'AIRTABLE_ACCESS_TOKEN',
+    status: 'draft',
+    recordCount: 0,
+    lastSyncedAt: '',
+    lastError: '',
+  },
+  {
+    id: 'google-sheets-tools-directory',
+    name: 'Founder tools directory',
+    module: 'tools',
+    provider: 'google-sheets',
+    enabled: false,
+    frequency: 'daily',
+    spreadsheetUrl: '/tools-resources-demo.csv',
+    sheetName: 'Tools',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'draft',
+    recordCount: 0,
+    lastSyncedAt: '',
+    lastError: '',
+  },
+]
+
+export const builtInFundingPrograms: FundingProgramRecord[] = [
+  {
+    id: 'feddev-growth',
+    name: 'FedDev Ontario Growth Program',
+    type: 'Grant',
+    provider: 'Federal Economic Development Agency',
+    amount: 250000,
+    deadline: 'Aug 31, 2026',
+    match: 94,
+    url: 'https://feddev-ontario.canada.ca/en/funding',
+    location: 'Ontario',
+    sourceName: 'Bconomics catalog',
+  },
+  {
+    id: 'digital-adoption',
+    name: 'Canada Digital Adoption Program',
+    type: 'Grant',
+    provider: 'Government of Canada',
+    amount: 15000,
+    deadline: 'Rolling intake',
+    match: 91,
+    url: 'https://ised-isde.canada.ca/site/canada-digital-adoption-program/en',
+    location: 'Canada',
+    sourceName: 'Bconomics catalog',
+  },
+  {
+    id: 'ontario-expansion',
+    name: 'Ontario Business Expansion Fund',
+    type: 'Grant',
+    provider: 'Government of Ontario',
+    amount: 100000,
+    deadline: 'Sep 18, 2026',
+    match: 86,
+    url: 'https://www.ontario.ca/page/business-and-economy',
+    location: 'Ontario',
+    sourceName: 'Bconomics catalog',
+  },
+  {
+    id: 'bdc-small-business',
+    name: 'BDC Small Business Loan',
+    type: 'Loan',
+    provider: 'Business Development Bank of Canada',
+    amount: 100000,
+    deadline: 'Open',
+    match: 89,
+    url: 'https://www.bdc.ca/en/financing/small-business-loan',
+    location: 'Canada',
+    sourceName: 'Bconomics catalog',
+  },
+  {
+    id: 'futurpreneur-financing',
+    name: 'Futurpreneur Startup Financing',
+    type: 'Loan',
+    provider: 'Futurpreneur Canada',
+    amount: 60000,
+    deadline: 'Rolling intake',
+    match: 82,
+    url: 'https://futurpreneur.ca/en/offering/financing/',
+    location: 'Canada',
+    sourceName: 'Bconomics catalog',
+  },
+  {
+    id: 'women-enterprise-loan',
+    name: 'Women Enterprise Loan Fund',
+    type: 'Loan',
+    provider: 'Women Enterprise Organizations of Canada',
+    amount: 50000,
+    deadline: 'Open',
+    match: 78,
+    url: 'https://weoc.ca/',
+    location: 'Canada',
+    sourceName: 'Bconomics catalog',
+  },
+]
+
+export const fundingProgramStorageKey = 'bconomics-synced-funding-programs-v1'
+export const resourceRecordStorageKey = 'bconomics-synced-resource-records-v1'
+
+function normalizeHeader(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function readField(record: Record<string, unknown>, aliases: string[]) {
+  const normalized = new Map(
+    Object.entries(record).map(([key, value]) => [normalizeHeader(key), value]),
+  )
+
+  for (const alias of aliases) {
+    const value = normalized.get(normalizeHeader(alias))
+    if (value !== undefined && value !== null && String(value).trim()) {
+      return String(value).trim()
+    }
+  }
+
+  return ''
+}
+
+function parseAmount(value: string) {
+  const parsed = Number(value.replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0
+}
+
+function parseMatch(value: string) {
+  const parsed = Number(value.replace(/[^0-9.-]/g, ''))
+  return Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 75
+}
+
+function makeRecordId(sourceId: string, name: string, index: number) {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+  return `${sourceId}-${slug || 'program'}-${index + 1}`
+}
+
+export function normalizeFundingRecords(
+  rows: Array<Record<string, unknown>>,
+  source: FundingDataSource,
+) {
+  return rows
+    .map((row, index): FundingProgramRecord | null => {
+      const name = readField(row, ['name', 'program name', 'program', 'title'])
+      if (!name) return null
+
+      const typeValue = readField(row, ['type', 'funding type', 'category'])
+      const type = typeValue.toLowerCase().includes('loan') ? 'Loan' : 'Grant'
+
+      return {
+        id: makeRecordId(source.id, name, index),
+        name,
+        type,
+        provider:
+          readField(row, ['provider', 'organization', 'agency', 'funder']) ||
+          'Funding provider',
+        amount: parseAmount(
+          readField(row, ['amount', 'maximum amount', 'max amount', 'funding amount']),
+        ),
+        deadline:
+          readField(row, ['deadline', 'closing date', 'close date']) || 'Open',
+        match: parseMatch(readField(row, ['match', 'match score', 'score'])),
+        url: readField(row, ['url', 'website', 'program url', 'link']),
+        location:
+          readField(row, ['location', 'region', 'province', 'eligibility region']) ||
+          'Canada',
+        sourceId: source.id,
+        sourceName: source.name,
+      }
+    })
+    .filter((record): record is FundingProgramRecord => record !== null)
+}
+
+export function normalizeResourceRecords(
+  rows: Array<Record<string, unknown>>,
+  source: FundingDataSource,
+) {
+  if (source.module === 'grants-loans') return []
+  const module = source.module as Exclude<DataSourceModule, 'grants-loans'>
+
+  return rows
+    .map((row, index): SyncedResourceRecord | null => {
+      const title = readField(row, [
+        'title',
+        'name',
+        'resource name',
+        'template name',
+        'tool name',
+      ])
+      if (!title) return null
+
+      const statusValue = readField(row, ['status', 'state']).toLowerCase()
+      const status: SyncedResourceRecord['status'] = statusValue.includes('review')
+        ? 'In Review'
+        : statusValue.includes('saved') || statusValue.includes('archive')
+          ? 'Saved'
+          : 'Active'
+
+      return {
+        id: makeRecordId(source.id, title, index),
+        module,
+        title,
+        description:
+          readField(row, ['description', 'summary', 'details', 'subtitle']) ||
+          `${title} synchronized from ${source.name}.`,
+        category:
+          readField(row, ['category', 'type', 'format', 'channel']) || 'General',
+        status,
+        url: readField(row, ['url', 'link', 'website', 'resource url']),
+        updatedAt:
+          readField(row, ['updated', 'updated at', 'modified', 'last updated']) ||
+          'Synced recently',
+        sourceId: source.id,
+        sourceName: source.name,
+      }
+    })
+    .filter((record): record is SyncedResourceRecord => record !== null)
+}
+
+export function parseCsv(csv: string) {
+  const rows: string[][] = []
+  let row: string[] = []
+  let cell = ''
+  let quoted = false
+
+  for (let index = 0; index < csv.length; index += 1) {
+    const character = csv[index]
+    const next = csv[index + 1]
+
+    if (character === '"' && quoted && next === '"') {
+      cell += '"'
+      index += 1
+    } else if (character === '"') {
+      quoted = !quoted
+    } else if (character === ',' && !quoted) {
+      row.push(cell)
+      cell = ''
+    } else if ((character === '\n' || character === '\r') && !quoted) {
+      if (character === '\r' && next === '\n') index += 1
+      row.push(cell)
+      if (row.some((value) => value.trim())) rows.push(row)
+      row = []
+      cell = ''
+    } else {
+      cell += character
+    }
+  }
+
+  row.push(cell)
+  if (row.some((value) => value.trim())) rows.push(row)
+
+  const [headers = [], ...values] = rows
+  return values.map((valuesRow) =>
+    Object.fromEntries(
+      headers.map((header, index) => [header.trim(), valuesRow[index]?.trim() ?? '']),
+    ),
+  )
+}
+
+export function buildGoogleSheetsCsvUrl(source: FundingDataSource) {
+  const url = source.spreadsheetUrl.trim()
+  if (!url) throw new Error('Add a Google Sheets URL before syncing.')
+  if (url.includes('output=csv') || url.endsWith('.csv')) return url
+
+  const spreadsheetId = url.match(/\/spreadsheets\/d\/([^/]+)/)?.[1]
+  if (!spreadsheetId) {
+    throw new Error('Use a valid Google Sheets sharing URL.')
+  }
+
+  if (source.sheetName.trim()) {
+    return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(source.sheetName.trim())}`
+  }
+
+  const gid = url.match(/[?#&]gid=([0-9]+)/)?.[1] ?? '0'
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`
+}
+
+async function fetchDataSourceRows(
+  source: FundingDataSource,
+  request: typeof fetch = fetch,
+) {
+  if (source.provider === 'google-sheets') {
+    const response = await request(buildGoogleSheetsCsvUrl(source))
+    if (!response.ok) {
+      throw new Error(`Google Sheets returned ${response.status}. Check sharing access.`)
+    }
+    return parseCsv(await response.text())
+  }
+
+  if (!source.airtableBaseId.trim() || !source.airtableTableName.trim()) {
+    throw new Error('Add the Airtable base ID and table name before syncing.')
+  }
+  if (!source.proxyUrl.trim()) {
+    throw new Error('A secure Airtable proxy endpoint is required.')
+  }
+
+  const response = await request(source.proxyUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      provider: 'airtable',
+      baseId: source.airtableBaseId,
+      tableName: source.airtableTableName,
+      view: source.airtableView,
+      credentialReference: source.credentialReference,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Airtable proxy returned ${response.status}. Check its configuration.`)
+  }
+
+  const payload = (await response.json()) as
+    | Array<Record<string, unknown>>
+    | { records?: Array<Record<string, unknown> | { fields?: Record<string, unknown> }> }
+  const rawRecords = Array.isArray(payload) ? payload : (payload.records ?? [])
+  const rows: Array<Record<string, unknown>> = rawRecords.map((record) => {
+    const fields = (record as { fields?: Record<string, unknown> }).fields
+    return fields ?? (record as Record<string, unknown>)
+  })
+  return rows
+}
+
+export async function syncFundingDataSource(
+  source: FundingDataSource,
+  request: typeof fetch = fetch,
+) {
+  return normalizeFundingRecords(await fetchDataSourceRows(source, request), source)
+}
+
+export async function syncResourceDataSource(
+  source: FundingDataSource,
+  request: typeof fetch = fetch,
+) {
+  return normalizeResourceRecords(await fetchDataSourceRows(source, request), source)
+}
+
+export function loadSyncedFundingPrograms() {
+  if (typeof window === 'undefined') return []
+
+  try {
+    const saved = window.localStorage.getItem(fundingProgramStorageKey)
+    return saved ? (JSON.parse(saved) as FundingProgramRecord[]) : []
+  } catch {
+    return []
+  }
+}
+
+export function saveSyncedFundingPrograms(
+  sourceId: string,
+  programs: FundingProgramRecord[],
+) {
+  const otherPrograms = loadSyncedFundingPrograms().filter(
+    (program) => program.sourceId !== sourceId,
+  )
+  setPersistentItem(
+    fundingProgramStorageKey,
+    JSON.stringify([...otherPrograms, ...programs]),
+  )
+}
+
+export function removeSyncedFundingPrograms(sourceId: string) {
+  const nextPrograms = loadSyncedFundingPrograms().filter(
+    (program) => program.sourceId !== sourceId,
+  )
+  setPersistentItem(fundingProgramStorageKey, JSON.stringify(nextPrograms))
+}
+
+export function loadSyncedResourceRecords() {
+  if (typeof window === 'undefined') return []
+
+  try {
+    const saved = window.localStorage.getItem(resourceRecordStorageKey)
+    return saved ? (JSON.parse(saved) as SyncedResourceRecord[]) : []
+  } catch {
+    return []
+  }
+}
+
+export function saveSyncedResourceRecords(
+  sourceId: string,
+  records: SyncedResourceRecord[],
+) {
+  const otherRecords = loadSyncedResourceRecords().filter(
+    (record) => record.sourceId !== sourceId,
+  )
+  setPersistentItem(
+    resourceRecordStorageKey,
+    JSON.stringify([...otherRecords, ...records]),
+  )
+}
+
+export function removeSyncedResourceRecords(sourceId: string) {
+  const nextRecords = loadSyncedResourceRecords().filter(
+    (record) => record.sourceId !== sourceId,
+  )
+  setPersistentItem(resourceRecordStorageKey, JSON.stringify(nextRecords))
+}
+
+export function loadResourceRecords(
+  module: Exclude<DataSourceModule, 'grants-loans'>,
+  enabledSourceIds?: string[],
+) {
+  return loadSyncedResourceRecords().filter(
+    (record) =>
+      record.module === module &&
+      (!enabledSourceIds || enabledSourceIds.includes(record.sourceId)),
+  )
+}
+
+export function loadFundingPrograms(enabledSourceIds?: string[]) {
+  const syncedPrograms = loadSyncedFundingPrograms().filter(
+    (program) =>
+      !enabledSourceIds ||
+      !program.sourceId ||
+      enabledSourceIds.includes(program.sourceId),
+  )
+  return [...builtInFundingPrograms, ...syncedPrograms]
+}

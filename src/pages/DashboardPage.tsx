@@ -1,0 +1,7581 @@
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+  type FormEvent,
+} from 'react'
+import {
+  Link,
+  NavLink,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom'
+import { usePlatformConfig } from '../config/usePlatformConfig'
+import type { PlatformModuleId } from '../config/platform'
+import { defaultProfile, documentTypes, fundingTracks } from '../data/demo'
+import {
+  loadFundingPrograms,
+  loadResourceRecords,
+  type DataSourceModule,
+  type FundingProgramRecord,
+} from '../data/fundingSources'
+import {
+  addSavedProgram,
+  loadSavedProgramEntries,
+  saveSavedProgramEntries,
+  type SavedProgramEntry,
+  type SavedProgramPriority,
+  type SavedProgramStage,
+} from '../data/savedPrograms'
+import {
+  loadApplications,
+  saveApplications,
+  updateApplicationRecord,
+  type ApplicationRecord,
+  type ApplicationStatus,
+} from '../data/applications'
+import {
+  loadTemplateCatalog,
+  type TemplateFormat,
+  type TemplateRecord,
+} from '../data/templates'
+import {
+  loadSocialResourceCatalog,
+  type SocialResourceRecord,
+  type SocialResourceType,
+} from '../data/socialResources'
+import {
+  loadToolCatalog,
+  type ToolPricing,
+  type ToolRecord,
+  type ToolType,
+} from '../data/tools'
+import { buildDocument } from '../lib/generator'
+import type {
+  GeneratedDocument,
+  GeneratedPackage,
+  GeneratedPackageSection,
+} from '../types'
+import {
+  allDashboardItems,
+  dashboardGroups,
+  findDashboardItem,
+  footerItems,
+  partnerItems,
+  quickActionRoutes,
+  type DashboardGlyph,
+  type DashboardItem,
+} from '../data/dashboard'
+import {
+  removePersistentItem,
+  setPersistentItem,
+} from '../persistence/storage'
+
+function Glyph({ type }: { type: DashboardGlyph }) {
+  const paths = {
+    home: 'M3 10.5 12 3l9 7.5v8.25a.75.75 0 0 1-.75.75h-4.5v-5.25h-3v5.25H3.75a.75.75 0 0 1-.75-.75V10.5Z',
+    grid: 'M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 0h7v7h-7v-7Z',
+    search:
+      'M10.5 4.5a6 6 0 1 0 3.782 10.657l4.53 4.53 1.06-1.06-4.53-4.53A6 6 0 0 0 10.5 4.5Zm0 1.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z',
+    bolt: 'M12.46 2 5 13h5l-1 9 7.54-11H12l.46-9Z',
+    file: 'M6 3.75A1.75 1.75 0 0 1 7.75 2h6.19L19 7.06V20.25A1.75 1.75 0 0 1 17.25 22H7.75A1.75 1.75 0 0 1 6 20.25V3.75Zm7 0v4h4',
+    user:
+      'M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2.25c-4.1 0-7.5 2.14-7.5 4.78V21h15v-1.97c0-2.64-3.4-4.78-7.5-4.78Z',
+    settings:
+      'm12 3 1.2 2.7 2.95.34-2.2 2.02.62 2.94L12 9.74 9.43 11l.62-2.94-2.2-2.02 2.95-.34L12 3Zm0 7.5A4.5 4.5 0 1 1 12 19.5a4.5 4.5 0 0 1 0-9Z',
+    logout:
+      'M10.5 3H5.25A2.25 2.25 0 0 0 3 5.25v13.5A2.25 2.25 0 0 0 5.25 21h5.25v-1.5H5.25a.75.75 0 0 1-.75-.75V5.25a.75.75 0 0 1 .75-.75h5.25V3Zm4.72 4.72-1.06 1.06 2.47 2.47H9v1.5h7.63l-2.47 2.47 1.06 1.06L19.5 12l-4.28-4.28Z',
+    arrow: 'm9 6 6 6-6 6',
+    spark:
+      'M12 2.5 13.9 8l5.6 1.9-5.6 1.9L12 17.5l-1.9-5.7L4.5 9.9 10.1 8 12 2.5Zm7 12.5 1 2.9 2.9 1-2.9 1-1 2.9-1-2.9-2.9-1 2.9-1 1-2.9Z',
+    tools:
+      'M14.7 5.3a4 4 0 0 0 4.8 5.35l-8.1 8.1a2 2 0 1 1-2.83-2.83l8.1-8.1A4 4 0 0 1 11.3 3.3l2.4 2Z',
+    menu: 'M3 6.5h18V8H3V6.5Zm0 4.75h18v1.5H3v-1.5ZM3 16h18v1.5H3V16Z',
+    close: 'm6.7 5.64 5.3 5.3 5.3-5.3 1.06 1.06-5.3 5.3 5.3 5.3-1.06 1.06-5.3-5.3-5.3 5.3-1.06-1.06 5.3-5.3-5.3-5.3 1.06-1.06Z',
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d={paths[type]} fill="currentColor" />
+    </svg>
+  )
+}
+
+function itemPath(itemId: string) {
+  return itemId === 'dashboard' ? '/dashboard' : `/${itemId}`
+}
+
+type ListingProfile = {
+  kicker: string
+  action: string
+  metricLabel: string
+  metricValue: string
+  secondaryLabel: string
+  secondaryValue: string
+  insight: string
+}
+
+const listingProfiles: Record<string, ListingProfile> = {
+  'my-company': {
+    kicker: 'Company workspace',
+    action: 'Update company profile',
+    metricLabel: 'Profile strength',
+    metricValue: '84%',
+    secondaryLabel: 'Last verified',
+    secondaryValue: 'Today',
+    insight: 'Complete your ownership and financial details to improve program matching.',
+  },
+  'saved-programs': {
+    kicker: 'Funding shortlist',
+    action: 'Discover programs',
+    metricLabel: 'Closing soon',
+    metricValue: '4',
+    secondaryLabel: 'Potential funding',
+    secondaryValue: '$780K',
+    insight: 'Two saved opportunities close within the next 14 days.',
+  },
+  'my-applications': {
+    kicker: 'Application pipeline',
+    action: 'Start application',
+    metricLabel: 'In progress',
+    metricValue: '5',
+    secondaryLabel: 'Success rate',
+    secondaryValue: '67%',
+    insight: 'Your FedDev draft is the closest application to submission.',
+  },
+  'grants-loans': {
+    kicker: 'Opportunity directory',
+    action: 'Find new matches',
+    metricLabel: 'New matches',
+    metricValue: '18',
+    secondaryLabel: 'Available value',
+    secondaryValue: '$1.2M',
+    insight: 'Seven programs match your company profile at 80% or higher.',
+  },
+  templates: {
+    kicker: 'Resource library',
+    action: 'Create template',
+    metricLabel: 'Most used',
+    metricValue: 'Business plan',
+    secondaryLabel: 'Downloads',
+    secondaryValue: '142',
+    insight: 'Funding narrative templates are trending across partner workspaces.',
+  },
+  'social-resources': {
+    kicker: 'People & organization network',
+    action: 'Add contact',
+    metricLabel: 'Verified profiles',
+    metricValue: '7',
+    secondaryLabel: 'Saved contacts',
+    secondaryValue: '3',
+    insight: 'Two investors match your sector and current funding stage.',
+  },
+  tools: {
+    kicker: 'Founder stack',
+    action: 'Add product',
+    metricLabel: 'Available',
+    metricValue: '24',
+    secondaryLabel: 'Categories',
+    secondaryValue: '8',
+    insight: 'Cloud services and financial products are the most visited categories.',
+  },
+  'partner-dashboard': {
+    kicker: 'Partner command centre',
+    action: 'Invite a client',
+    metricLabel: 'Active clients',
+    metricValue: '28',
+    secondaryLabel: 'Portfolio value',
+    secondaryValue: '$3.4M',
+    insight: 'Client activation increased 12% over the previous 30 days.',
+  },
+  'partner-analytics': {
+    kicker: 'Portfolio intelligence',
+    action: 'Export analytics',
+    metricLabel: 'Approval rate',
+    metricValue: '71%',
+    secondaryLabel: 'Avg. readiness',
+    secondaryValue: '82',
+    insight: 'Manufacturing clients lead the portfolio in funding readiness.',
+  },
+  'client-management': {
+    kicker: 'Client portfolio',
+    action: 'Add client',
+    metricLabel: 'Active clients',
+    metricValue: '28',
+    secondaryLabel: 'Need attention',
+    secondaryValue: '5',
+    insight: 'Three client profiles need updated financial information.',
+  },
+  'application-management': {
+    kicker: 'Managed pipeline',
+    action: 'Create application',
+    metricLabel: 'Open applications',
+    metricValue: '34',
+    secondaryLabel: 'Due this month',
+    secondaryValue: '9',
+    insight: 'The next portfolio deadline is in six business days.',
+  },
+  'revenue-sharing': {
+    kicker: 'Partner earnings',
+    action: 'View payout report',
+    metricLabel: 'Next payout',
+    metricValue: '$8,420',
+    secondaryLabel: 'Lifetime earned',
+    secondaryValue: '$46K',
+    insight: 'July revenue share is 18% higher than last month.',
+  },
+  'business-plan-pro': {
+    kicker: 'Document studio',
+    action: 'Create business plan',
+    metricLabel: 'Plans generated',
+    metricValue: '46',
+    secondaryLabel: 'Avg. readiness',
+    secondaryValue: '91%',
+    insight: 'Four plans are waiting for a final advisor review.',
+  },
+  'financial-forecast-pro': {
+    kicker: 'Forecast studio',
+    action: 'Build forecast',
+    metricLabel: 'Active models',
+    metricValue: '19',
+    secondaryLabel: 'Forecast horizon',
+    secondaryValue: '36 mo',
+    insight: 'Three models need updated revenue assumptions.',
+  },
+  'branding-domain': {
+    kicker: 'White-label studio',
+    action: 'Add brand',
+    metricLabel: 'Active brands',
+    metricValue: '3',
+    secondaryLabel: 'Connected domains',
+    secondaryValue: '2',
+    insight: 'One domain is waiting for DNS verification.',
+  },
+  'team-role-permissions': {
+    kicker: 'Workspace access',
+    action: 'Invite team member',
+    metricLabel: 'Team members',
+    metricValue: '12',
+    secondaryLabel: 'Pending invites',
+    secondaryValue: '2',
+    insight: 'Review two users with administrator-level access.',
+  },
+  'api-access': {
+    kicker: 'Developer platform',
+    action: 'Create API key',
+    metricLabel: 'Requests this month',
+    metricValue: '18.4K',
+    secondaryLabel: 'Success rate',
+    secondaryValue: '99.8%',
+    insight: 'API traffic is healthy with no incidents in the last seven days.',
+  },
+  'workflow-builder': {
+    kicker: 'Automation studio',
+    action: 'Create workflow',
+    metricLabel: 'Active workflows',
+    metricValue: '8',
+    secondaryLabel: 'Runs this month',
+    secondaryValue: '1,284',
+    insight: 'Application follow-up is your highest-volume automation.',
+  },
+  'custom-report-export': {
+    kicker: 'Reporting centre',
+    action: 'Build report',
+    metricLabel: 'Saved reports',
+    metricValue: '16',
+    secondaryLabel: 'Exports this month',
+    secondaryValue: '43',
+    insight: 'The monthly client portfolio report is ready to export.',
+  },
+  settings: {
+    kicker: 'Workspace preferences',
+    action: 'Save changes',
+    metricLabel: 'Security',
+    metricValue: 'Strong',
+    secondaryLabel: 'Integrations',
+    secondaryValue: '4 active',
+    insight: 'Enable two-factor authentication for an additional security layer.',
+  },
+}
+
+function getListingProfile(item: DashboardItem): ListingProfile {
+  return (
+    listingProfiles[item.id] ?? {
+      kicker: 'Workspace records',
+      action: `Create ${item.label.toLowerCase()} record`,
+      metricLabel: 'Active records',
+      metricValue: String(item.entries.length),
+      secondaryLabel: 'Updated',
+      secondaryValue: 'Today',
+      insight: item.description,
+    }
+  )
+}
+
+function SectionListing({ item }: { item: DashboardItem }) {
+  const { config } = usePlatformConfig()
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<'All' | 'Active' | 'In Review' | 'Saved'>(
+    'All',
+  )
+  const [view, setView] = useState<'table' | 'cards'>('table')
+  const [notice, setNotice] = useState('')
+  const [selectedEntry, setSelectedEntry] = useState<DashboardItem['entries'][number] | null>(
+    null,
+  )
+  const profile = getListingProfile(item)
+  const resourceModule = (
+    ['templates', 'social-resources', 'tools'] as DataSourceModule[]
+  ).includes(item.id as DataSourceModule)
+    ? (item.id as Exclude<DataSourceModule, 'grants-loans'>)
+    : null
+  const enabledSourceIds = config.dataSources
+    .filter((source) => source.enabled && source.module === resourceModule)
+    .map((source) => source.id)
+  const synchronizedEntries = resourceModule
+    ? loadResourceRecords(resourceModule, enabledSourceIds).map((record) => ({
+        title: record.title,
+        subtitle: `${record.description} · ${record.category}`,
+        meta: record.updatedAt,
+        status: record.status,
+        sourceName: record.sourceName,
+        url: record.url,
+      }))
+    : []
+  const allEntries = [...item.entries, ...synchronizedEntries]
+
+  const visibleEntries = allEntries.filter((entry) => {
+    const matchesQuery =
+      `${entry.title} ${entry.subtitle} ${entry.status} ${entry.sourceName ?? ''}`
+      .toLowerCase()
+      .includes(query.trim().toLowerCase())
+    const matchesFilter = filter === 'All' || entry.status === filter
+
+    return matchesQuery && matchesFilter
+  })
+
+  return (
+    <section className={`workspace-listing workspace-listing-${item.id}`}>
+      <header className="workspace-listing-header">
+        <div className="workspace-listing-heading">
+          <p className="workspace-eyebrow">{profile.kicker}</p>
+          <h1>{item.label}</h1>
+          <p>{item.description}</p>
+        </div>
+        <button
+          type="button"
+          className="workspace-primary-action"
+          onClick={() => setNotice(`${profile.action} is ready for backend connection.`)}
+        >
+          <Glyph type="spark" />
+          <span>{profile.action}</span>
+        </button>
+      </header>
+
+      {notice ? (
+        <div className="workspace-inline-notice" role="status">
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice('')} aria-label="Dismiss notice">
+            <Glyph type="close" />
+          </button>
+        </div>
+      ) : null}
+
+      <div className="workspace-metric-grid">
+        <article className="workspace-metric-card is-primary">
+          <span>{profile.metricLabel}</span>
+          <strong>{profile.metricValue}</strong>
+          <small>Live workspace data</small>
+        </article>
+        <article className="workspace-metric-card">
+          <span>{profile.secondaryLabel}</span>
+          <strong>{profile.secondaryValue}</strong>
+          <small>Updated automatically</small>
+        </article>
+        <article className="workspace-metric-card is-insight">
+          <span>Workspace insight</span>
+          <p>{profile.insight}</p>
+        </article>
+      </div>
+
+      <section className="workspace-records">
+        <div className="workspace-records-header">
+          <div>
+            <p className="workspace-eyebrow">All records</p>
+            <h2>{item.label}</h2>
+          </div>
+          <span>{visibleEntries.length} of {allEntries.length}</span>
+        </div>
+
+        <div className="workspace-listing-toolbar">
+          <label className="workspace-search">
+            <Glyph type="search" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={`Search ${item.label.toLowerCase()}`}
+            />
+          </label>
+          <div className="workspace-filter-group">
+            {(['All', 'Active', 'In Review', 'Saved'] as const).map((filterName) => (
+              <button
+                key={filterName}
+                type="button"
+                className={filter === filterName ? 'is-selected' : ''}
+                aria-pressed={filter === filterName}
+                onClick={() => setFilter(filterName)}
+              >
+                {filterName}
+              </button>
+            ))}
+          </div>
+          <div className="workspace-view-switch" aria-label="Choose record view">
+            <button
+              type="button"
+              className={view === 'table' ? 'is-selected' : ''}
+              aria-label="Table view"
+              onClick={() => setView('table')}
+            >
+              <Glyph type="menu" />
+            </button>
+            <button
+              type="button"
+              className={view === 'cards' ? 'is-selected' : ''}
+              aria-label="Card view"
+              onClick={() => setView('cards')}
+            >
+              <Glyph type="grid" />
+            </button>
+          </div>
+        </div>
+
+        <div className={`workspace-record-list is-${view}`}>
+          {visibleEntries.map((entry, index) => (
+            <button
+              key={entry.title}
+              type="button"
+              className="workspace-record-row"
+              onClick={() => setSelectedEntry(entry)}
+            >
+              <span className="workspace-record-symbol">
+                <Glyph type={item.icon} />
+              </span>
+              <span className="workspace-record-main">
+                <strong>{entry.title}</strong>
+                <small>{entry.subtitle}</small>
+              </span>
+              <span className={`workspace-status status-${entry.status.toLowerCase().replace(' ', '-')}`}>
+                {entry.status}
+              </span>
+              <span className="workspace-record-owner">
+                <b>{['AL', 'MC', 'JS'][index % 3]}</b>
+                <small>{['Ava Lin', 'Morgan Chen', 'Jordan Smith'][index % 3]}</small>
+              </span>
+              <span className="workspace-record-meta">{entry.meta}</span>
+              <span className="workspace-record-open">
+                <Glyph type="arrow" />
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {visibleEntries.length === 0 ? (
+          <div className="workspace-empty">
+            <span><Glyph type="search" /></span>
+            <strong>No matching records</strong>
+            <p>Try another search term or clear the active filter.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('')
+                setFilter('All')
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : null}
+      </section>
+
+      {selectedEntry ? (
+        <div
+          className="clone-record-dialog-backdrop"
+          role="presentation"
+          onMouseDown={() => setSelectedEntry(null)}
+        >
+          <section
+            className="clone-record-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="record-dialog-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="clone-dialog-close"
+              aria-label="Close record"
+              onClick={() => setSelectedEntry(null)}
+            >
+              <Glyph type="close" />
+            </button>
+            <span className="clone-record-status">{selectedEntry.status}</span>
+            <h2 id="record-dialog-title">{selectedEntry.title}</h2>
+            <p>{selectedEntry.subtitle}</p>
+            <dl>
+              <div>
+                <dt>Workspace</dt>
+                <dd>{item.label}</dd>
+              </div>
+              <div>
+                <dt>Last activity</dt>
+                <dd>{selectedEntry.meta}</dd>
+              </div>
+              {selectedEntry.sourceName ? (
+                <div>
+                  <dt>Data source</dt>
+                  <dd>{selectedEntry.sourceName}</dd>
+                </div>
+              ) : null}
+            </dl>
+            {selectedEntry.url ? (
+              <a
+                className="clone-dialog-primary"
+                href={selectedEntry.url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open resource
+              </a>
+            ) : (
+              <button
+                type="button"
+                className="clone-dialog-primary"
+                onClick={() => setSelectedEntry(null)}
+              >
+                Continue
+              </button>
+            )}
+          </section>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+type CompanyRecord = {
+  id: string
+  logo: string
+  name: string
+  legalName: string
+  registrationNumber: string
+  industry: string
+  stage: string
+  location: string
+  website: string
+  description: string
+  owner: string
+  email: string
+  phone: string
+  employees: string
+  monthlyRevenue: string
+  fundingTarget: string
+  readiness: number
+  status: 'Active' | 'Needs review' | 'Draft'
+  updatedAt: string
+}
+
+const initialCompanies: CompanyRecord[] = [
+  {
+    id: 'northstar-foods',
+    logo: '',
+    name: 'Northstar Foods',
+    legalName: 'Northstar Foods Inc.',
+    registrationNumber: 'ON-7459218',
+    industry: 'Food manufacturing',
+    stage: 'Revenue generating',
+    location: 'Toronto, Ontario',
+    website: 'northstarfoods.ca',
+    description:
+      'Locally sourced functional snacks for busy families, sold through retail pilots and a recurring subscription model.',
+    owner: 'Ava Lin',
+    email: 'ava@northstarfoods.ca',
+    phone: '+1 416 555 0184',
+    employees: '4',
+    monthlyRevenue: '18,000',
+    fundingTarget: '250,000',
+    readiness: 84,
+    status: 'Active',
+    updatedAt: 'Updated 2 hours ago',
+  },
+  {
+    id: 'greenline-hvac',
+    logo: '',
+    name: 'Greenline HVAC',
+    legalName: 'Greenline Mechanical Solutions Ltd.',
+    registrationNumber: 'ON-8824106',
+    industry: 'Clean technology',
+    stage: 'Growth',
+    location: 'Mississauga, Ontario',
+    website: 'greenlinehvac.ca',
+    description:
+      'Commercial heat-pump installation and energy retrofit services for small and mid-sized buildings.',
+    owner: 'Morgan Chen',
+    email: 'morgan@greenlinehvac.ca',
+    phone: '+1 905 555 0142',
+    employees: '11',
+    monthlyRevenue: '86,000',
+    fundingTarget: '500,000',
+    readiness: 72,
+    status: 'Needs review',
+    updatedAt: 'Updated yesterday',
+  },
+  {
+    id: 'fieldnote-ai',
+    logo: '',
+    name: 'Fieldnote AI',
+    legalName: 'Fieldnote Intelligence Corp.',
+    registrationNumber: '',
+    industry: 'Software',
+    stage: 'Pre-revenue',
+    location: 'Waterloo, Ontario',
+    website: 'fieldnote.ai',
+    description:
+      'AI-assisted field reporting for construction and infrastructure inspection teams.',
+    owner: 'Jordan Smith',
+    email: 'jordan@fieldnote.ai',
+    phone: '',
+    employees: '2',
+    monthlyRevenue: '0',
+    fundingTarget: '150,000',
+    readiness: 46,
+    status: 'Draft',
+    updatedAt: 'Updated Jul 22',
+  },
+]
+
+const companyStorageKey = 'bconomics-company-portfolio-v1'
+
+function loadCompanyRecords(): CompanyRecord[] {
+  if (typeof window === 'undefined') {
+    return initialCompanies
+  }
+
+  const savedCompanies = window.localStorage.getItem(companyStorageKey)
+  if (!savedCompanies) {
+    return initialCompanies
+  }
+
+  try {
+    const parsedCompanies = JSON.parse(savedCompanies) as CompanyRecord[]
+    return Array.isArray(parsedCompanies) && parsedCompanies.length > 0
+      ? parsedCompanies
+      : initialCompanies
+  } catch {
+    return initialCompanies
+  }
+}
+
+function createEmptyCompany(): CompanyRecord {
+  return {
+    id: `company-${Date.now()}`,
+    logo: '',
+    name: '',
+    legalName: '',
+    registrationNumber: '',
+    industry: '',
+    stage: 'Pre-revenue',
+    location: '',
+    website: '',
+    description: '',
+    owner: '',
+    email: '',
+    phone: '',
+    employees: '',
+    monthlyRevenue: '',
+    fundingTarget: '',
+    readiness: 20,
+    status: 'Draft',
+    updatedAt: 'Not saved yet',
+  }
+}
+
+function MyCompanyPage() {
+  const [companies, setCompanies] = useState<CompanyRecord[]>(loadCompanyRecords)
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<'All' | CompanyRecord['status']>('All')
+  const [draft, setDraft] = useState<CompanyRecord | null>(null)
+  const [isNew, setIsNew] = useState(false)
+  const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [draft?.id])
+
+  useEffect(() => {
+    setPersistentItem(companyStorageKey, JSON.stringify(companies))
+  }, [companies])
+
+  const visibleCompanies = companies.filter((company) => {
+    const matchesQuery = `${company.name} ${company.legalName} ${company.industry} ${company.owner}`
+      .toLowerCase()
+      .includes(query.trim().toLowerCase())
+    return matchesQuery && (filter === 'All' || company.status === filter)
+  })
+
+  const portfolioFunding = companies.reduce(
+    (total, company) =>
+      total + Number(company.fundingTarget.replaceAll(',', '') || 0),
+    0,
+  )
+  const averageReadiness = Math.round(
+    companies.reduce((total, company) => total + company.readiness, 0) /
+      Math.max(companies.length, 1),
+  )
+
+  function openCompany(company: CompanyRecord) {
+    setDraft({ ...company })
+    setIsNew(false)
+    setNotice('')
+  }
+
+  function updateDraft<Key extends keyof CompanyRecord>(
+    field: Key,
+    value: CompanyRecord[Key],
+  ) {
+    setDraft((current) => (current ? { ...current, [field]: value } : current))
+    setNotice('')
+  }
+
+  function saveCompany() {
+    if (!draft) {
+      return
+    }
+    if (!draft.name.trim() || !draft.owner.trim() || !draft.email.trim()) {
+      setNotice('Company name, primary contact, and email are required.')
+      return
+    }
+
+    const completedFields = [
+      draft.legalName,
+      draft.registrationNumber,
+      draft.industry,
+      draft.location,
+      draft.website,
+      draft.description,
+      draft.phone,
+      draft.employees,
+      draft.monthlyRevenue,
+      draft.fundingTarget,
+    ].filter((value) => value.trim()).length
+    const nextRecord: CompanyRecord = {
+      ...draft,
+      readiness: Math.min(100, 35 + completedFields * 6),
+      status: completedFields >= 8 ? 'Active' : 'Needs review',
+      updatedAt: 'Updated just now',
+    }
+
+    setCompanies((current) =>
+      isNew
+        ? [nextRecord, ...current]
+        : current.map((company) =>
+            company.id === nextRecord.id ? nextRecord : company,
+          ),
+    )
+    setDraft(nextRecord)
+    setIsNew(false)
+    setNotice('Company details saved successfully.')
+  }
+
+  function uploadLogo(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) {
+      return
+    }
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      setNotice('Upload a PNG, JPEG, or WebP logo.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setNotice('The logo must be smaller than 2 MB.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.addEventListener('load', () => {
+      if (typeof reader.result === 'string') {
+        updateDraft('logo', reader.result)
+        setNotice('Logo added. Save the company to keep this change.')
+      }
+    })
+    reader.addEventListener('error', () => {
+      setNotice('The logo could not be read. Please try another image.')
+    })
+    reader.readAsDataURL(file)
+  }
+
+  if (draft) {
+    return (
+      <section className="company-editor">
+        <header className="company-editor-header">
+          <div>
+            <button type="button" onClick={() => setDraft(null)}>
+              <Glyph type="arrow" />
+              Back to companies
+            </button>
+            <p className="workspace-eyebrow">{isNew ? 'New company' : 'Company profile'}</p>
+            <h1>{draft.name || 'Untitled company'}</h1>
+            <p>Manage the company information used for matching, applications, and generated documents.</p>
+          </div>
+          <button type="button" className="workspace-primary-action" onClick={saveCompany}>
+            <Glyph type="file" />
+            Save company
+          </button>
+        </header>
+
+        {notice ? (
+          <div
+            className={`company-editor-notice ${
+              notice.includes('successfully') || notice.startsWith('Logo ')
+                ? 'is-success'
+                : ''
+            }`}
+            role="status"
+          >
+            {notice}
+          </div>
+        ) : null}
+
+        <div className="company-editor-layout">
+          <aside className="company-profile-summary">
+            <div className="company-logo-editor">
+              <div className={`company-avatar ${draft.logo ? 'has-logo' : ''}`}>
+                {draft.logo ? (
+                  <img src={draft.logo} alt={`${draft.name || 'Company'} logo`} />
+                ) : (
+                  (draft.name || 'C').charAt(0)
+                )}
+              </div>
+              <div className="company-logo-actions">
+                <label>
+                  <Glyph type="file" />
+                  {draft.logo ? 'Replace logo' : 'Upload logo'}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={uploadLogo}
+                  />
+                </label>
+                {draft.logo ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateDraft('logo', '')
+                      setNotice('Logo removed. Save the company to keep this change.')
+                    }}
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </div>
+              <small>PNG, JPEG or WebP · max 2 MB</small>
+            </div>
+            <h2>{draft.name || 'New company'}</h2>
+            <p>{draft.legalName || 'Legal name not entered'}</p>
+            <span className={`company-status status-${draft.status.toLowerCase().replace(' ', '-')}`}>
+              {draft.status}
+            </span>
+            <div className="company-profile-score">
+              <span style={{ '--company-score': `${draft.readiness}%` } as CSSProperties}>
+                <b>{draft.readiness}</b>
+              </span>
+              <div>
+                <strong>Profile readiness</strong>
+                <small>Complete details to improve funding matches.</small>
+              </div>
+            </div>
+            <dl>
+              <div><dt>Industry</dt><dd>{draft.industry || 'Not set'}</dd></div>
+              <div><dt>Stage</dt><dd>{draft.stage}</dd></div>
+              <div><dt>Location</dt><dd>{draft.location || 'Not set'}</dd></div>
+              <div><dt>Last activity</dt><dd>{draft.updatedAt}</dd></div>
+            </dl>
+          </aside>
+
+          <div className="company-editor-sections">
+            <section className="company-form-card">
+              <div className="company-form-heading">
+                <span>01</span>
+                <div>
+                  <h2>Business identity</h2>
+                  <p>Legal and operating information for this company.</p>
+                </div>
+              </div>
+              <div className="company-form-grid">
+                <label>
+                  <span>Operating name *</span>
+                  <input value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} />
+                </label>
+                <label>
+                  <span>Legal business name</span>
+                  <input value={draft.legalName} onChange={(event) => updateDraft('legalName', event.target.value)} />
+                </label>
+                <label>
+                  <span>Registration number</span>
+                  <input value={draft.registrationNumber} onChange={(event) => updateDraft('registrationNumber', event.target.value)} />
+                </label>
+                <label>
+                  <span>Website</span>
+                  <input value={draft.website} onChange={(event) => updateDraft('website', event.target.value)} />
+                </label>
+                <label>
+                  <span>Industry</span>
+                  <input value={draft.industry} onChange={(event) => updateDraft('industry', event.target.value)} />
+                </label>
+                <label>
+                  <span>Business stage</span>
+                  <select value={draft.stage} onChange={(event) => updateDraft('stage', event.target.value)}>
+                    <option>Pre-revenue</option>
+                    <option>Revenue generating</option>
+                    <option>Growth</option>
+                    <option>Expansion</option>
+                  </select>
+                </label>
+                <label className="company-field-wide">
+                  <span>Primary location</span>
+                  <input value={draft.location} onChange={(event) => updateDraft('location', event.target.value)} />
+                </label>
+              </div>
+            </section>
+
+            <section className="company-form-card">
+              <div className="company-form-heading">
+                <span>02</span>
+                <div>
+                  <h2>Business profile</h2>
+                  <p>Describe what the company does and why it is different.</p>
+                </div>
+              </div>
+              <label className="company-description-field">
+                <span>Company description</span>
+                <textarea
+                  value={draft.description}
+                  onChange={(event) => updateDraft('description', event.target.value)}
+                  placeholder="Products, customers, business model, and competitive advantage."
+                />
+                <small>{draft.description.length} characters</small>
+              </label>
+            </section>
+
+            <section className="company-form-card">
+              <div className="company-form-heading">
+                <span>03</span>
+                <div>
+                  <h2>Primary contact</h2>
+                  <p>The person responsible for company and funding information.</p>
+                </div>
+              </div>
+              <div className="company-form-grid">
+                <label>
+                  <span>Full name *</span>
+                  <input value={draft.owner} onChange={(event) => updateDraft('owner', event.target.value)} />
+                </label>
+                <label>
+                  <span>Email address *</span>
+                  <input type="email" value={draft.email} onChange={(event) => updateDraft('email', event.target.value)} />
+                </label>
+                <label className="company-field-wide">
+                  <span>Phone number</span>
+                  <input value={draft.phone} onChange={(event) => updateDraft('phone', event.target.value)} />
+                </label>
+              </div>
+            </section>
+
+            <section className="company-form-card">
+              <div className="company-form-heading">
+                <span>04</span>
+                <div>
+                  <h2>Financial snapshot</h2>
+                  <p>High-level figures used to assess funding capacity.</p>
+                </div>
+              </div>
+              <div className="company-form-grid">
+                <label>
+                  <span>Team size</span>
+                  <input inputMode="numeric" value={draft.employees} onChange={(event) => updateDraft('employees', event.target.value)} />
+                </label>
+                <label>
+                  <span>Monthly revenue (CAD)</span>
+                  <input inputMode="numeric" value={draft.monthlyRevenue} onChange={(event) => updateDraft('monthlyRevenue', event.target.value)} />
+                </label>
+                <label className="company-field-wide">
+                  <span>Funding target (CAD)</span>
+                  <input inputMode="numeric" value={draft.fundingTarget} onChange={(event) => updateDraft('fundingTarget', event.target.value)} />
+                </label>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="company-manager">
+      <header className="workspace-listing-header">
+        <div className="workspace-listing-heading">
+          <p className="workspace-eyebrow">Company portfolio</p>
+          <h1>My Companies</h1>
+          <p>Manage the businesses connected to your funding workspace and keep every profile application-ready.</p>
+        </div>
+        <button
+          type="button"
+          className="workspace-primary-action"
+          onClick={() => {
+            setDraft(createEmptyCompany())
+            setIsNew(true)
+            setNotice('')
+          }}
+        >
+          <Glyph type="spark" />
+          Add company
+        </button>
+      </header>
+
+      <div className="company-portfolio-metrics">
+        <article>
+          <span>Companies</span>
+          <strong>{companies.length}</strong>
+          <small>{companies.filter((company) => company.status === 'Active').length} active profiles</small>
+        </article>
+        <article>
+          <span>Average readiness</span>
+          <strong>{averageReadiness}%</strong>
+          <small>Across the portfolio</small>
+        </article>
+        <article>
+          <span>Funding targets</span>
+          <strong>${Math.round(portfolioFunding / 1000)}K</strong>
+          <small>Combined capital need</small>
+        </article>
+        <article className="is-attention">
+          <span>Needs attention</span>
+          <strong>{companies.filter((company) => company.status !== 'Active').length}</strong>
+          <small>Incomplete or outdated profiles</small>
+        </article>
+      </div>
+
+      <section className="company-portfolio-panel">
+        <div className="company-portfolio-heading">
+          <div>
+            <p className="workspace-eyebrow">Portfolio</p>
+            <h2>All companies</h2>
+          </div>
+          <span>{visibleCompanies.length} companies</span>
+        </div>
+        <div className="company-portfolio-toolbar">
+          <label>
+            <Glyph type="search" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search company, industry, or owner"
+            />
+          </label>
+          <div>
+            {(['All', 'Active', 'Needs review', 'Draft'] as const).map((status) => (
+              <button
+                key={status}
+                type="button"
+                className={filter === status ? 'is-selected' : ''}
+                onClick={() => setFilter(status)}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="company-card-grid">
+          {visibleCompanies.map((company) => (
+            <button
+              key={company.id}
+              type="button"
+              className="company-card"
+              onClick={() => openCompany(company)}
+            >
+              <span className="company-card-top">
+                <b className={company.logo ? 'has-logo' : ''}>
+                  {company.logo ? (
+                    <img src={company.logo} alt={`${company.name} logo`} />
+                  ) : (
+                    company.name.charAt(0)
+                  )}
+                </b>
+                <i className={`status-${company.status.toLowerCase().replace(' ', '-')}`}>
+                  {company.status}
+                </i>
+              </span>
+              <span className="company-card-copy">
+                <strong>{company.name}</strong>
+                <small>{company.legalName}</small>
+              </span>
+              <span className="company-card-details">
+                <small><Glyph type="grid" /> {company.industry}</small>
+                <small><Glyph type="user" /> {company.owner}</small>
+              </span>
+              <span className="company-card-readiness">
+                <span><b>{company.readiness}%</b><small>Profile readiness</small></span>
+                <i><em style={{ width: `${company.readiness}%` }} /></i>
+              </span>
+              <span className="company-card-footer">
+                <small>{company.updatedAt}</small>
+                <b>Edit company <Glyph type="arrow" /></b>
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {visibleCompanies.length === 0 ? (
+          <div className="workspace-empty">
+            <span><Glyph type="search" /></span>
+            <strong>No companies found</strong>
+            <p>Try a different search or status filter.</p>
+            <button type="button" onClick={() => { setQuery(''); setFilter('All') }}>
+              Clear filters
+            </button>
+          </div>
+        ) : null}
+      </section>
+    </section>
+  )
+}
+
+function FundingReadinessPage() {
+  const [activeTab, setActiveTab] = useState<'overview' | 'actions' | 'history'>(
+    'overview',
+  )
+  const [completedTasks, setCompletedTasks] = useState<string[]>([
+    'business-registration',
+  ])
+
+  const readinessAreas = [
+    {
+      label: 'Business profile',
+      score: 84,
+      change: '+6',
+      tone: 'strong',
+      description: 'Ownership, operations, market, and team information.',
+    },
+    {
+      label: 'Financial capacity',
+      score: 62,
+      change: '+2',
+      tone: 'developing',
+      description: 'Historical statements, assumptions, and cash flow.',
+    },
+    {
+      label: 'Program fit',
+      score: 76,
+      change: '+9',
+      tone: 'strong',
+      description: 'Eligibility, use of funds, and measurable outcomes.',
+    },
+    {
+      label: 'Application evidence',
+      score: 49,
+      change: '0',
+      tone: 'attention',
+      description: 'Quotes, contracts, policies, and supporting files.',
+    },
+  ]
+
+  const actionItems = [
+    {
+      id: 'financial-statements',
+      title: 'Upload the last two years of financial statements',
+      detail: 'Required by 8 of your 10 strongest funding matches.',
+      impact: '+8 pts',
+      priority: 'High priority',
+      due: 'This week',
+    },
+    {
+      id: 'cash-flow',
+      title: 'Complete a 12-month cash flow forecast',
+      detail: 'Add monthly revenue, payroll, and working-capital assumptions.',
+      impact: '+7 pts',
+      priority: 'High priority',
+      due: 'This week',
+    },
+    {
+      id: 'business-registration',
+      title: 'Confirm business registration details',
+      detail: 'Registration number and incorporation document verified.',
+      impact: '+4 pts',
+      priority: 'Complete',
+      due: 'Completed today',
+    },
+    {
+      id: 'project-quotes',
+      title: 'Add two vendor quotes for the proposed project',
+      detail: 'Quotes strengthen cost validation and procurement readiness.',
+      impact: '+5 pts',
+      priority: 'Recommended',
+      due: 'Next week',
+    },
+  ]
+
+  const history = [
+    { date: 'May 4', score: 68, label: 'Evidence review' },
+    { date: 'Apr 21', score: 61, label: 'Financial update' },
+    { date: 'Apr 8', score: 55, label: 'Company profile' },
+    { date: 'Mar 25', score: 42, label: 'First assessment' },
+  ]
+
+  function toggleTask(taskId: string) {
+    setCompletedTasks((current) =>
+      current.includes(taskId)
+        ? current.filter((id) => id !== taskId)
+        : [...current, taskId],
+    )
+  }
+
+  return (
+    <section className="readiness-page">
+      <header className="readiness-topbar">
+        <div>
+          <p className="readiness-eyebrow">Funding Centre</p>
+          <h1>Funding Readiness</h1>
+          <p>
+            See exactly what funders will evaluate and what to improve before you
+            apply.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="readiness-assessment-button"
+          onClick={() => setActiveTab('actions')}
+        >
+          <Glyph type="spark" />
+          Update assessment
+        </button>
+      </header>
+
+      <section className="readiness-hero">
+        <div className="readiness-score-ring" aria-label="Readiness score 68 out of 100">
+          <div>
+            <strong>68</strong>
+            <span>out of 100</span>
+          </div>
+        </div>
+        <div className="readiness-hero-copy">
+          <span className="readiness-status">Application building</span>
+          <h2>You have a fundable story. Your evidence needs work.</h2>
+          <p>
+            Your company and program fit are strong. Completing the two financial
+            tasks below could move you into the application-ready range.
+          </p>
+          <div className="readiness-hero-meta">
+            <span>
+              <strong>+13</strong> potential points
+            </span>
+            <span>
+              <strong>4</strong> priority actions
+            </span>
+            <span>
+              <strong>10</strong> matching programs
+            </span>
+          </div>
+        </div>
+        <div className="readiness-next-milestone">
+          <span>Next milestone</span>
+          <strong>75</strong>
+          <p>Application ready</p>
+          <div>
+            <i />
+          </div>
+          <small>7 points to go</small>
+        </div>
+      </section>
+
+      <nav className="readiness-tabs" aria-label="Funding readiness views">
+        {(
+          [
+            ['overview', 'Overview'],
+            ['actions', 'Action plan'],
+            ['history', 'Score history'],
+          ] as const
+        ).map(([tabId, label]) => (
+          <button
+            key={tabId}
+            type="button"
+            className={activeTab === tabId ? 'is-active' : ''}
+            aria-pressed={activeTab === tabId}
+            onClick={() => setActiveTab(tabId)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === 'overview' ? (
+        <div className="readiness-overview">
+          <section className="readiness-panel readiness-area-panel">
+            <div className="readiness-panel-heading">
+              <div>
+                <span>Assessment breakdown</span>
+                <h2>Readiness by area</h2>
+              </div>
+              <p>Updated today</p>
+            </div>
+            <div className="readiness-area-grid">
+              {readinessAreas.map((area) => (
+                <article key={area.label} className={`tone-${area.tone}`}>
+                  <div className="readiness-area-score">
+                    <strong>{area.score}</strong>
+                    <span>{area.change === '0' ? 'No change' : `${area.change} pts`}</span>
+                  </div>
+                  <h3>{area.label}</h3>
+                  <p>{area.description}</p>
+                  <div className="readiness-progress">
+                    <i style={{ width: `${area.score}%` }} />
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <div className="readiness-two-column">
+            <section className="readiness-panel">
+              <div className="readiness-panel-heading">
+                <div>
+                  <span>Highest impact</span>
+                  <h2>Priority action plan</h2>
+                </div>
+                <button type="button" onClick={() => setActiveTab('actions')}>
+                  View all
+                </button>
+              </div>
+              <div className="readiness-action-list">
+                {actionItems.slice(0, 3).map((action) => {
+                  const isComplete = completedTasks.includes(action.id)
+                  return (
+                    <label
+                      key={action.id}
+                      className={`readiness-action ${isComplete ? 'is-complete' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isComplete}
+                        onChange={() => toggleTask(action.id)}
+                      />
+                      <span className="readiness-action-check" />
+                      <span className="readiness-action-copy">
+                        <strong>{action.title}</strong>
+                        <small>{action.detail}</small>
+                      </span>
+                      <span className="readiness-impact">{action.impact}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </section>
+
+            <section className="readiness-panel readiness-match-panel">
+              <div className="readiness-panel-heading">
+                <div>
+                  <span>Based on your profile</span>
+                  <h2>Strongest funding matches</h2>
+                </div>
+                <Link to="/grants-loans">Explore</Link>
+              </div>
+              <article>
+                <div>
+                  <span className="readiness-match-score">92% match</span>
+                  <small>Growth &amp; innovation</small>
+                </div>
+                <h3>Ontario Business Expansion Fund</h3>
+                <p>Up to $100,000 · Deadline in 18 days</p>
+              </article>
+              <article>
+                <div>
+                  <span className="readiness-match-score">86% match</span>
+                  <small>Digital adoption</small>
+                </div>
+                <h3>SME Technology Adoption Program</h3>
+                <p>Up to $75,000 · Rolling intake</p>
+              </article>
+            </section>
+          </div>
+        </div>
+      ) : null}
+
+      {activeTab === 'actions' ? (
+        <section className="readiness-panel readiness-action-plan">
+          <div className="readiness-panel-heading">
+            <div>
+              <span>Your route to 75+</span>
+              <h2>Recommended action plan</h2>
+            </div>
+            <p>{completedTasks.length} of {actionItems.length} complete</p>
+          </div>
+          <div className="readiness-action-list">
+            {actionItems.map((action) => {
+              const isComplete = completedTasks.includes(action.id)
+              return (
+                <label
+                  key={action.id}
+                  className={`readiness-action readiness-action-detailed ${
+                    isComplete ? 'is-complete' : ''
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isComplete}
+                    onChange={() => toggleTask(action.id)}
+                  />
+                  <span className="readiness-action-check" />
+                  <span className="readiness-action-copy">
+                    <em>{action.priority}</em>
+                    <strong>{action.title}</strong>
+                    <small>{action.detail}</small>
+                  </span>
+                  <span className="readiness-action-date">{action.due}</span>
+                  <span className="readiness-impact">{action.impact}</span>
+                </label>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
+
+      {activeTab === 'history' ? (
+        <section className="readiness-panel readiness-history-panel">
+          <div className="readiness-panel-heading">
+            <div>
+              <span>Last 90 days</span>
+              <h2>Readiness score history</h2>
+            </div>
+            <strong>+26 points</strong>
+          </div>
+          <div className="readiness-history-chart">
+            {history
+              .slice()
+              .reverse()
+              .map((entry) => (
+                <article key={entry.date}>
+                  <div>
+                    <i style={{ height: `${entry.score}%` }} />
+                    <strong>{entry.score}</strong>
+                  </div>
+                  <span>{entry.date}</span>
+                  <small>{entry.label}</small>
+                </article>
+              ))}
+          </div>
+        </section>
+      ) : null}
+    </section>
+  )
+}
+
+function SavedProgramsPage() {
+  const { config } = usePlatformConfig()
+  const enabledSourceIds = config.dataSources
+    .filter((source) => source.enabled && source.module === 'grants-loans')
+    .map((source) => source.id)
+  const programs = loadFundingPrograms(enabledSourceIds)
+  const [entries, setEntries] = useState<SavedProgramEntry[]>(() =>
+    loadSavedProgramEntries(programs),
+  )
+  const [query, setQuery] = useState('')
+  const [stage, setStage] = useState<'All' | SavedProgramStage>('All')
+  const [type, setType] = useState<'All' | 'Grant' | 'Loan'>('All')
+  const [sort, setSort] = useState<
+    'Recently saved' | 'Highest match' | 'Largest amount'
+  >('Recently saved')
+  const [selectedId, setSelectedId] = useState('')
+
+  useEffect(() => {
+    saveSavedProgramEntries(entries)
+  }, [entries])
+
+  const savedPrograms = entries
+    .map((entry) => {
+      const program = programs.find((item) => item.id === entry.programId)
+      return program ? { entry, program } : null
+    })
+    .filter(
+      (
+        item,
+      ): item is { entry: SavedProgramEntry; program: FundingProgramRecord } =>
+        item !== null,
+    )
+  const visiblePrograms = savedPrograms
+    .filter(({ entry, program }) => {
+      const matchesQuery =
+        `${program.name} ${program.provider} ${program.location} ${entry.note}`
+          .toLowerCase()
+          .includes(query.trim().toLowerCase())
+      return (
+        matchesQuery &&
+        (stage === 'All' || entry.stage === stage) &&
+        (type === 'All' || program.type === type)
+      )
+    })
+    .sort((left, right) => {
+      if (sort === 'Highest match') return right.program.match - left.program.match
+      if (sort === 'Largest amount') return right.program.amount - left.program.amount
+      return entries.indexOf(left.entry) - entries.indexOf(right.entry)
+    })
+  const selectedProgram = savedPrograms.find(
+    ({ program }) => program.id === selectedId,
+  )
+  const totalPotential = savedPrograms.reduce(
+    (sum, { program }) => sum + program.amount,
+    0,
+  )
+  const averageMatch = savedPrograms.length
+    ? Math.round(
+        savedPrograms.reduce((sum, { program }) => sum + program.match, 0) /
+          savedPrograms.length,
+      )
+    : 0
+  const readyCount = entries.filter((entry) => entry.stage === 'Ready to apply').length
+  const fixedDeadlineCount = savedPrograms.filter(
+    ({ program }) => !/open|rolling/i.test(program.deadline),
+  ).length
+
+  function updateEntry(
+    programId: string,
+    updates: Partial<Omit<SavedProgramEntry, 'programId'>>,
+  ) {
+    setEntries((current) =>
+      current.map((entry) =>
+        entry.programId === programId ? { ...entry, ...updates } : entry,
+      ),
+    )
+  }
+
+  function removeProgram(programId: string) {
+    setEntries((current) =>
+      current.filter((entry) => entry.programId !== programId),
+    )
+    setSelectedId('')
+  }
+
+  return (
+    <section className="saved-programs-page">
+      <header className="saved-programs-header">
+        <div>
+          <p className="workspace-eyebrow">Funding shortlist</p>
+          <h1>Your saved opportunities</h1>
+          <p>
+            Prioritize the programs worth pursuing, track application readiness,
+            and keep the next deadline in sight.
+          </p>
+        </div>
+        <Link to="/grants-loans">
+          <Glyph type="search" />
+          Discover more programs
+        </Link>
+      </header>
+
+      <div className="saved-programs-metrics">
+        <article className="is-primary">
+          <span>Saved programs</span>
+          <strong>{savedPrograms.length}</strong>
+          <small>{readyCount} ready to apply</small>
+        </article>
+        <article>
+          <span>Potential funding</span>
+          <strong>
+            {new Intl.NumberFormat('en-CA', {
+              style: 'currency',
+              currency: 'CAD',
+              notation: 'compact',
+              maximumFractionDigits: 1,
+            }).format(totalPotential)}
+          </strong>
+          <small>Maximum combined value</small>
+        </article>
+        <article>
+          <span>Average match</span>
+          <strong>{averageMatch}%</strong>
+          <small>Across your shortlist</small>
+        </article>
+        <article className="is-deadline">
+          <span>Fixed deadlines</span>
+          <strong>{fixedDeadlineCount}</strong>
+          <small>Need calendar review</small>
+        </article>
+      </div>
+
+      <div className="saved-programs-layout">
+        <section className="saved-programs-workspace">
+          <div className="saved-programs-toolbar">
+            <label>
+              <Glyph type="search" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search saved programs"
+              />
+            </label>
+            <select
+              aria-label="Filter by application stage"
+              value={stage}
+              onChange={(event) =>
+                setStage(event.target.value as 'All' | SavedProgramStage)
+              }
+            >
+              <option value="All">All stages</option>
+              <option value="Researching">Researching</option>
+              <option value="Preparing">Preparing</option>
+              <option value="Ready to apply">Ready to apply</option>
+            </select>
+            <select
+              aria-label="Filter by funding type"
+              value={type}
+              onChange={(event) =>
+                setType(event.target.value as 'All' | 'Grant' | 'Loan')
+              }
+            >
+              <option value="All">All types</option>
+              <option value="Grant">Grants</option>
+              <option value="Loan">Loans</option>
+            </select>
+            <select
+              aria-label="Sort saved programs"
+              value={sort}
+              onChange={(event) =>
+                setSort(
+                  event.target.value as
+                    | 'Recently saved'
+                    | 'Highest match'
+                    | 'Largest amount',
+                )
+              }
+            >
+              <option>Recently saved</option>
+              <option>Highest match</option>
+              <option>Largest amount</option>
+            </select>
+          </div>
+
+          <div className="saved-programs-list-heading">
+            <div>
+              <strong>Shortlist</strong>
+              <span>{visiblePrograms.length} of {savedPrograms.length} programs</span>
+            </div>
+            <span>Stage</span>
+            <span>Funding</span>
+            <span>Match</span>
+          </div>
+
+          <div className="saved-programs-list">
+            {visiblePrograms.map(({ entry, program }) => (
+              <article key={program.id} className="saved-program-row">
+                <button
+                  type="button"
+                  className="saved-program-main"
+                  onClick={() => setSelectedId(program.id)}
+                >
+                  <span className={`saved-program-type is-${program.type.toLowerCase()}`}>
+                    {program.type.charAt(0)}
+                  </span>
+                  <span>
+                    <small>{program.provider}</small>
+                    <strong>{program.name}</strong>
+                    <em>{program.location} · {program.deadline}</em>
+                  </span>
+                </button>
+                <label className="saved-program-stage">
+                  <span className="sr-only">Application stage for {program.name}</span>
+                  <select
+                    value={entry.stage}
+                    onChange={(event) =>
+                      updateEntry(program.id, {
+                        stage: event.target.value as SavedProgramStage,
+                      })
+                    }
+                  >
+                    <option>Researching</option>
+                    <option>Preparing</option>
+                    <option>Ready to apply</option>
+                  </select>
+                </label>
+                <span className="saved-program-amount">
+                  <strong>${program.amount.toLocaleString('en-CA')}</strong>
+                  <small>{program.type}</small>
+                </span>
+                <span className="saved-program-match">
+                  <i style={{ '--saved-match': `${program.match}%` } as CSSProperties} />
+                  <strong>{program.match}%</strong>
+                </span>
+                <button
+                  type="button"
+                  className="saved-program-remove"
+                  aria-label={`Remove ${program.name}`}
+                  onClick={() => removeProgram(program.id)}
+                >
+                  <Glyph type="close" />
+                </button>
+              </article>
+            ))}
+          </div>
+
+          {visiblePrograms.length === 0 ? (
+            <div className="workspace-empty">
+              <span><Glyph type="search" /></span>
+              <strong>No saved programs match</strong>
+              <p>Try another search or reset the stage and type filters.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery('')
+                  setStage('All')
+                  setType('All')
+                }}
+              >
+                Reset filters
+              </button>
+            </div>
+          ) : null}
+        </section>
+
+        <aside className="saved-programs-insights">
+          <section className="saved-next-action">
+            <p>Recommended next move</p>
+            <span><Glyph type="spark" /></span>
+            <h2>Move your strongest match into preparation.</h2>
+            <p>
+              {savedPrograms[0]?.program.name ?? 'Your top funding opportunity'} has
+              the clearest path to a complete application package.
+            </p>
+            {savedPrograms[0] ? (
+              <button
+                type="button"
+                onClick={() =>
+                  updateEntry(savedPrograms[0].program.id, { stage: 'Preparing' })
+                }
+              >
+                Start preparing
+              </button>
+            ) : null}
+          </section>
+
+          <section className="saved-stage-summary">
+            <div>
+              <p>Pipeline</p>
+              <span>{savedPrograms.length} programs</span>
+            </div>
+            {(['Researching', 'Preparing', 'Ready to apply'] as const).map(
+              (stageName) => {
+                const count = entries.filter(
+                  (entry) => entry.stage === stageName,
+                ).length
+                return (
+                  <article key={stageName}>
+                    <span><i className={`is-${stageName.toLowerCase().replaceAll(' ', '-')}`} /></span>
+                    <strong>{stageName}</strong>
+                    <b>{count}</b>
+                  </article>
+                )
+              },
+            )}
+          </section>
+
+          <section className="saved-shortlist-tip">
+            <Glyph type="spark" />
+            <div>
+              <strong>Keep the shortlist focused</strong>
+              <p>Aim for 3–6 programs with a clear owner and next action.</p>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      {selectedProgram ? (
+        <div
+          className="clone-record-dialog-backdrop"
+          role="presentation"
+          onMouseDown={() => setSelectedId('')}
+        >
+          <section
+            className="clone-record-dialog saved-program-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="saved-program-dialog-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="clone-dialog-close"
+              aria-label="Close saved program"
+              onClick={() => setSelectedId('')}
+            >
+              <Glyph type="close" />
+            </button>
+            <span className="clone-record-status">
+              {selectedProgram.entry.priority} priority
+            </span>
+            <h2 id="saved-program-dialog-title">{selectedProgram.program.name}</h2>
+            <p>{selectedProgram.program.provider}</p>
+            <dl>
+              <div><dt>Funding</dt><dd>${selectedProgram.program.amount.toLocaleString('en-CA')}</dd></div>
+              <div><dt>Match</dt><dd>{selectedProgram.program.match}%</dd></div>
+              <div><dt>Deadline</dt><dd>{selectedProgram.program.deadline}</dd></div>
+              <div><dt>Saved</dt><dd>{selectedProgram.entry.savedAt}</dd></div>
+            </dl>
+            <div className="saved-program-dialog-controls">
+              <label>
+                <span>Priority</span>
+                <select
+                  value={selectedProgram.entry.priority}
+                  onChange={(event) =>
+                    updateEntry(selectedProgram.program.id, {
+                      priority: event.target.value as SavedProgramPriority,
+                    })
+                  }
+                >
+                  <option>High</option>
+                  <option>Medium</option>
+                  <option>Low</option>
+                </select>
+              </label>
+              <label>
+                <span>Internal note</span>
+                <textarea
+                  value={selectedProgram.entry.note}
+                  onChange={(event) =>
+                    updateEntry(selectedProgram.program.id, {
+                      note: event.target.value,
+                    })
+                  }
+                  placeholder="Add eligibility questions, next steps, or owner notes."
+                />
+              </label>
+            </div>
+            <div className="saved-program-dialog-actions">
+              <button
+                type="button"
+                onClick={() => removeProgram(selectedProgram.program.id)}
+              >
+                Remove
+              </button>
+              <Link
+                to="/quick-generate"
+                onClick={() =>
+                  setPersistentItem(
+                    selectedFundingProgramStorageKey,
+                    JSON.stringify(selectedProgram.program),
+                  )
+                }
+              >
+                Build application package
+              </Link>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+const applicationStatuses: ApplicationStatus[] = [
+  'Draft',
+  'In Review',
+  'Ready',
+  'Submitted',
+  'Awarded',
+]
+
+function MyApplicationsPage() {
+  const [applications, setApplications] = useState<ApplicationRecord[]>(
+    loadApplications,
+  )
+  const [query, setQuery] = useState('')
+  const [status, setStatus] = useState<'All' | ApplicationStatus>('All')
+  const [company, setCompany] = useState('All')
+  const [sort, setSort] = useState<
+    'Nearest deadline' | 'Recently updated' | 'Largest funding'
+  >('Nearest deadline')
+  const [view, setView] = useState<'list' | 'board'>('list')
+  const [selectedId, setSelectedId] = useState('')
+
+  useEffect(() => {
+    saveApplications(applications)
+  }, [applications])
+
+  const companies = [...new Set(applications.map((application) => application.company))]
+  const visibleApplications = applications
+    .filter((application) => {
+      const matchesQuery =
+        `${application.title} ${application.programName} ${application.company} ${application.owner}`
+          .toLowerCase()
+          .includes(query.trim().toLowerCase())
+      return (
+        matchesQuery &&
+        (status === 'All' || application.status === status) &&
+        (company === 'All' || application.company === company)
+      )
+    })
+    .sort((left, right) => {
+      if (sort === 'Largest funding') return right.amount - left.amount
+      if (sort === 'Recently updated') {
+        return applications.indexOf(left) - applications.indexOf(right)
+      }
+      return left.deadlineOrder - right.deadlineOrder
+    })
+  const selectedApplication = applications.find(
+    (application) => application.id === selectedId,
+  )
+  const activeCount = applications.filter((application) =>
+    ['Draft', 'In Review', 'Ready'].includes(application.status),
+  ).length
+  const dueSoonCount = applications.filter(
+    (application) =>
+      application.deadlineOrder <= 60 &&
+      !['Submitted', 'Awarded'].includes(application.status),
+  ).length
+  const submittedCount = applications.filter((application) =>
+    ['Submitted', 'Awarded'].includes(application.status),
+  ).length
+  const awardedValue = applications
+    .filter((application) => application.status === 'Awarded')
+    .reduce((sum, application) => sum + application.amount, 0)
+  const nearestDeadlines = applications
+    .filter((application) => application.deadlineOrder < 999)
+    .sort((left, right) => left.deadlineOrder - right.deadlineOrder)
+    .slice(0, 3)
+
+  function updateApplication(
+    applicationId: string,
+    updates: Partial<Omit<ApplicationRecord, 'id'>>,
+  ) {
+    setApplications((current) =>
+      updateApplicationRecord(current, applicationId, updates),
+    )
+  }
+
+  return (
+    <section className="applications-page">
+      <header className="applications-header">
+        <div>
+          <p className="workspace-eyebrow">Application command centre</p>
+          <h1>Move every application forward.</h1>
+          <p>
+            Manage drafts, reviews, submissions, deadlines, and funding outcomes
+            from one operational pipeline.
+          </p>
+        </div>
+        <Link to="/quick-generate">
+          <Glyph type="spark" />
+          New application
+        </Link>
+      </header>
+
+      <div className="applications-metrics">
+        <article className="is-primary">
+          <span>Active applications</span>
+          <strong>{activeCount}</strong>
+          <small>Across draft and review stages</small>
+        </article>
+        <article className={dueSoonCount ? 'is-warning' : ''}>
+          <span>Due within 60 days</span>
+          <strong>{dueSoonCount}</strong>
+          <small>Needs deadline attention</small>
+        </article>
+        <article>
+          <span>Submitted or awarded</span>
+          <strong>{submittedCount}</strong>
+          <small>Completed application work</small>
+        </article>
+        <article className="is-awarded">
+          <span>Awarded pipeline</span>
+          <strong>
+            {new Intl.NumberFormat('en-CA', {
+              style: 'currency',
+              currency: 'CAD',
+              notation: 'compact',
+              maximumFractionDigits: 1,
+            }).format(awardedValue)}
+          </strong>
+          <small>Confirmed funding value</small>
+        </article>
+      </div>
+
+      <section className="applications-control-panel">
+        <div className="applications-toolbar">
+          <label>
+            <Glyph type="search" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search applications, programs, or companies"
+            />
+          </label>
+          <select
+            aria-label="Filter applications by status"
+            value={status}
+            onChange={(event) =>
+              setStatus(event.target.value as 'All' | ApplicationStatus)
+            }
+          >
+            <option value="All">All statuses</option>
+            {applicationStatuses.map((statusName) => (
+              <option key={statusName}>{statusName}</option>
+            ))}
+          </select>
+          <select
+            aria-label="Filter applications by company"
+            value={company}
+            onChange={(event) => setCompany(event.target.value)}
+          >
+            <option value="All">All companies</option>
+            {companies.map((companyName) => (
+              <option key={companyName}>{companyName}</option>
+            ))}
+          </select>
+          <select
+            aria-label="Sort applications"
+            value={sort}
+            onChange={(event) =>
+              setSort(
+                event.target.value as
+                  | 'Nearest deadline'
+                  | 'Recently updated'
+                  | 'Largest funding',
+              )
+            }
+          >
+            <option>Nearest deadline</option>
+            <option>Recently updated</option>
+            <option>Largest funding</option>
+          </select>
+          <div className="applications-view-switch" aria-label="Application view">
+            <button
+              type="button"
+              className={view === 'list' ? 'is-selected' : ''}
+              aria-label="List view"
+              onClick={() => setView('list')}
+            >
+              <Glyph type="menu" />
+            </button>
+            <button
+              type="button"
+              className={view === 'board' ? 'is-selected' : ''}
+              aria-label="Board view"
+              onClick={() => setView('board')}
+            >
+              <Glyph type="grid" />
+            </button>
+          </div>
+        </div>
+        <div className="applications-result-summary">
+          <span>{visibleApplications.length} of {applications.length} applications</span>
+          {(query || status !== 'All' || company !== 'All') ? (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('')
+                setStatus('All')
+                setCompany('All')
+              }}
+            >
+              Clear filters
+            </button>
+          ) : null}
+        </div>
+      </section>
+
+      {view === 'list' ? (
+        <div className="applications-list-layout">
+          <section className="applications-list-panel">
+            <div className="applications-list-heading">
+              <span>Application</span>
+              <span>Status</span>
+              <span>Progress</span>
+              <span>Deadline</span>
+              <span>Funding</span>
+            </div>
+            <div className="applications-list">
+              {visibleApplications.map((application) => (
+                <article key={application.id} className="application-row">
+                  <button
+                    type="button"
+                    className="application-main"
+                    onClick={() => setSelectedId(application.id)}
+                  >
+                    <span className={`application-symbol is-${application.fundingType.toLowerCase()}`}>
+                      {application.fundingType.charAt(0)}
+                    </span>
+                    <span>
+                      <small>{application.company}</small>
+                      <strong>{application.title}</strong>
+                      <em>{application.programName}</em>
+                    </span>
+                  </button>
+                  <label className="application-status-select">
+                    <span className="sr-only">Status for {application.title}</span>
+                    <select
+                      className={`status-${application.status.toLowerCase().replaceAll(' ', '-')}`}
+                      value={application.status}
+                      onChange={(event) =>
+                        updateApplication(application.id, {
+                          status: event.target.value as ApplicationStatus,
+                        })
+                      }
+                    >
+                      {applicationStatuses.map((statusName) => (
+                        <option key={statusName}>{statusName}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <span className="application-progress">
+                    <span><i style={{ width: `${application.progress}%` }} /></span>
+                    <strong>{application.progress}%</strong>
+                  </span>
+                  <span className="application-deadline">
+                    <strong>{application.deadline}</strong>
+                    <small>{application.nextAction}</small>
+                  </span>
+                  <span className="application-value">
+                    <strong>${application.amount.toLocaleString('en-CA')}</strong>
+                    <small>{application.documentsComplete}/{application.documentsTotal} documents</small>
+                  </span>
+                  <button
+                    type="button"
+                    className="application-open"
+                    aria-label={`Open ${application.title}`}
+                    onClick={() => setSelectedId(application.id)}
+                  >
+                    <Glyph type="arrow" />
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <aside className="applications-insights">
+            <section className="application-deadline-radar">
+              <div>
+                <p>Deadline radar</p>
+                <span>Next 120 days</span>
+              </div>
+              {nearestDeadlines.map((application, index) => (
+                <button
+                  key={application.id}
+                  type="button"
+                  onClick={() => setSelectedId(application.id)}
+                >
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <span>
+                    <strong>{application.programName}</strong>
+                    <small>{application.deadline} · {application.company}</small>
+                  </span>
+                </button>
+              ))}
+            </section>
+
+            <section className="application-portfolio-health">
+              <p>Portfolio health</p>
+              <div>
+                <strong>
+                  {Math.round(
+                    applications.reduce(
+                      (sum, application) => sum + application.progress,
+                      0,
+                    ) / applications.length,
+                  )}%
+                </strong>
+                <span>Average completion</span>
+              </div>
+              <p>
+                {applications.filter((application) => application.progress < 50).length}{' '}
+                applications need focused work this week.
+              </p>
+            </section>
+          </aside>
+        </div>
+      ) : (
+        <section className="applications-board" aria-label="Application pipeline board">
+          {applicationStatuses.map((statusName) => {
+            const statusApplications = visibleApplications.filter(
+              (application) => application.status === statusName,
+            )
+            return (
+              <div key={statusName} className="applications-board-column">
+                <header>
+                  <span className={`is-${statusName.toLowerCase().replaceAll(' ', '-')}`} />
+                  <strong>{statusName}</strong>
+                  <b>{statusApplications.length}</b>
+                </header>
+                <div>
+                  {statusApplications.map((application) => (
+                    <button
+                      key={application.id}
+                      type="button"
+                      className="application-board-card"
+                      onClick={() => setSelectedId(application.id)}
+                    >
+                      <span>{application.company}</span>
+                      <strong>{application.title}</strong>
+                      <small>{application.programName}</small>
+                      <div>
+                        <b>${application.amount.toLocaleString('en-CA')}</b>
+                        <em>{application.deadline}</em>
+                      </div>
+                      <span className="application-board-progress">
+                        <i style={{ width: `${application.progress}%` }} />
+                      </span>
+                      <footer>
+                        <span>{application.owner.split(' ').map((name) => name.charAt(0)).join('')}</span>
+                        <small>{application.progress}% complete</small>
+                      </footer>
+                    </button>
+                  ))}
+                  {statusApplications.length === 0 ? (
+                    <p className="application-board-empty">No applications</p>
+                  ) : null}
+                </div>
+              </div>
+            )
+          })}
+        </section>
+      )}
+
+      {visibleApplications.length === 0 ? (
+        <div className="workspace-empty applications-empty">
+          <span><Glyph type="search" /></span>
+          <strong>No applications match</strong>
+          <p>Clear the active filters to return to the complete pipeline.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setQuery('')
+              setStatus('All')
+              setCompany('All')
+            }}
+          >
+            Reset filters
+          </button>
+        </div>
+      ) : null}
+
+      {selectedApplication ? (
+        <div
+          className="clone-record-dialog-backdrop"
+          role="presentation"
+          onMouseDown={() => setSelectedId('')}
+        >
+          <section
+            className="clone-record-dialog application-detail-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="application-dialog-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="clone-dialog-close"
+              aria-label="Close application"
+              onClick={() => setSelectedId('')}
+            >
+              <Glyph type="close" />
+            </button>
+            <span className={`clone-record-status status-${selectedApplication.status.toLowerCase().replaceAll(' ', '-')}`}>
+              {selectedApplication.status}
+            </span>
+            <h2 id="application-dialog-title">{selectedApplication.title}</h2>
+            <p>{selectedApplication.programName}</p>
+            <dl>
+              <div><dt>Company</dt><dd>{selectedApplication.company}</dd></div>
+              <div><dt>Funding</dt><dd>${selectedApplication.amount.toLocaleString('en-CA')}</dd></div>
+              <div><dt>Deadline</dt><dd>{selectedApplication.deadline}</dd></div>
+              <div><dt>Owner</dt><dd>{selectedApplication.owner}</dd></div>
+            </dl>
+            <div className="application-detail-progress">
+              <div>
+                <strong>Application completion</strong>
+                <span>{selectedApplication.progress}%</span>
+              </div>
+              <span><i style={{ width: `${selectedApplication.progress}%` }} /></span>
+              <small>
+                {selectedApplication.documentsComplete} of{' '}
+                {selectedApplication.documentsTotal} required documents complete
+              </small>
+            </div>
+            <div className="application-detail-controls">
+              <label>
+                <span>Status</span>
+                <select
+                  value={selectedApplication.status}
+                  onChange={(event) =>
+                    updateApplication(selectedApplication.id, {
+                      status: event.target.value as ApplicationStatus,
+                    })
+                  }
+                >
+                  {applicationStatuses.map((statusName) => (
+                    <option key={statusName}>{statusName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Completion</span>
+                <div className="application-completion-control">
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={selectedApplication.progress}
+                    onChange={(event) =>
+                      updateApplication(selectedApplication.id, {
+                        progress: Number(event.target.value),
+                      })
+                    }
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    aria-label="Completion percentage"
+                    value={selectedApplication.progress}
+                    onChange={(event) =>
+                      updateApplication(selectedApplication.id, {
+                        progress: Math.min(
+                          100,
+                          Math.max(0, Number(event.target.value)),
+                        ),
+                      })
+                    }
+                  />
+                  <b>%</b>
+                </div>
+              </label>
+              <label className="application-detail-note">
+                <span>Internal note</span>
+                <textarea
+                  value={selectedApplication.note}
+                  onChange={(event) =>
+                    updateApplication(selectedApplication.id, {
+                      note: event.target.value,
+                    })
+                  }
+                  placeholder="Add reviewer feedback, blockers, or next steps."
+                />
+              </label>
+            </div>
+            <div className="application-detail-next">
+              <Glyph type="spark" />
+              <div>
+                <strong>Next action</strong>
+                <p>{selectedApplication.nextAction}</p>
+              </div>
+            </div>
+            <div className="application-detail-actions">
+              <button
+                type="button"
+                onClick={() =>
+                  updateApplication(selectedApplication.id, {
+                    status:
+                      selectedApplication.status === 'Submitted'
+                        ? 'Awarded'
+                        : 'Submitted',
+                    progress: 100,
+                  })
+                }
+              >
+                {selectedApplication.status === 'Submitted'
+                  ? 'Mark awarded'
+                  : 'Mark submitted'}
+              </button>
+              <Link
+                to="/quick-generate"
+                onClick={() =>
+                  setPersistentItem(
+                    selectedFundingProgramStorageKey,
+                    JSON.stringify({
+                      id: selectedApplication.id,
+                      name: selectedApplication.programName,
+                      type: selectedApplication.fundingType,
+                      provider: '',
+                      amount: selectedApplication.amount,
+                      deadline: selectedApplication.deadline,
+                      match: 0,
+                      url: '',
+                      location: '',
+                    } satisfies FundingProgramRecord),
+                  )
+                }
+              >
+                Continue application
+              </Link>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+const selectedFundingProgramStorageKey = 'bconomics-selected-funding-program-v1'
+
+function GrantsLoansPage() {
+  const { config } = usePlatformConfig()
+  const [query, setQuery] = useState('')
+  const [type, setType] = useState<'All' | 'Grant' | 'Loan'>('All')
+  const [filtersOpen, setFiltersOpen] = useState(true)
+  const [location, setLocation] = useState('All')
+  const [sourceName, setSourceName] = useState('All')
+  const [amountRange, setAmountRange] = useState<
+    'All' | 'under-50' | '50-100' | '100-plus'
+  >('All')
+  const [minimumMatch, setMinimumMatch] = useState<'All' | '80' | '90'>('All')
+  const [deadlineType, setDeadlineType] = useState<'All' | 'Open' | 'Fixed'>(
+    'All',
+  )
+  const [selectedProgram, setSelectedProgram] =
+    useState<FundingProgramRecord | null>(null)
+  const enabledSourceIds = config.dataSources
+    .filter((source) => source.enabled)
+    .map((source) => source.id)
+  const programs = loadFundingPrograms(enabledSourceIds)
+  const [savedEntries, setSavedEntries] = useState<SavedProgramEntry[]>(() =>
+    loadSavedProgramEntries(programs),
+  )
+  const locations = [...new Set(programs.map((program) => program.location))].sort()
+  const sources = [
+    ...new Set(
+      programs.map((program) => program.sourceName ?? 'Bconomics catalog'),
+    ),
+  ].sort()
+  const visiblePrograms = programs.filter((program) => {
+    const matchesQuery =
+      `${program.name} ${program.provider} ${program.location} ${program.sourceName}`
+        .toLowerCase()
+        .includes(query.trim().toLowerCase())
+    const matchesType = type === 'All' || program.type === type
+    const matchesLocation = location === 'All' || program.location === location
+    const matchesSource =
+      sourceName === 'All' ||
+      (program.sourceName ?? 'Bconomics catalog') === sourceName
+    const matchesAmount =
+      amountRange === 'All' ||
+      (amountRange === 'under-50' && program.amount < 50000) ||
+      (amountRange === '50-100' &&
+        program.amount >= 50000 &&
+        program.amount < 100000) ||
+      (amountRange === '100-plus' && program.amount >= 100000)
+    const matchesMatch =
+      minimumMatch === 'All' || program.match >= Number(minimumMatch)
+    const isOpenDeadline = /open|rolling/i.test(program.deadline)
+    const matchesDeadline =
+      deadlineType === 'All' ||
+      (deadlineType === 'Open' && isOpenDeadline) ||
+      (deadlineType === 'Fixed' && !isOpenDeadline)
+
+    return (
+      matchesQuery &&
+      matchesType &&
+      matchesLocation &&
+      matchesSource &&
+      matchesAmount &&
+      matchesMatch &&
+      matchesDeadline
+    )
+  })
+  const activeFilterCount = [
+    type !== 'All',
+    location !== 'All',
+    sourceName !== 'All',
+    amountRange !== 'All',
+    minimumMatch !== 'All',
+    deadlineType !== 'All',
+  ].filter(Boolean).length
+  const connectedSources = config.dataSources.filter(
+    (source) =>
+      source.module === 'grants-loans' &&
+      source.enabled &&
+      source.status === 'connected',
+  ).length
+  const totalValue = programs.reduce((sum, program) => sum + program.amount, 0)
+
+  function clearFundingFilters() {
+    setType('All')
+    setLocation('All')
+    setSourceName('All')
+    setAmountRange('All')
+    setMinimumMatch('All')
+    setDeadlineType('All')
+  }
+
+  function toggleSavedProgram(programId: string) {
+    setSavedEntries((current) => {
+      const next = current.some((entry) => entry.programId === programId)
+        ? current.filter((entry) => entry.programId !== programId)
+        : addSavedProgram(current, programId)
+      saveSavedProgramEntries(next)
+      return next
+    })
+  }
+
+  return (
+    <section className="funding-directory">
+      <header className="funding-directory-header">
+        <div>
+          <p className="workspace-eyebrow">Opportunity directory</p>
+          <h1>Grants &amp; Loans</h1>
+          <p>
+            Search the Bconomics catalog and every external source enabled by your
+            workspace administrator.
+          </p>
+        </div>
+        <Link to="/admin#data-sources" className="funding-directory-admin">
+          <Glyph type="settings" />
+          Manage data sources
+        </Link>
+      </header>
+
+      <div className="funding-directory-metrics">
+        <article>
+          <span>Available opportunities</span>
+          <strong>{programs.length}</strong>
+          <small>Across all active catalogs</small>
+        </article>
+        <article>
+          <span>Potential funding</span>
+          <strong>
+            {new Intl.NumberFormat('en-CA', {
+              style: 'currency',
+              currency: 'CAD',
+              notation: 'compact',
+              maximumFractionDigits: 1,
+            }).format(totalValue)}
+          </strong>
+          <small>Maximum combined value</small>
+        </article>
+        <article className="is-source-metric">
+          <span>Connected data sources</span>
+          <strong>{connectedSources}</strong>
+          <small>
+            {
+              config.dataSources.filter(
+                (source) => source.module === 'grants-loans' && source.enabled,
+              ).length
+            }{' '}
+            enabled
+          </small>
+        </article>
+      </div>
+
+      <section className="funding-directory-results">
+        <div className="funding-directory-toolbar">
+          <label>
+            <Glyph type="search" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search by program, provider, region, or source"
+            />
+          </label>
+          <div>
+            {(['All', 'Grant', 'Loan'] as const).map((filterName) => (
+              <button
+                key={filterName}
+                type="button"
+                className={type === filterName ? 'is-selected' : ''}
+                aria-pressed={type === filterName}
+                onClick={() => setType(filterName)}
+              >
+                {filterName}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className={`funding-filter-toggle ${
+              filtersOpen || activeFilterCount > 0 ? 'is-active' : ''
+            }`}
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <Glyph type="settings" />
+            Filters
+            {activeFilterCount > 0 ? <b>{activeFilterCount}</b> : null}
+          </button>
+          <span>
+            {visiblePrograms.length} {visiblePrograms.length === 1 ? 'result' : 'results'}
+          </span>
+        </div>
+
+        {filtersOpen ? (
+          <div className="funding-directory-filter-panel">
+            <div className="funding-filter-heading">
+              <div>
+                <strong>Refine opportunities</strong>
+                <span>Combine filters to narrow the complete program catalog.</span>
+              </div>
+              {activeFilterCount > 0 ? (
+                <button type="button" onClick={clearFundingFilters}>
+                  Clear all
+                </button>
+              ) : null}
+            </div>
+            <div className="funding-filter-fields">
+              <label>
+                <span>Region</span>
+                <select
+                  value={location}
+                  onChange={(event) => setLocation(event.target.value)}
+                >
+                  <option value="All">All regions</option>
+                  {locations.map((locationName) => (
+                    <option key={locationName} value={locationName}>
+                      {locationName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Data source</span>
+                <select
+                  value={sourceName}
+                  onChange={(event) => setSourceName(event.target.value)}
+                >
+                  <option value="All">All sources</option>
+                  {sources.map((source) => (
+                    <option key={source} value={source}>{source}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Funding amount</span>
+                <select
+                  value={amountRange}
+                  onChange={(event) =>
+                    setAmountRange(
+                      event.target.value as typeof amountRange,
+                    )
+                  }
+                >
+                  <option value="All">Any amount</option>
+                  <option value="under-50">Under $50K</option>
+                  <option value="50-100">$50K–$99K</option>
+                  <option value="100-plus">$100K+</option>
+                </select>
+              </label>
+              <label>
+                <span>Minimum match</span>
+                <select
+                  value={minimumMatch}
+                  onChange={(event) =>
+                    setMinimumMatch(event.target.value as typeof minimumMatch)
+                  }
+                >
+                  <option value="All">Any match</option>
+                  <option value="80">80% or higher</option>
+                  <option value="90">90% or higher</option>
+                </select>
+              </label>
+              <label>
+                <span>Deadline</span>
+                <select
+                  value={deadlineType}
+                  onChange={(event) =>
+                    setDeadlineType(event.target.value as typeof deadlineType)
+                  }
+                >
+                  <option value="All">Any deadline</option>
+                  <option value="Open">Open or rolling</option>
+                  <option value="Fixed">Fixed deadline</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        ) : null}
+
+        {activeFilterCount > 0 ? (
+          <div className="funding-active-filters" aria-label="Active filters">
+            <span>{activeFilterCount} active</span>
+            {type !== 'All' ? (
+              <button type="button" onClick={() => setType('All')}>
+                {type} <b>×</b>
+              </button>
+            ) : null}
+            {location !== 'All' ? (
+              <button type="button" onClick={() => setLocation('All')}>
+                {location} <b>×</b>
+              </button>
+            ) : null}
+            {sourceName !== 'All' ? (
+              <button type="button" onClick={() => setSourceName('All')}>
+                {sourceName} <b>×</b>
+              </button>
+            ) : null}
+            {amountRange !== 'All' ? (
+              <button type="button" onClick={() => setAmountRange('All')}>
+                {amountRange === 'under-50'
+                  ? 'Under $50K'
+                  : amountRange === '50-100'
+                    ? '$50K–$99K'
+                    : '$100K+'}{' '}
+                <b>×</b>
+              </button>
+            ) : null}
+            {minimumMatch !== 'All' ? (
+              <button type="button" onClick={() => setMinimumMatch('All')}>
+                {minimumMatch}%+ match <b>×</b>
+              </button>
+            ) : null}
+            {deadlineType !== 'All' ? (
+              <button type="button" onClick={() => setDeadlineType('All')}>
+                {deadlineType === 'Open' ? 'Open / rolling' : 'Fixed deadline'}{' '}
+                <b>×</b>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="funding-directory-grid">
+          {visiblePrograms.map((program) => (
+            <article key={program.id} className="funding-directory-card">
+              <div className="funding-card-topline">
+                <span className={`funding-card-type is-${program.type.toLowerCase()}`}>
+                  {program.type}
+                </span>
+                <span className="funding-card-match">{program.match}% match</span>
+              </div>
+              <div className="funding-card-copy">
+                <small>{program.provider}</small>
+                <h2>{program.name}</h2>
+                <p>{program.location} · Deadline: {program.deadline}</p>
+              </div>
+              <div className="funding-card-value">
+                <span>Up to</span>
+                <strong>
+                  {new Intl.NumberFormat('en-CA', {
+                    style: 'currency',
+                    currency: 'CAD',
+                    maximumFractionDigits: 0,
+                  }).format(program.amount)}
+                </strong>
+              </div>
+              <footer>
+                <span title={program.sourceName}>
+                  <i className={program.sourceId ? 'is-external' : ''} />
+                  {program.sourceName ?? 'Bconomics catalog'}
+                </span>
+                <button type="button" onClick={() => setSelectedProgram(program)}>
+                  View details
+                </button>
+              </footer>
+            </article>
+          ))}
+        </div>
+
+        {visiblePrograms.length === 0 ? (
+          <div className="workspace-empty">
+            <span><Glyph type="search" /></span>
+            <strong>No matching funding programs</strong>
+            <p>Try another search term or include all funding types.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('')
+                clearFundingFilters()
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : null}
+      </section>
+
+      {selectedProgram ? (
+        <div
+          className="clone-record-dialog-backdrop"
+          role="presentation"
+          onMouseDown={() => setSelectedProgram(null)}
+        >
+          <section
+            className="clone-record-dialog funding-program-detail"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="funding-program-detail-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="clone-dialog-close"
+              aria-label="Close program"
+              onClick={() => setSelectedProgram(null)}
+            >
+              <Glyph type="close" />
+            </button>
+            <span className="clone-record-status">{selectedProgram.type}</span>
+            <h2 id="funding-program-detail-title">{selectedProgram.name}</h2>
+            <p>{selectedProgram.provider}</p>
+            <dl>
+              <div><dt>Maximum funding</dt><dd>${selectedProgram.amount.toLocaleString('en-CA')}</dd></div>
+              <div><dt>Deadline</dt><dd>{selectedProgram.deadline}</dd></div>
+              <div><dt>Location</dt><dd>{selectedProgram.location}</dd></div>
+              <div><dt>Data source</dt><dd>{selectedProgram.sourceName}</dd></div>
+            </dl>
+            <div className="funding-program-detail-actions">
+              <button
+                type="button"
+                className={
+                  savedEntries.some(
+                    (entry) => entry.programId === selectedProgram.id,
+                  )
+                    ? 'is-saved'
+                    : ''
+                }
+                onClick={() => toggleSavedProgram(selectedProgram.id)}
+              >
+                {savedEntries.some(
+                  (entry) => entry.programId === selectedProgram.id,
+                )
+                  ? 'Saved to shortlist'
+                  : 'Save program'}
+              </button>
+              <Link
+                to="/quick-generate"
+                onClick={() =>
+                  setPersistentItem(
+                    selectedFundingProgramStorageKey,
+                    JSON.stringify(selectedProgram),
+                  )
+                }
+              >
+                Use in Quick Generate
+              </Link>
+              {selectedProgram.url ? (
+                <a href={selectedProgram.url} target="_blank" rel="noreferrer">
+                  Official program site
+                </a>
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+const selectedTemplateStorageKey = 'bconomics-selected-template-v1'
+
+function TemplatesPage() {
+  const { config } = usePlatformConfig()
+  const enabledSourceIds = config.dataSources
+    .filter((source) => source.enabled && source.module === 'templates')
+    .map((source) => source.id)
+  const synchronizedTemplates = loadResourceRecords('templates', enabledSourceIds)
+  const templates = loadTemplateCatalog(synchronizedTemplates)
+  const [query, setQuery] = useState('')
+  const [scope, setScope] = useState<'All' | 'Featured' | 'Free' | 'Pro'>('All')
+  const [filtersOpen, setFiltersOpen] = useState(true)
+  const [category, setCategory] = useState('All')
+  const [format, setFormat] = useState<'All' | TemplateFormat>('All')
+  const [audience, setAudience] = useState('All')
+  const [sourceName, setSourceName] = useState('All')
+  const [sort, setSort] = useState<'Most used' | 'Recently updated' | 'A–Z'>(
+    'Most used',
+  )
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateRecord | null>(
+    null,
+  )
+  const categories = [...new Set(templates.map((template) => template.category))].sort()
+  const audiences = [...new Set(templates.map((template) => template.audience))].sort()
+  const sources = [...new Set(templates.map((template) => template.sourceName))].sort()
+  const visibleTemplates = templates
+    .filter((template) => {
+      const matchesQuery =
+        `${template.title} ${template.description} ${template.category} ${template.format} ${template.sourceName}`
+          .toLowerCase()
+          .includes(query.trim().toLowerCase())
+      const matchesScope =
+        scope === 'All' ||
+        (scope === 'Featured' && template.featured) ||
+        (scope === 'Free' && template.tier === 'Free') ||
+        (scope === 'Pro' && template.tier === 'Pro')
+      return (
+        matchesQuery &&
+        matchesScope &&
+        (category === 'All' || template.category === category) &&
+        (format === 'All' || template.format === format) &&
+        (audience === 'All' || template.audience === audience) &&
+        (sourceName === 'All' || template.sourceName === sourceName)
+      )
+    })
+    .sort((left, right) => {
+      if (sort === 'A–Z') return left.title.localeCompare(right.title)
+      if (sort === 'Recently updated') {
+        return templates.indexOf(left) - templates.indexOf(right)
+      }
+      return right.uses - left.uses
+    })
+  const activeFilterCount = [
+    scope !== 'All',
+    category !== 'All',
+    format !== 'All',
+    audience !== 'All',
+    sourceName !== 'All',
+  ].filter(Boolean).length
+  const connectedSources = config.dataSources.filter(
+    (source) =>
+      source.module === 'templates' &&
+      source.enabled &&
+      source.status === 'connected',
+  ).length
+  const totalUses = templates.reduce((sum, template) => sum + template.uses, 0)
+
+  function clearTemplateFilters() {
+    setScope('All')
+    setCategory('All')
+    setFormat('All')
+    setAudience('All')
+    setSourceName('All')
+  }
+
+  function stageTemplate(template: TemplateRecord) {
+    setPersistentItem(
+      selectedTemplateStorageKey,
+      JSON.stringify(template),
+    )
+  }
+
+  return (
+    <section className="template-directory">
+      <header className="funding-directory-header template-directory-header">
+        <div>
+          <p className="workspace-eyebrow">Template library</p>
+          <h1>Start with a proven structure.</h1>
+          <p>
+            Use funding-ready business plans, application narratives, forecasts,
+            and checklists from every source enabled by your administrator.
+          </p>
+        </div>
+        <Link to="/admin#data-sources" className="funding-directory-admin">
+          <Glyph type="settings" />
+          Manage data sources
+        </Link>
+      </header>
+
+      <div className="funding-directory-metrics template-directory-metrics">
+        <article>
+          <span>Available templates</span>
+          <strong>{templates.length}</strong>
+          <small>Across all active libraries</small>
+        </article>
+        <article>
+          <span>Community usage</span>
+          <strong>
+            {new Intl.NumberFormat('en-CA', {
+              notation: 'compact',
+              maximumFractionDigits: 1,
+            }).format(totalUses)}
+          </strong>
+          <small>Template starts</small>
+        </article>
+        <article>
+          <span>Free templates</span>
+          <strong>{templates.filter((template) => template.tier === 'Free').length}</strong>
+          <small>Ready to use immediately</small>
+        </article>
+        <article className="is-source-metric">
+          <span>Connected data sources</span>
+          <strong>{connectedSources}</strong>
+          <small>
+            {
+              config.dataSources.filter(
+                (source) => source.module === 'templates' && source.enabled,
+              ).length
+            }{' '}
+            enabled
+          </small>
+        </article>
+      </div>
+
+      <section className="funding-directory-results template-directory-results">
+        <div className="funding-directory-toolbar template-directory-toolbar">
+          <label>
+            <Glyph type="search" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search templates, formats, categories, or sources"
+            />
+          </label>
+          <div>
+            {(['All', 'Featured', 'Free', 'Pro'] as const).map((scopeName) => (
+              <button
+                key={scopeName}
+                type="button"
+                className={scope === scopeName ? 'is-selected' : ''}
+                aria-pressed={scope === scopeName}
+                onClick={() => setScope(scopeName)}
+              >
+                {scopeName}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className={`funding-filter-toggle ${
+              filtersOpen || activeFilterCount > 0 ? 'is-active' : ''
+            }`}
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <Glyph type="settings" />
+            Filters
+            {activeFilterCount ? <b>{activeFilterCount}</b> : null}
+          </button>
+          <span>
+            {visibleTemplates.length}{' '}
+            {visibleTemplates.length === 1 ? 'template' : 'templates'}
+          </span>
+        </div>
+
+        {filtersOpen ? (
+          <div className="funding-directory-filter-panel">
+            <div className="funding-filter-heading">
+              <div>
+                <strong>Refine the library</strong>
+                <span>Find the right starting point for this document package.</span>
+              </div>
+              {activeFilterCount ? (
+                <button type="button" onClick={clearTemplateFilters}>Clear all</button>
+              ) : null}
+            </div>
+            <div className="funding-filter-fields template-filter-fields">
+              <label>
+                <span>Category</span>
+                <select
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                >
+                  <option value="All">All categories</option>
+                  {categories.map((categoryName) => (
+                    <option key={categoryName}>{categoryName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Format</span>
+                <select
+                  value={format}
+                  onChange={(event) =>
+                    setFormat(event.target.value as 'All' | TemplateFormat)
+                  }
+                >
+                  <option value="All">All formats</option>
+                  {(['DOCX', 'XLSX', 'PDF', 'Notion'] as const).map(
+                    (formatName) => (
+                      <option key={formatName}>{formatName}</option>
+                    ),
+                  )}
+                </select>
+              </label>
+              <label>
+                <span>Best for</span>
+                <select
+                  value={audience}
+                  onChange={(event) => setAudience(event.target.value)}
+                >
+                  <option value="All">All audiences</option>
+                  {audiences.map((audienceName) => (
+                    <option key={audienceName}>{audienceName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Data source</span>
+                <select
+                  value={sourceName}
+                  onChange={(event) => setSourceName(event.target.value)}
+                >
+                  <option value="All">All sources</option>
+                  {sources.map((source) => (
+                    <option key={source}>{source}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Sort by</span>
+                <select
+                  value={sort}
+                  onChange={(event) =>
+                    setSort(
+                      event.target.value as
+                        | 'Most used'
+                        | 'Recently updated'
+                        | 'A–Z',
+                    )
+                  }
+                >
+                  <option>Most used</option>
+                  <option>Recently updated</option>
+                  <option>A–Z</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        ) : null}
+
+        {activeFilterCount ? (
+          <div className="funding-active-filters">
+            <span>{activeFilterCount} active</span>
+            {scope !== 'All' ? (
+              <button type="button" onClick={() => setScope('All')}>
+                {scope} <b>×</b>
+              </button>
+            ) : null}
+            {category !== 'All' ? (
+              <button type="button" onClick={() => setCategory('All')}>
+                {category} <b>×</b>
+              </button>
+            ) : null}
+            {format !== 'All' ? (
+              <button type="button" onClick={() => setFormat('All')}>
+                {format} <b>×</b>
+              </button>
+            ) : null}
+            {audience !== 'All' ? (
+              <button type="button" onClick={() => setAudience('All')}>
+                {audience} <b>×</b>
+              </button>
+            ) : null}
+            {sourceName !== 'All' ? (
+              <button type="button" onClick={() => setSourceName('All')}>
+                {sourceName} <b>×</b>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="template-directory-grid">
+          {visibleTemplates.map((template) => (
+            <article key={template.id} className="template-directory-card">
+              <div className="template-card-topline">
+                <span className={`template-format is-${template.format.toLowerCase()}`}>
+                  {template.format}
+                </span>
+                <span className={`template-tier is-${template.tier.toLowerCase()}`}>
+                  {template.tier}
+                </span>
+              </div>
+              <div className="template-card-icon">
+                <Glyph type={template.format === 'XLSX' ? 'grid' : 'file'} />
+              </div>
+              <div className="template-card-copy">
+                <small>{template.category}</small>
+                <h2>{template.title}</h2>
+                <p>{template.description}</p>
+              </div>
+              <div className="template-card-meta">
+                <span>{template.audience}</span>
+                <span>
+                  {template.uses
+                    ? `${template.uses.toLocaleString('en-CA')} uses`
+                    : 'Synced resource'}
+                </span>
+              </div>
+              <footer>
+                <span title={template.sourceName}>
+                  <i className={template.sourceId ? 'is-external' : ''} />
+                  {template.sourceName}
+                </span>
+                <div>
+                  <button type="button" onClick={() => setSelectedTemplate(template)}>
+                    Preview
+                  </button>
+                  <Link to="/quick-generate" onClick={() => stageTemplate(template)}>
+                    Use template
+                  </Link>
+                </div>
+              </footer>
+            </article>
+          ))}
+        </div>
+
+        {visibleTemplates.length === 0 ? (
+          <div className="workspace-empty">
+            <span><Glyph type="search" /></span>
+            <strong>No matching templates</strong>
+            <p>Try another search term or reset the active filters.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('')
+                clearTemplateFilters()
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : null}
+      </section>
+
+      {selectedTemplate ? (
+        <div
+          className="clone-record-dialog-backdrop"
+          role="presentation"
+          onMouseDown={() => setSelectedTemplate(null)}
+        >
+          <section
+            className="clone-record-dialog template-preview-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="template-preview-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="clone-dialog-close"
+              aria-label="Close template preview"
+              onClick={() => setSelectedTemplate(null)}
+            >
+              <Glyph type="close" />
+            </button>
+            <span className="clone-record-status">{selectedTemplate.format}</span>
+            <div className="template-preview-visual">
+              <span><Glyph type={selectedTemplate.format === 'XLSX' ? 'grid' : 'file'} /></span>
+              <div>
+                <i />
+                <i />
+                <i />
+                <i />
+              </div>
+            </div>
+            <h2 id="template-preview-title">{selectedTemplate.title}</h2>
+            <p>{selectedTemplate.description}</p>
+            <dl>
+              <div><dt>Category</dt><dd>{selectedTemplate.category}</dd></div>
+              <div><dt>Format</dt><dd>{selectedTemplate.format}</dd></div>
+              <div><dt>Best for</dt><dd>{selectedTemplate.audience}</dd></div>
+              <div><dt>Access</dt><dd>{selectedTemplate.tier}</dd></div>
+              <div><dt>Source</dt><dd>{selectedTemplate.sourceName}</dd></div>
+              <div><dt>Updated</dt><dd>{selectedTemplate.updatedAt}</dd></div>
+            </dl>
+            <div className="template-preview-actions">
+              {selectedTemplate.url ? (
+                <a href={selectedTemplate.url} target="_blank" rel="noreferrer">
+                  View source
+                </a>
+              ) : (
+                <button type="button" onClick={() => setSelectedTemplate(null)}>
+                  Close
+                </button>
+              )}
+              <Link to="/quick-generate" onClick={() => stageTemplate(selectedTemplate)}>
+                Use this template
+              </Link>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+const pinnedSocialResourceStorageKey = 'bconomics-pinned-social-resources-v1'
+
+function SocialResourcesPage() {
+  const { config } = usePlatformConfig()
+  const enabledSourceIds = config.dataSources
+    .filter((source) => source.enabled && source.module === 'social-resources')
+    .map((source) => source.id)
+  const synchronizedResources = loadResourceRecords(
+    'social-resources',
+    enabledSourceIds,
+  )
+  const resources = loadSocialResourceCatalog(synchronizedResources)
+  const [query, setQuery] = useState('')
+  const [scope, setScope] = useState<
+    'All' | 'People' | 'Organizations' | 'Verified'
+  >('All')
+  const [filtersOpen, setFiltersOpen] = useState(true)
+  const [resourceType, setResourceType] = useState<'All' | SocialResourceType>(
+    'All',
+  )
+  const [location, setLocation] = useState('All')
+  const [stage, setStage] = useState('All')
+  const [sector, setSector] = useState('All')
+  const [sourceName, setSourceName] = useState('All')
+  const [sort, setSort] = useState<'Verified first' | 'Recently updated' | 'A–Z'>(
+    'Verified first',
+  )
+  const [selectedResource, setSelectedResource] =
+    useState<SocialResourceRecord | null>(null)
+  const [pinnedResourceIds, setPinnedResourceIds] = useState<string[]>(() => {
+    try {
+      const saved = window.localStorage.getItem(pinnedSocialResourceStorageKey)
+      return saved ? (JSON.parse(saved) as string[]) : []
+    } catch {
+      return []
+    }
+  })
+  const [notice, setNotice] = useState('')
+  const resourceTypes = [...new Set(resources.map((resource) => resource.type))].sort()
+  const locations = [...new Set(resources.map((resource) => resource.location))].sort()
+  const stages = [...new Set(resources.flatMap((resource) => resource.stages))].sort()
+  const sectors = [...new Set(resources.flatMap((resource) => resource.sectors))].sort()
+  const sources = [...new Set(resources.map((resource) => resource.sourceName))].sort()
+  const peopleTypes: SocialResourceType[] = [
+    'Investor',
+    'Angel Investor',
+    'Advisor',
+  ]
+  const visibleResources = resources
+    .filter((resource) => {
+      const matchesQuery =
+        `${resource.name} ${resource.description} ${resource.type} ${resource.organization} ${resource.location} ${resource.sectors.join(' ')} ${resource.stages.join(' ')} ${resource.sourceName}`
+          .toLowerCase()
+          .includes(query.trim().toLowerCase())
+      const matchesScope =
+        scope === 'All' ||
+        (scope === 'People' && peopleTypes.includes(resource.type)) ||
+        (scope === 'Organizations' && !peopleTypes.includes(resource.type)) ||
+        (scope === 'Verified' && resource.verified)
+
+      return (
+        matchesQuery &&
+        matchesScope &&
+        (resourceType === 'All' || resource.type === resourceType) &&
+        (location === 'All' || resource.location === location) &&
+        (stage === 'All' || resource.stages.includes(stage)) &&
+        (sector === 'All' || resource.sectors.includes(sector)) &&
+        (sourceName === 'All' || resource.sourceName === sourceName)
+      )
+    })
+    .sort((left, right) => {
+      if (sort === 'A–Z') return left.name.localeCompare(right.name)
+      if (sort === 'Recently updated') {
+        return resources.indexOf(left) - resources.indexOf(right)
+      }
+      return Number(right.verified) - Number(left.verified)
+    })
+  const activeFilterCount = [
+    scope !== 'All',
+    resourceType !== 'All',
+    location !== 'All',
+    stage !== 'All',
+    sector !== 'All',
+    sourceName !== 'All',
+  ].filter(Boolean).length
+  const connectedSources = config.dataSources.filter(
+    (source) =>
+      source.module === 'social-resources' &&
+      source.enabled &&
+      source.status === 'connected',
+  ).length
+  const organizationCount = resources.filter(
+    (resource) => !peopleTypes.includes(resource.type),
+  ).length
+  const verifiedCount = resources.filter((resource) => resource.verified).length
+  const locationCount = new Set(resources.map((resource) => resource.location)).size
+
+  function clearSocialFilters() {
+    setScope('All')
+    setResourceType('All')
+    setLocation('All')
+    setStage('All')
+    setSector('All')
+    setSourceName('All')
+  }
+
+  function togglePinnedResource(resource: SocialResourceRecord) {
+    const isPinned = pinnedResourceIds.includes(resource.id)
+    const nextIds = isPinned
+      ? pinnedResourceIds.filter((id) => id !== resource.id)
+      : [...pinnedResourceIds, resource.id]
+    setPinnedResourceIds(nextIds)
+    setPersistentItem(
+      pinnedSocialResourceStorageKey,
+      JSON.stringify(nextIds),
+    )
+    setNotice(
+      isPinned
+        ? `${resource.name} removed from your contacts.`
+        : `${resource.name} saved to your contacts.`,
+    )
+  }
+
+  return (
+    <section className="social-directory">
+      <header className="funding-directory-header social-directory-header">
+        <div>
+          <p className="workspace-eyebrow">People & organization network</p>
+          <h1>Find the right people to move forward.</h1>
+          <p>
+            Discover investors, venture funds, advisors, accelerators, and
+            companies relevant to your business and funding stage.
+          </p>
+        </div>
+        <Link to="/admin#data-sources" className="funding-directory-admin">
+          <Glyph type="settings" />
+          Manage data sources
+        </Link>
+      </header>
+
+      {notice ? (
+        <div className="workspace-inline-notice" role="status">
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice('')} aria-label="Dismiss notice">
+            <Glyph type="close" />
+          </button>
+        </div>
+      ) : null}
+
+      <div className="funding-directory-metrics social-directory-metrics">
+        <article>
+          <span>Network records</span>
+          <strong>{resources.length}</strong>
+          <small>People and organizations</small>
+        </article>
+        <article>
+          <span>Verified profiles</span>
+          <strong>{verifiedCount}</strong>
+          <small>Reviewed by the network</small>
+        </article>
+        <article>
+          <span>Organizations</span>
+          <strong>{organizationCount}</strong>
+          <small>Funds, accelerators, and companies</small>
+        </article>
+        <article>
+          <span>Markets represented</span>
+          <strong>{locationCount}</strong>
+          <small>{connectedSources} connected data sources</small>
+        </article>
+      </div>
+
+      <section className="funding-directory-results social-directory-results">
+        <div className="funding-directory-toolbar social-directory-toolbar">
+          <label>
+            <Glyph type="search" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search people, organizations, sectors, or locations"
+            />
+          </label>
+          <div>
+            {(['All', 'People', 'Organizations', 'Verified'] as const).map((scopeName) => (
+              <button
+                key={scopeName}
+                type="button"
+                className={scope === scopeName ? 'is-selected' : ''}
+                aria-pressed={scope === scopeName}
+                onClick={() => setScope(scopeName)}
+              >
+                {scopeName}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className={`funding-filter-toggle ${
+              filtersOpen || activeFilterCount > 0 ? 'is-active' : ''
+            }`}
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <Glyph type="settings" />
+            Filters
+            {activeFilterCount ? <b>{activeFilterCount}</b> : null}
+          </button>
+          <span>
+            {visibleResources.length}{' '}
+            {visibleResources.length === 1 ? 'record' : 'records'}
+          </span>
+        </div>
+
+        {filtersOpen ? (
+          <div className="funding-directory-filter-panel">
+            <div className="funding-filter-heading">
+              <div>
+                <strong>Refine the network</strong>
+                <span>Find contacts that match your sector, stage, and market.</span>
+              </div>
+              {activeFilterCount ? (
+                <button type="button" onClick={clearSocialFilters}>Clear all</button>
+              ) : null}
+            </div>
+            <div className="funding-filter-fields social-filter-fields">
+              <label>
+                <span>Profile type</span>
+                <select
+                  value={resourceType}
+                  onChange={(event) =>
+                    setResourceType(
+                      event.target.value as 'All' | SocialResourceType,
+                    )
+                  }
+                >
+                  <option value="All">All profile types</option>
+                  {resourceTypes.map((typeName) => (
+                    <option key={typeName}>{typeName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Location</span>
+                <select
+                  value={location}
+                  onChange={(event) => setLocation(event.target.value)}
+                >
+                  <option value="All">All locations</option>
+                  {locations.map((locationName) => (
+                    <option key={locationName}>{locationName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Investment stage</span>
+                <select value={stage} onChange={(event) => setStage(event.target.value)}>
+                  <option value="All">All stages</option>
+                  {stages.map((stageName) => (
+                    <option key={stageName}>{stageName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Sector</span>
+                <select value={sector} onChange={(event) => setSector(event.target.value)}>
+                  <option value="All">All sectors</option>
+                  {sectors.map((sectorName) => (
+                    <option key={sectorName}>{sectorName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Data source</span>
+                <select
+                  value={sourceName}
+                  onChange={(event) => setSourceName(event.target.value)}
+                >
+                  <option value="All">All sources</option>
+                  {sources.map((source) => (
+                    <option key={source}>{source}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Sort by</span>
+                <select
+                  value={sort}
+                  onChange={(event) =>
+                    setSort(
+                      event.target.value as
+                        | 'Verified first'
+                        | 'Recently updated'
+                        | 'A–Z',
+                    )
+                  }
+                >
+                  <option>Verified first</option>
+                  <option>Recently updated</option>
+                  <option>A–Z</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        ) : null}
+
+        {activeFilterCount ? (
+          <div className="funding-active-filters">
+            <span>{activeFilterCount} active</span>
+            {scope !== 'All' ? (
+              <button type="button" onClick={() => setScope('All')}>
+                {scope} <b>×</b>
+              </button>
+            ) : null}
+            {resourceType !== 'All' ? (
+              <button type="button" onClick={() => setResourceType('All')}>
+                {resourceType} <b>×</b>
+              </button>
+            ) : null}
+            {location !== 'All' ? (
+              <button type="button" onClick={() => setLocation('All')}>
+                {location} <b>×</b>
+              </button>
+            ) : null}
+            {stage !== 'All' ? (
+              <button type="button" onClick={() => setStage('All')}>
+                {stage} <b>×</b>
+              </button>
+            ) : null}
+            {sector !== 'All' ? (
+              <button type="button" onClick={() => setSector('All')}>
+                {sector} <b>×</b>
+              </button>
+            ) : null}
+            {sourceName !== 'All' ? (
+              <button type="button" onClick={() => setSourceName('All')}>
+                {sourceName} <b>×</b>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="social-resource-grid">
+          {visibleResources.map((resource) => {
+            const isPinned = pinnedResourceIds.includes(resource.id)
+            const typeClass = resource.type.toLowerCase().replaceAll(' ', '-')
+            const initials = resource.name
+              .split(' ')
+              .slice(0, 2)
+              .map((part) => part[0])
+              .join('')
+
+            return (
+              <article key={resource.id} className="social-resource-card">
+                <div className="social-resource-card-topline">
+                  <span className={`social-channel is-${typeClass}`}>
+                    {resource.type}
+                  </span>
+                  {resource.verified ? (
+                    <span className="social-verified">Verified</span>
+                  ) : (
+                    <span className="social-unverified">Community</span>
+                  )}
+                </div>
+                <div className={`social-profile-summary is-${typeClass}`}>
+                  <span>{initials}</span>
+                  <div>
+                    <strong>{resource.organization}</strong>
+                    <small>{resource.location}</small>
+                  </div>
+                  <b>{resource.ticket}</b>
+                </div>
+                <div className="social-resource-copy">
+                  <small>{resource.connection}</small>
+                  <h2>{resource.name}</h2>
+                  <p>{resource.description}</p>
+                </div>
+                <div className="social-resource-meta">
+                  {resource.sectors.slice(0, 2).map((resourceSector) => (
+                    <span key={resourceSector}>{resourceSector}</span>
+                  ))}
+                  <span>{resource.stages.join(' · ')}</span>
+                </div>
+                <footer>
+                  <span title={resource.sourceName}>
+                    <i className={resource.sourceId ? 'is-external' : ''} />
+                    {resource.sourceName}
+                  </span>
+                  <div>
+                    <button
+                      type="button"
+                      className={isPinned ? 'is-pinned' : ''}
+                      onClick={() => togglePinnedResource(resource)}
+                    >
+                      {isPinned ? 'Saved' : 'Save'}
+                    </button>
+                    <button type="button" onClick={() => setSelectedResource(resource)}>
+                      View profile
+                    </button>
+                  </div>
+                </footer>
+              </article>
+            )
+          })}
+        </div>
+
+        {visibleResources.length === 0 ? (
+          <div className="workspace-empty">
+            <span><Glyph type="search" /></span>
+            <strong>No matching people or organizations</strong>
+            <p>Try another search term or reset the active filters.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('')
+                clearSocialFilters()
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : null}
+      </section>
+
+      {selectedResource ? (
+        <div
+          className="clone-record-dialog-backdrop"
+          role="presentation"
+          onMouseDown={() => setSelectedResource(null)}
+        >
+          <section
+            className="clone-record-dialog social-resource-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="social-resource-dialog-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="clone-dialog-close"
+              aria-label="Close profile"
+              onClick={() => setSelectedResource(null)}
+            >
+              <Glyph type="close" />
+            </button>
+            <span className="clone-record-status">{selectedResource.type}</span>
+            <div className="social-profile-detail-header">
+              <span>
+                {selectedResource.name
+                  .split(' ')
+                  .slice(0, 2)
+                  .map((part) => part[0])
+                  .join('')}
+              </span>
+              <div>
+                <strong>{selectedResource.organization}</strong>
+                <small>{selectedResource.location}</small>
+              </div>
+              {selectedResource.verified ? <b>Verified profile</b> : null}
+            </div>
+            <h2 id="social-resource-dialog-title">{selectedResource.name}</h2>
+            <p>{selectedResource.description}</p>
+            <dl>
+              <div><dt>Profile type</dt><dd>{selectedResource.type}</dd></div>
+              <div><dt>Organization</dt><dd>{selectedResource.organization}</dd></div>
+              <div><dt>Location</dt><dd>{selectedResource.location}</dd></div>
+              <div><dt>Investment stage</dt><dd>{selectedResource.stages.join(', ')}</dd></div>
+              <div><dt>Typical ticket</dt><dd>{selectedResource.ticket}</dd></div>
+              <div><dt>Connection</dt><dd>{selectedResource.connection}</dd></div>
+              <div className="social-profile-sectors">
+                <dt>Sectors</dt>
+                <dd>{selectedResource.sectors.join(', ')}</dd>
+              </div>
+              <div><dt>Source</dt><dd>{selectedResource.sourceName}</dd></div>
+            </dl>
+            <div className="social-resource-dialog-actions">
+              {selectedResource.url ? (
+                <a href={selectedResource.url} target="_blank" rel="noreferrer">
+                  Open external profile
+                </a>
+              ) : (
+                <button type="button" onClick={() => setSelectedResource(null)}>
+                  Close profile
+                </button>
+              )}
+              <button
+                type="button"
+                className="is-primary"
+                onClick={() => togglePinnedResource(selectedResource)}
+              >
+                {pinnedResourceIds.includes(selectedResource.id)
+                  ? 'Remove from contacts'
+                  : 'Save to contacts'}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+const savedToolStorageKey = 'bconomics-saved-tools-v1'
+
+function ToolsPage() {
+  const { config } = usePlatformConfig()
+  const enabledSourceIds = config.dataSources
+    .filter((source) => source.enabled && source.module === 'tools')
+    .map((source) => source.id)
+  const tools = loadToolCatalog(loadResourceRecords('tools', enabledSourceIds))
+  const [query, setQuery] = useState('')
+  const [scope, setScope] = useState<
+    'All' | 'Featured' | 'Free plans' | 'Canada'
+  >('All')
+  const [filtersOpen, setFiltersOpen] = useState(true)
+  const [category, setCategory] = useState('All')
+  const [toolType, setToolType] = useState<'All' | ToolType>('All')
+  const [pricing, setPricing] = useState<'All' | ToolPricing>('All')
+  const [region, setRegion] = useState('All')
+  const [sourceName, setSourceName] = useState('All')
+  const [sort, setSort] = useState<'Most visited' | 'Recently updated' | 'A–Z'>(
+    'Most visited',
+  )
+  const [selectedTool, setSelectedTool] = useState<ToolRecord | null>(null)
+  const [savedToolIds, setSavedToolIds] = useState<string[]>(() => {
+    try {
+      const saved = window.localStorage.getItem(savedToolStorageKey)
+      return saved ? (JSON.parse(saved) as string[]) : []
+    } catch {
+      return []
+    }
+  })
+  const [notice, setNotice] = useState('')
+  const categories = [...new Set(tools.map((tool) => tool.category))].sort()
+  const sources = [...new Set(tools.map((tool) => tool.sourceName))].sort()
+  const visibleTools = tools
+    .filter((tool) => {
+      const matchesQuery =
+        `${tool.name} ${tool.description} ${tool.category} ${tool.bestFor} ${tool.type} ${tool.provider} ${tool.tags.join(' ')}`
+          .toLowerCase()
+          .includes(query.trim().toLowerCase())
+      const matchesScope =
+        scope === 'All' ||
+        (scope === 'Featured' && tool.featured) ||
+        (scope === 'Free plans' && tool.pricing === 'Free plan') ||
+        (scope === 'Canada' && tool.region === 'Canada')
+
+      return (
+        matchesQuery &&
+        matchesScope &&
+        (category === 'All' || tool.category === category) &&
+        (toolType === 'All' || tool.type === toolType) &&
+        (pricing === 'All' || tool.pricing === pricing) &&
+        (region === 'All' || tool.region === region) &&
+        (sourceName === 'All' || tool.sourceName === sourceName)
+      )
+    })
+    .sort((left, right) => {
+      if (sort === 'A–Z') return left.name.localeCompare(right.name)
+      if (sort === 'Recently updated') return tools.indexOf(left) - tools.indexOf(right)
+      return right.visits - left.visits
+    })
+  const activeFilterCount = [
+    scope !== 'All',
+    category !== 'All',
+    toolType !== 'All',
+    pricing !== 'All',
+    region !== 'All',
+    sourceName !== 'All',
+  ].filter(Boolean).length
+  const connectedSources = config.dataSources.filter(
+    (source) =>
+      source.module === 'tools' &&
+      source.enabled &&
+      source.status === 'connected',
+  ).length
+  const freeToolCount = tools.filter((tool) => tool.pricing === 'Free plan').length
+  const categoryCount = new Set(tools.map((tool) => tool.category)).size
+
+  function clearToolFilters() {
+    setScope('All')
+    setCategory('All')
+    setToolType('All')
+    setPricing('All')
+    setRegion('All')
+    setSourceName('All')
+  }
+
+  function toggleSavedTool(tool: ToolRecord) {
+    const isSaved = savedToolIds.includes(tool.id)
+    const nextIds = isSaved
+      ? savedToolIds.filter((id) => id !== tool.id)
+      : [...savedToolIds, tool.id]
+    setSavedToolIds(nextIds)
+    setPersistentItem(savedToolStorageKey, JSON.stringify(nextIds))
+    setNotice(
+      isSaved
+        ? `${tool.name} removed from your saved tools.`
+        : `${tool.name} saved to your founder stack.`,
+    )
+  }
+
+  return (
+    <section className="tool-directory">
+      <header className="funding-directory-header tool-directory-header">
+        <div>
+          <p className="workspace-eyebrow">Founder tools directory</p>
+          <h1>Build the stack behind your business.</h1>
+          <p>
+            Explore software, cloud services, financial platforms, and business
+            credit cards selected for entrepreneurs and growing companies.
+          </p>
+        </div>
+        <Link to="/admin#data-sources" className="funding-directory-admin">
+          <Glyph type="settings" />
+          Manage data sources
+        </Link>
+      </header>
+
+      {notice ? (
+        <div className="workspace-inline-notice" role="status">
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice('')} aria-label="Dismiss notice">
+            <Glyph type="close" />
+          </button>
+        </div>
+      ) : null}
+
+      <div className="funding-directory-metrics tool-directory-metrics">
+        <article>
+          <span>Products & services</span>
+          <strong>{tools.length}</strong>
+          <small>Across the active directory</small>
+        </article>
+        <article>
+          <span>Free plans</span>
+          <strong>{freeToolCount}</strong>
+          <small>Start without a paid plan</small>
+        </article>
+        <article>
+          <span>Business categories</span>
+          <strong>{categoryCount}</strong>
+          <small>From cloud to business banking</small>
+        </article>
+        <article>
+          <span>Connected data sources</span>
+          <strong>{connectedSources}</strong>
+          <small>
+            {
+              config.dataSources.filter(
+                (source) => source.module === 'tools' && source.enabled,
+              ).length
+            }{' '}
+            enabled
+          </small>
+        </article>
+      </div>
+
+      <div className="tool-directory-disclosure">
+        <Glyph type="spark" />
+        <p>
+          Product availability, pricing, eligibility, fees, and card terms can
+          change. Confirm current details directly with the provider before
+          purchasing or applying.
+        </p>
+      </div>
+
+      <section className="funding-directory-results tool-directory-results">
+        <div className="funding-directory-toolbar tool-directory-toolbar">
+          <label>
+            <Glyph type="search" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search software, cloud services, cards, or use cases"
+            />
+          </label>
+          <div>
+            {(['All', 'Featured', 'Free plans', 'Canada'] as const).map(
+              (scopeName) => (
+                <button
+                  key={scopeName}
+                  type="button"
+                  className={scope === scopeName ? 'is-selected' : ''}
+                  aria-pressed={scope === scopeName}
+                  onClick={() => setScope(scopeName)}
+                >
+                  {scopeName}
+                </button>
+              ),
+            )}
+          </div>
+          <button
+            type="button"
+            className={`funding-filter-toggle ${
+              filtersOpen || activeFilterCount > 0 ? 'is-active' : ''
+            }`}
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <Glyph type="settings" />
+            Filters
+            {activeFilterCount ? <b>{activeFilterCount}</b> : null}
+          </button>
+          <span>
+            {visibleTools.length} {visibleTools.length === 1 ? 'product' : 'products'}
+          </span>
+        </div>
+
+        {filtersOpen ? (
+          <div className="funding-directory-filter-panel">
+            <div className="funding-filter-heading">
+              <div>
+                <strong>Refine the directory</strong>
+                <span>Find products that fit your workflow, budget, and market.</span>
+              </div>
+              {activeFilterCount ? (
+                <button type="button" onClick={clearToolFilters}>Clear all</button>
+              ) : null}
+            </div>
+            <div className="funding-filter-fields tool-filter-fields">
+              <label>
+                <span>Category</span>
+                <select
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                >
+                  <option value="All">All categories</option>
+                  {categories.map((categoryName) => (
+                    <option key={categoryName}>{categoryName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Product type</span>
+                <select
+                  value={toolType}
+                  onChange={(event) =>
+                    setToolType(event.target.value as 'All' | ToolType)
+                  }
+                >
+                  <option value="All">All product types</option>
+                  {(
+                    [
+                      'Software',
+                      'Cloud Service',
+                      'Financial Service',
+                      'Credit Card',
+                    ] as const
+                  ).map((typeName) => (
+                    <option key={typeName}>{typeName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Pricing</span>
+                <select
+                  value={pricing}
+                  onChange={(event) =>
+                    setPricing(event.target.value as 'All' | ToolPricing)
+                  }
+                >
+                  <option value="All">All pricing models</option>
+                  {(
+                    ['Free plan', 'Paid plans', 'Usage-based', 'Compare offers'] as const
+                  ).map((pricingName) => (
+                    <option key={pricingName}>{pricingName}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Availability</span>
+                <select
+                  value={region}
+                  onChange={(event) => setRegion(event.target.value)}
+                >
+                  <option value="All">All regions</option>
+                  <option>Canada</option>
+                  <option>Global</option>
+                </select>
+              </label>
+              <label>
+                <span>Data source</span>
+                <select
+                  value={sourceName}
+                  onChange={(event) => setSourceName(event.target.value)}
+                >
+                  <option value="All">All sources</option>
+                  {sources.map((source) => (
+                    <option key={source}>{source}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Sort by</span>
+                <select
+                  value={sort}
+                  onChange={(event) =>
+                    setSort(
+                      event.target.value as
+                        | 'Most visited'
+                        | 'Recently updated'
+                        | 'A–Z',
+                    )
+                  }
+                >
+                  <option>Most visited</option>
+                  <option>Recently updated</option>
+                  <option>A–Z</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        ) : null}
+
+        {activeFilterCount ? (
+          <div className="funding-active-filters">
+            <span>{activeFilterCount} active</span>
+            {scope !== 'All' ? (
+              <button type="button" onClick={() => setScope('All')}>
+                {scope} <b>×</b>
+              </button>
+            ) : null}
+            {category !== 'All' ? (
+              <button type="button" onClick={() => setCategory('All')}>
+                {category} <b>×</b>
+              </button>
+            ) : null}
+            {toolType !== 'All' ? (
+              <button type="button" onClick={() => setToolType('All')}>
+                {toolType} <b>×</b>
+              </button>
+            ) : null}
+            {pricing !== 'All' ? (
+              <button type="button" onClick={() => setPricing('All')}>
+                {pricing} <b>×</b>
+              </button>
+            ) : null}
+            {region !== 'All' ? (
+              <button type="button" onClick={() => setRegion('All')}>
+                {region} <b>×</b>
+              </button>
+            ) : null}
+            {sourceName !== 'All' ? (
+              <button type="button" onClick={() => setSourceName('All')}>
+                {sourceName} <b>×</b>
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="tool-directory-grid">
+          {visibleTools.map((tool) => {
+            const isSaved = savedToolIds.includes(tool.id)
+            const typeClass = tool.type.toLowerCase().replaceAll(' ', '-')
+            const initials = tool.provider
+              .split(' ')
+              .slice(0, 2)
+              .map((part) => part[0])
+              .join('')
+
+            return (
+              <article key={tool.id} className="tool-directory-card">
+                <div className="tool-card-topline">
+                  <span className={`tool-type is-${typeClass}`}>{tool.type}</span>
+                  <span className={`tool-pricing is-${tool.pricing.toLowerCase().replaceAll(' ', '-')}`}>
+                    {tool.pricing}
+                  </span>
+                </div>
+                <div className={`tool-provider is-${typeClass}`}>
+                  <span>{initials}</span>
+                  <div>
+                    <strong>{tool.provider}</strong>
+                    <small>{tool.region}</small>
+                  </div>
+                  {tool.partnerOffer ? <b>Partner offer</b> : null}
+                </div>
+                <div className="tool-card-copy">
+                  <small>{tool.category}</small>
+                  <h2>{tool.name}</h2>
+                  <p>{tool.description}</p>
+                </div>
+                <div className="tool-card-tags">
+                  {tool.tags.slice(0, 3).map((tag) => (
+                    <span key={tag}>{tag}</span>
+                  ))}
+                </div>
+                <footer>
+                  <span title={tool.sourceName}>
+                    <i className={tool.sourceId ? 'is-external' : ''} />
+                    {tool.sourceName}
+                  </span>
+                  <div>
+                    <button
+                      type="button"
+                      className={isSaved ? 'is-saved' : ''}
+                      onClick={() => toggleSavedTool(tool)}
+                    >
+                      {isSaved ? 'Saved' : 'Save'}
+                    </button>
+                    <button type="button" onClick={() => setSelectedTool(tool)}>
+                      Details
+                    </button>
+                    <a href={tool.url} target="_blank" rel="noreferrer">
+                      Visit
+                    </a>
+                  </div>
+                </footer>
+              </article>
+            )
+          })}
+        </div>
+
+        {visibleTools.length === 0 ? (
+          <div className="workspace-empty">
+            <span><Glyph type="search" /></span>
+            <strong>No matching products</strong>
+            <p>Try another search term or reset the active filters.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('')
+                clearToolFilters()
+              }}
+            >
+              Clear filters
+            </button>
+          </div>
+        ) : null}
+      </section>
+
+      {selectedTool ? (
+        <div
+          className="clone-record-dialog-backdrop"
+          role="presentation"
+          onMouseDown={() => setSelectedTool(null)}
+        >
+          <section
+            className="clone-record-dialog tool-detail-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tool-detail-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="clone-dialog-close"
+              aria-label="Close product details"
+              onClick={() => setSelectedTool(null)}
+            >
+              <Glyph type="close" />
+            </button>
+            <span className="clone-record-status">{selectedTool.type}</span>
+            <div className="tool-detail-provider">
+              <span>
+                {selectedTool.provider
+                  .split(' ')
+                  .slice(0, 2)
+                  .map((part) => part[0])
+                  .join('')}
+              </span>
+              <div>
+                <strong>{selectedTool.provider}</strong>
+                <small>{selectedTool.category}</small>
+              </div>
+              <b>{selectedTool.pricing}</b>
+            </div>
+            <h2 id="tool-detail-title">{selectedTool.name}</h2>
+            <p>{selectedTool.description}</p>
+            <dl>
+              <div><dt>Product type</dt><dd>{selectedTool.type}</dd></div>
+              <div><dt>Best for</dt><dd>{selectedTool.bestFor}</dd></div>
+              <div><dt>Availability</dt><dd>{selectedTool.region}</dd></div>
+              <div><dt>Pricing model</dt><dd>{selectedTool.pricing}</dd></div>
+              <div><dt>Provider</dt><dd>{selectedTool.provider}</dd></div>
+              <div><dt>Data source</dt><dd>{selectedTool.sourceName}</dd></div>
+            </dl>
+            <div className="tool-detail-actions">
+              <button type="button" onClick={() => toggleSavedTool(selectedTool)}>
+                {savedToolIds.includes(selectedTool.id)
+                  ? 'Remove from saved tools'
+                  : 'Save to founder stack'}
+              </button>
+              <a href={selectedTool.url} target="_blank" rel="noreferrer">
+                Visit provider
+              </a>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+type WorkspaceKind =
+  | 'Founder workspace'
+  | 'Partner workspace'
+  | 'Client workspace'
+
+type WorkspaceRecord = {
+  id: string
+  name: string
+  kind: WorkspaceKind
+}
+
+const workspaceStorageKey = 'bconomics-workspaces-v2'
+const activeWorkspaceStorageKey = 'bconomics-active-workspace-v2'
+const defaultWorkspaces: WorkspaceRecord[] = [
+  {
+    id: 'community-workspace',
+    name: 'Community workspace',
+    kind: 'Founder workspace',
+  },
+]
+
+function loadWorkspaceRecords(): WorkspaceRecord[] {
+  if (typeof window === 'undefined') return defaultWorkspaces
+
+  try {
+    const saved = window.localStorage.getItem(workspaceStorageKey)
+    if (!saved) return defaultWorkspaces
+
+    const parsed = JSON.parse(saved) as WorkspaceRecord[]
+    return Array.isArray(parsed) && parsed.length > 0
+      ? parsed
+      : defaultWorkspaces
+  } catch {
+    return defaultWorkspaces
+  }
+}
+
+function loadActiveWorkspaceId(workspaces: WorkspaceRecord[]) {
+  if (typeof window === 'undefined') return workspaces[0]?.id ?? ''
+
+  const saved = window.localStorage.getItem(activeWorkspaceStorageKey)
+  return workspaces.some((workspace) => workspace.id === saved)
+    ? (saved as string)
+    : (workspaces[0]?.id ?? '')
+}
+
+function getWorkspaceInitials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase() || 'WS'
+  )
+}
+
+type SettingsSection =
+  | 'profile'
+  | 'workspace'
+  | 'notifications'
+  | 'security'
+  | 'billing'
+
+type UserSettings = {
+  fullName: string
+  email: string
+  phone: string
+  role: string
+  defaultCompanyId: string
+  timezone: string
+  language: string
+  currency: string
+  weeklyDigest: boolean
+  deadlineReminders: boolean
+  productUpdates: boolean
+  securityAlerts: boolean
+  twoFactor: boolean
+  sessionTimeout: string
+  billingCycle: 'monthly' | 'annual'
+}
+
+const userSettingsStorageKey = 'bconomics-user-settings-v1'
+
+const defaultUserSettings: UserSettings = {
+  fullName: 'Alex Morgan',
+  email: 'alex@northstarfoods.ca',
+  phone: '+1 416 555 0198',
+  role: 'Workspace Admin',
+  defaultCompanyId: 'northstar-foods',
+  timezone: 'America/Toronto',
+  language: 'English',
+  currency: 'CAD',
+  weeklyDigest: true,
+  deadlineReminders: true,
+  productUpdates: false,
+  securityAlerts: true,
+  twoFactor: false,
+  sessionTimeout: '30 minutes',
+  billingCycle: 'monthly',
+}
+
+function loadUserSettings() {
+  try {
+    const saved = window.localStorage.getItem(userSettingsStorageKey)
+    return saved
+      ? { ...defaultUserSettings, ...(JSON.parse(saved) as Partial<UserSettings>) }
+      : defaultUserSettings
+  } catch {
+    return defaultUserSettings
+  }
+}
+
+function SettingsPage() {
+  const { config } = usePlatformConfig()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const companies = loadCompanyRecords()
+  const initialHash = window.location.hash.slice(1)
+  const [activeSection, setActiveSection] = useState<SettingsSection>(
+    ['profile', 'workspace', 'notifications', 'security', 'billing'].includes(
+      initialHash,
+    )
+      ? (initialHash as SettingsSection)
+      : 'profile',
+  )
+  const [settings, setSettings] = useState<UserSettings>(loadUserSettings)
+  const [notice, setNotice] = useState('')
+  const sectionItems: Array<{
+    id: SettingsSection
+    label: string
+    description: string
+    icon: DashboardGlyph
+  }> = [
+    {
+      id: 'profile',
+      label: 'Profile',
+      description: 'Identity and contact details',
+      icon: 'user',
+    },
+    {
+      id: 'workspace',
+      label: 'Workspace',
+      description: 'Defaults and regional settings',
+      icon: 'grid',
+    },
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      description: 'Email and product alerts',
+      icon: 'spark',
+    },
+    {
+      id: 'security',
+      label: 'Security',
+      description: 'Password and active sessions',
+      icon: 'settings',
+    },
+    {
+      id: 'billing',
+      label: 'Billing & Subscription',
+      description: 'Plan, payments, and invoices',
+      icon: 'file',
+    },
+  ]
+  const currentPlanPrice =
+    settings.billingCycle === 'annual'
+      ? config.payments.annualPrice
+      : config.payments.monthlyPrice
+
+  useEffect(() => {
+    const hashSection = location.hash.slice(1)
+    if (
+      ['profile', 'workspace', 'notifications', 'security', 'billing'].includes(
+        hashSection,
+      )
+    ) {
+      setActiveSection(hashSection as SettingsSection)
+    }
+  }, [location.hash])
+
+  function updateSetting<Key extends keyof UserSettings>(
+    key: Key,
+    value: UserSettings[Key],
+  ) {
+    setSettings((current) => ({ ...current, [key]: value }))
+  }
+
+  function selectSection(section: SettingsSection) {
+    setActiveSection(section)
+    navigate(`/settings#${section}`, { replace: true })
+    setNotice('')
+  }
+
+  function saveSettings() {
+    setPersistentItem(userSettingsStorageKey, JSON.stringify(settings))
+    setNotice('Your settings have been saved.')
+  }
+
+  return (
+    <section className="settings-centre">
+      <header className="settings-centre-header">
+        <div>
+          <p className="workspace-eyebrow">Account centre</p>
+          <h1>Settings, without the scavenger hunt.</h1>
+          <p>
+            Manage your profile, workspace preferences, security, and
+            subscription from one place.
+          </p>
+        </div>
+        <button type="button" className="workspace-primary-action" onClick={saveSettings}>
+          <Glyph type="spark" />
+          Save changes
+        </button>
+      </header>
+
+      {notice ? (
+        <div className="workspace-inline-notice settings-notice" role="status">
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice('')} aria-label="Dismiss notice">
+            <Glyph type="close" />
+          </button>
+        </div>
+      ) : null}
+
+      <div className="settings-overview">
+        <article>
+          <span className="settings-overview-icon"><Glyph type="file" /></span>
+          <div><small>Current plan</small><strong>Partner Pro</strong></div>
+          <b>Active</b>
+        </article>
+        <article>
+          <span className="settings-overview-icon"><Glyph type="grid" /></span>
+          <div>
+            <small>Default company</small>
+            <strong>
+              {companies.find((company) => company.id === settings.defaultCompanyId)
+                ?.name ?? 'Not selected'}
+            </strong>
+          </div>
+          <b>{companies.length} companies</b>
+        </article>
+        <article>
+          <span className="settings-overview-icon"><Glyph type="settings" /></span>
+          <div><small>Account security</small><strong>{settings.twoFactor ? 'Strong' : 'Good'}</strong></div>
+          <b>{settings.twoFactor ? '2FA on' : '2FA recommended'}</b>
+        </article>
+      </div>
+
+      <div className="settings-layout">
+        <nav className="settings-section-nav" aria-label="Settings sections">
+          <span>Account settings</span>
+          {sectionItems.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={activeSection === item.id ? 'is-active' : ''}
+              aria-current={activeSection === item.id ? 'page' : undefined}
+              onClick={() => selectSection(item.id)}
+            >
+              <i><Glyph type={item.icon} /></i>
+              <span><strong>{item.label}</strong><small>{item.description}</small></span>
+              <Glyph type="arrow" />
+            </button>
+          ))}
+          <div className="settings-support-card">
+            <span><Glyph type="spark" /></span>
+            <strong>Need help?</strong>
+            <p>Contact our support team for account or billing questions.</p>
+            <a href={`mailto:${config.supportEmail}`}>Contact support</a>
+          </div>
+        </nav>
+
+        <div className="settings-panel">
+          {activeSection === 'profile' ? (
+            <section className="settings-section">
+              <header>
+                <div><span>Personal profile</span><h2>Your account identity</h2></div>
+                <p>Used for workspace activity, applications, and support.</p>
+              </header>
+              <div className="settings-profile-hero">
+                <span>AM</span>
+                <div><strong>{settings.fullName}</strong><small>{settings.role}</small></div>
+                <button type="button" onClick={() => setNotice('Profile photo upload is ready for backend storage.')}>
+                  Change photo
+                </button>
+              </div>
+              <div className="settings-form-grid">
+                <label><span>Full name</span><input value={settings.fullName} onChange={(event) => updateSetting('fullName', event.target.value)} /></label>
+                <label><span>Role</span><input value={settings.role} onChange={(event) => updateSetting('role', event.target.value)} /></label>
+                <label><span>Email address</span><input type="email" value={settings.email} onChange={(event) => updateSetting('email', event.target.value)} /></label>
+                <label><span>Phone number</span><input value={settings.phone} onChange={(event) => updateSetting('phone', event.target.value)} /></label>
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === 'workspace' ? (
+            <section className="settings-section">
+              <header>
+                <div><span>Workspace defaults</span><h2>Start every workflow correctly</h2></div>
+                <p>Choose the company and regional preferences used by default.</p>
+              </header>
+              <div className="settings-form-grid">
+                <label className="is-wide">
+                  <span>Default company</span>
+                  <select value={settings.defaultCompanyId} onChange={(event) => updateSetting('defaultCompanyId', event.target.value)}>
+                    {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+                  </select>
+                  <small>Used by Quick Generate and program matching.</small>
+                </label>
+                <label><span>Timezone</span><select value={settings.timezone} onChange={(event) => updateSetting('timezone', event.target.value)}><option>America/Toronto</option><option>America/Vancouver</option><option>America/Halifax</option></select></label>
+                <label><span>Language</span><select value={settings.language} onChange={(event) => updateSetting('language', event.target.value)}><option>English</option><option>French</option></select></label>
+                <label><span>Default currency</span><select value={settings.currency} onChange={(event) => updateSetting('currency', event.target.value)}><option>CAD</option><option>USD</option></select></label>
+              </div>
+              <div className="settings-company-preview">
+                <span>{companies.find((company) => company.id === settings.defaultCompanyId)?.name.slice(0, 2).toUpperCase() ?? 'CO'}</span>
+                <div><strong>{companies.find((company) => company.id === settings.defaultCompanyId)?.name ?? 'Select a company'}</strong><small>{companies.find((company) => company.id === settings.defaultCompanyId)?.industry ?? 'No industry selected'}</small></div>
+                <Link to="/my-company">Manage companies</Link>
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === 'notifications' ? (
+            <section className="settings-section">
+              <header>
+                <div><span>Notification preferences</span><h2>Stay informed, not overwhelmed</h2></div>
+                <p>Choose which account and funding updates reach your inbox.</p>
+              </header>
+              <div className="settings-toggle-list">
+                {[
+                  { key: 'deadlineReminders' as const, title: 'Deadline reminders', copy: 'Upcoming application deadlines and overdue tasks.' },
+                  { key: 'weeklyDigest' as const, title: 'Weekly workspace digest', copy: 'Funding matches, score changes, and application progress.' },
+                  { key: 'securityAlerts' as const, title: 'Security alerts', copy: 'New sessions, password changes, and sensitive account activity.' },
+                  { key: 'productUpdates' as const, title: 'Product updates', copy: 'New Bconomics features, templates, and platform announcements.' },
+                ].map((preference) => (
+                  <label key={preference.key}>
+                    <span><strong>{preference.title}</strong><small>{preference.copy}</small></span>
+                    <input type="checkbox" checked={settings[preference.key]} onChange={(event) => updateSetting(preference.key, event.target.checked)} />
+                    <i />
+                  </label>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === 'security' ? (
+            <section className="settings-section">
+              <header>
+                <div><span>Account security</span><h2>Protect access to your workspace</h2></div>
+                <p>Manage authentication and review active sessions.</p>
+              </header>
+              <div className="settings-security-card">
+                <span><Glyph type="settings" /></span>
+                <div><strong>Two-factor authentication</strong><p>Add an authenticator step when signing in.</p></div>
+                <label><input type="checkbox" checked={settings.twoFactor} onChange={(event) => updateSetting('twoFactor', event.target.checked)} /><i /></label>
+              </div>
+              <div className="settings-form-grid">
+                <label><span>Automatic sign-out</span><select value={settings.sessionTimeout} onChange={(event) => updateSetting('sessionTimeout', event.target.value)}><option>15 minutes</option><option>30 minutes</option><option>1 hour</option><option>4 hours</option></select></label>
+                <label><span>Password</span><button type="button" className="settings-field-button" onClick={() => setNotice('A password reset link is ready to be sent to your email.')}>Send reset link</button></label>
+              </div>
+              <div className="settings-sessions">
+                <div><span><Glyph type="grid" /></span><p><strong>Chrome on macOS</strong><small>Toronto, Canada · Current session</small></p><b>Active now</b></div>
+                <div><span><Glyph type="grid" /></span><p><strong>Safari on iPhone</strong><small>Toronto, Canada · Last active Jul 27</small></p><button type="button" onClick={() => setNotice('The selected session has been signed out.')}>Sign out</button></div>
+              </div>
+            </section>
+          ) : null}
+
+          {activeSection === 'billing' ? (
+            <section className="settings-section settings-billing">
+              <header>
+                <div><span>Billing & Subscription</span><h2>Your Partner Pro plan</h2></div>
+                <p>Manage your plan, payment method, usage, and invoices.</p>
+              </header>
+              <div className="settings-plan-card">
+                <div className="settings-plan-heading">
+                  <span><Glyph type="spark" /></span>
+                  <div><small>Current subscription</small><strong>Partner Pro</strong><p>Advanced funding workflows for growing teams.</p></div>
+                  <b>Active</b>
+                </div>
+                <div className="settings-plan-price">
+                  <strong>${currentPlanPrice}</strong>
+                  <span>{config.payments.currency} / {settings.billingCycle === 'annual' ? 'year' : 'month'}</span>
+                  <small>Next billing date · Aug 28, 2026</small>
+                </div>
+                <div className="settings-cycle-switch">
+                  <button type="button" className={settings.billingCycle === 'monthly' ? 'is-active' : ''} onClick={() => updateSetting('billingCycle', 'monthly')}>Monthly</button>
+                  <button type="button" className={settings.billingCycle === 'annual' ? 'is-active' : ''} onClick={() => updateSetting('billingCycle', 'annual')}>Annual</button>
+                </div>
+                <button type="button" className="settings-manage-billing" onClick={() => setNotice('The secure billing portal is ready for backend connection.')}>Manage subscription</button>
+              </div>
+              <div className="settings-usage-grid">
+                <article><span>Document packages</span><strong>23 <small>/ 50</small></strong><i><b style={{ width: '46%' }} /></i></article>
+                <article><span>Team seats</span><strong>3 <small>/ 5</small></strong><i><b style={{ width: '60%' }} /></i></article>
+                <article><span>Storage</span><strong>1.8 <small>/ 10 GB</small></strong><i><b style={{ width: '18%' }} /></i></article>
+              </div>
+              <div className="settings-payment-card">
+                <div><span>VISA</span><p><strong>Visa ending in 4242</strong><small>Expires 08/28 · Default payment method</small></p></div>
+                <button type="button" onClick={() => setNotice('Payment method editing is ready for the billing portal.')}>Edit</button>
+              </div>
+              <div className="settings-invoices">
+                <header><strong>Recent invoices</strong><button type="button" onClick={() => setNotice('Invoice history is ready for backend connection.')}>View all</button></header>
+                {[
+                  ['INV-1048', 'Jul 28, 2026', `$${config.payments.monthlyPrice}.00 ${config.payments.currency}`, 'Paid'],
+                  ['INV-1032', 'Jun 28, 2026', `$${config.payments.monthlyPrice}.00 ${config.payments.currency}`, 'Paid'],
+                  ['INV-1016', 'May 28, 2026', `$${config.payments.monthlyPrice}.00 ${config.payments.currency}`, 'Paid'],
+                ].map((invoice) => (
+                  <div key={invoice[0]}><strong>{invoice[0]}</strong><span>{invoice[1]}</span><b>{invoice[2]}</b><em>{invoice[3]}</em><button type="button" aria-label={`Download ${invoice[0]}`}><Glyph type="file" /></button></div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+type QuickGenerateStep = 1 | 2 | 3 | 'workspace'
+type WorkspacePhase =
+  | 'idle'
+  | 'analyzing'
+  | 'planning'
+  | 'generating'
+  | 'reviewing'
+  | 'complete'
+type WorkspaceSectionStatus = 'waiting' | 'working' | 'complete'
+type WorkspaceSectionState = GeneratedPackageSection & {
+  status: WorkspaceSectionStatus
+  progress: number
+  preview: string
+}
+
+const quickGeneratePhaseRank: Record<WorkspacePhase, number> = {
+  idle: 0,
+  analyzing: 1,
+  planning: 2,
+  generating: 3,
+  reviewing: 4,
+  complete: 5,
+}
+
+function waitForWorkspace(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function createGeneratedPackage(
+  profile: typeof defaultProfile,
+  programName: string,
+  fundingRequest: string,
+  sourceMaterial: string,
+) {
+  const documents = documentTypes.map((documentType) =>
+    buildDocument(profile, fundingTracks[0], documentType),
+  )
+  const [plan, forecast, memo] = documents
+  const sections: GeneratedPackageSection[] = [
+    {
+      id: 'executive-summary',
+      title: 'Executive Summary',
+      body: plan.sections[0]?.body ?? plan.summary,
+      agent: 'Grant Writer',
+      documentLabel: 'Business Plan',
+    },
+    {
+      id: 'company-overview',
+      title: 'Company Overview',
+      body: plan.sections[3]?.body ?? plan.sections[1]?.body ?? plan.summary,
+      agent: 'Business Consultant',
+      documentLabel: 'Business Plan',
+    },
+    {
+      id: 'market-analysis',
+      title: 'Market Analysis',
+      body: `${plan.sections[1]?.body ?? ''} ${plan.sections[2]?.body ?? ''}`.trim(),
+      agent: 'Business Consultant',
+      documentLabel: 'Business Plan',
+    },
+    {
+      id: 'financial-model',
+      title: 'Financial Model',
+      body: `${forecast.sections[0]?.body ?? ''} ${forecast.sections[2]?.body ?? ''}`.trim(),
+      agent: 'Financial Analyst',
+      documentLabel: 'Cash Flow Forecast',
+    },
+    {
+      id: 'funding-narrative',
+      title: 'Funding Narrative',
+      body: `${memo.sections[0]?.body ?? ''} ${memo.sections[2]?.body ?? ''}`.trim(),
+      agent: 'Grant Writer',
+      documentLabel: 'Funding Narrative',
+    },
+    {
+      id: 'ai-review',
+      title: 'AI Review & Improve',
+      body: `The package is being tuned around reviewer confidence, measurable milestones, and stronger evidence language for ${programName}.`,
+      agent: 'Reviewer',
+      documentLabel: 'AI Review',
+    },
+  ]
+
+  return {
+    title: `${profile.companyName} Funding Package`,
+    programName,
+    businessName: profile.companyName,
+    fundingRequest,
+    sourceMaterial,
+    completedAt: new Date().toISOString(),
+    readinessScore: Math.round(
+      documents.reduce((sum, document) => sum + document.readinessScore, 0) / documents.length,
+    ),
+    thoughts: [
+      `${programName} emphasizes reviewer-ready structure and milestone clarity.`,
+      `The business story for ${profile.companyName} is being framed around execution strength, realistic growth, and measurable KPIs.`,
+      `Financial language is being adjusted to match the ${fundingTracks[0].label.toLowerCase()} workflow.`,
+    ],
+    documents,
+    sections,
+  } satisfies GeneratedPackage
+}
+
+function hydrateWorkspaceSections(packageRecord: GeneratedPackage): WorkspaceSectionState[] {
+  return packageRecord.sections.map((section) => ({
+    ...section,
+    status: 'complete',
+    progress: 100,
+    preview: section.body,
+  }))
+}
+
+function normalizeStoredGeneratedPackage(rawValue: unknown): GeneratedPackage | null {
+  if (!rawValue || typeof rawValue !== 'object') {
+    return null
+  }
+
+  if ('documents' in rawValue && 'sections' in rawValue) {
+    const candidate = rawValue as GeneratedPackage
+    if (Array.isArray(candidate.documents) && Array.isArray(candidate.sections)) {
+      return candidate
+    }
+  }
+
+  if ('title' in rawValue && 'sections' in rawValue) {
+    const legacyDocument = rawValue as GeneratedDocument
+    if (!Array.isArray(legacyDocument.sections)) {
+      return null
+    }
+
+    return {
+      title: legacyDocument.title,
+      programName: 'Restored opportunity',
+      businessName: legacyDocument.title.replace(/ Business Plan$/u, ''),
+      fundingRequest: legacyDocument.metrics[0]?.value ?? 'Unknown',
+      sourceMaterial: 'Restored workspace package',
+      completedAt: new Date().toISOString(),
+      readinessScore: legacyDocument.readinessScore,
+      thoughts: ['This package was restored from a previous local build.'],
+      documents: [legacyDocument],
+      sections: legacyDocument.sections.map((section, index) => ({
+        id: `legacy-section-${index + 1}`,
+        title: section.title,
+        body: section.body,
+        agent: index === legacyDocument.sections.length - 1 ? 'Reviewer' : 'Grant Writer',
+        documentLabel: 'Business Plan',
+      })),
+    }
+  }
+
+  return null
+}
+
+function createSectionVariant(
+  section: WorkspaceSectionState,
+  programName: string,
+  businessName: string,
+) {
+  return `${section.body} This refreshed pass sharpens the language for ${businessName}, ties the section back to ${programName}, and makes the reviewer takeaway more explicit.`
+}
+
+function buildPackageExport(packageRecord: GeneratedPackage, sections: WorkspaceSectionState[]) {
+  return [
+    packageRecord.title,
+    '',
+    `Program: ${packageRecord.programName}`,
+    `Business: ${packageRecord.businessName}`,
+    `Funding request: ${packageRecord.fundingRequest}`,
+    `Completed: ${packageRecord.completedAt}`,
+    '',
+    ...sections.flatMap((section) => [`# ${section.title}`, section.preview || section.body, '']),
+  ].join('\n')
+}
+
+function QuickGeneratePage() {
+  const draftStorageKey = 'bconomics-quick-generate-draft-v1'
+  const generatedDocumentsStorageKey = 'bconomics-generated-documents-v1'
+  const { config } = usePlatformConfig()
+  const [programName, setProgramName] = useState('')
+  const [programUrl, setProgramUrl] = useState('')
+  const [amount, setAmount] = useState('')
+  const [useWinningTemplate, setUseWinningTemplate] = useState(false)
+  const [fileName, setFileName] = useState('')
+  const [businessName, setBusinessName] = useState('')
+  const [fullName, setFullName] = useState('')
+  const [businessIdea, setBusinessIdea] = useState('')
+  const [teamIntro, setTeamIntro] = useState('')
+  const [formMessage, setFormMessage] = useState('')
+  const [activeStep, setActiveStep] = useState<QuickGenerateStep>(1)
+  const [generatedPackage, setGeneratedPackage] = useState<GeneratedPackage | null>(null)
+  const [workspacePhase, setWorkspacePhase] = useState<WorkspacePhase>('idle')
+  const [workspaceSections, setWorkspaceSections] = useState<WorkspaceSectionState[]>([])
+  const [workspaceThoughts, setWorkspaceThoughts] = useState<string[]>([])
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
+  const [editorMode, setEditorMode] = useState(false)
+  const [companyPickerOpen, setCompanyPickerOpen] = useState(false)
+  const [companyOptions, setCompanyOptions] = useState<CompanyRecord[]>([])
+  const [companyQuery, setCompanyQuery] = useState('')
+  const [programPickerOpen, setProgramPickerOpen] = useState(false)
+  const [programQuery, setProgramQuery] = useState('')
+  const [programType, setProgramType] = useState<'All' | 'Grant' | 'Loan'>('All')
+  const generationRun = useRef(0)
+  const fundingProgramCatalog = useMemo(
+    () =>
+      loadFundingPrograms(
+        config.dataSources.filter((source) => source.enabled).map((source) => source.id),
+      ),
+    [config.dataSources],
+  )
+
+  useEffect(() => {
+    const savedDraft = window.localStorage.getItem(draftStorageKey)
+    if (!savedDraft) return
+
+    try {
+      const draft = JSON.parse(savedDraft) as Record<string, string | boolean>
+      setProgramName(String(draft.programName ?? ''))
+      setProgramUrl(String(draft.programUrl ?? ''))
+      setAmount(String(draft.amount ?? ''))
+      setUseWinningTemplate(Boolean(draft.useWinningTemplate))
+      setFileName(String(draft.fileName ?? ''))
+      setBusinessName(String(draft.businessName ?? ''))
+      setFullName(String(draft.fullName ?? ''))
+      setBusinessIdea(String(draft.businessIdea ?? ''))
+      setTeamIntro(String(draft.teamIntro ?? ''))
+      setFormMessage('Draft restored from your workspace.')
+    } catch {
+      removePersistentItem(draftStorageKey)
+    }
+  }, [])
+
+  useEffect(() => {
+    const savedDocument = window.localStorage.getItem(generatedDocumentsStorageKey)
+    if (!savedDocument) return
+
+    try {
+      const parsedValue = JSON.parse(savedDocument) as unknown
+      const storedPackage = normalizeStoredGeneratedPackage(parsedValue)
+      if (!storedPackage) {
+        throw new Error('Invalid generated package shape.')
+      }
+
+      setGeneratedPackage(storedPackage)
+      setWorkspaceSections(hydrateWorkspaceSections(storedPackage))
+      setWorkspaceThoughts(storedPackage.thoughts)
+      setSelectedSectionId(storedPackage.sections[0]?.id ?? null)
+      setWorkspacePhase('complete')
+      setActiveStep('workspace')
+    } catch {
+      removePersistentItem(generatedDocumentsStorageKey)
+    }
+  }, [])
+
+  useEffect(() => {
+    const selectedProgram = window.localStorage.getItem(selectedFundingProgramStorageKey)
+    if (!selectedProgram) return
+
+    try {
+      const program = JSON.parse(selectedProgram) as FundingProgramRecord
+      setProgramName(program.name)
+      setProgramUrl(program.url)
+      setAmount(program.amount.toLocaleString('en-CA'))
+      setFormMessage(`${program.name} imported from Grants & Loans.`)
+    } catch {
+      // Ignore stale selections from older local builds.
+    } finally {
+      removePersistentItem(selectedFundingProgramStorageKey)
+    }
+  }, [])
+
+  useEffect(() => {
+    const selectedTemplate = window.localStorage.getItem(selectedTemplateStorageKey)
+    if (!selectedTemplate) return
+
+    try {
+      const template = JSON.parse(selectedTemplate) as TemplateRecord
+      setUseWinningTemplate(true)
+      setFileName(`${template.title}.${template.format.toLowerCase()}`)
+      setFormMessage(`${template.title} selected from Templates.`)
+    } catch {
+      // Ignore stale selections from older local builds.
+    } finally {
+      removePersistentItem(selectedTemplateStorageKey)
+    }
+  }, [])
+
+  useEffect(
+    () => () => {
+      generationRun.current += 1
+    },
+    [],
+  )
+
+  useEffect(() => {
+    if (!companyPickerOpen && !programPickerOpen) {
+      return
+    }
+
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setCompanyPickerOpen(false)
+        setProgramPickerOpen(false)
+      }
+    }
+
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [companyPickerOpen, programPickerOpen])
+
+  const programComplete = [programName, programUrl, amount].filter((value) =>
+    value.trim(),
+  ).length
+  const businessComplete = [businessName, fullName, businessIdea, teamIntro].filter((value) =>
+    value.trim(),
+  ).length
+  const isGenerating = ['analyzing', 'planning', 'generating', 'reviewing'].includes(
+    workspacePhase,
+  )
+  const streamProgressAverage =
+    workspaceSections.length > 0
+      ? workspaceSections.reduce((sum, section) => sum + section.progress, 0) / workspaceSections.length
+      : 0
+  const workspaceProgress =
+    workspacePhase === 'idle'
+      ? 0
+      : workspacePhase === 'analyzing'
+        ? 10
+        : workspacePhase === 'planning'
+          ? 24
+          : workspacePhase === 'generating'
+            ? Math.round(26 + streamProgressAverage * 0.6)
+            : workspacePhase === 'reviewing'
+              ? 92
+              : 100
+  const completion =
+    workspacePhase === 'complete' || isGenerating
+      ? workspaceProgress
+      : Math.round(((programComplete + businessComplete) / 7) * 100)
+  const visibleCompanyOptions = companyOptions.filter((company) =>
+    `${company.name} ${company.legalName} ${company.industry} ${company.owner}`
+      .toLowerCase()
+      .includes(companyQuery.trim().toLowerCase()),
+  )
+  const visibleFundingPrograms = fundingProgramCatalog.filter((program) => {
+    const matchesQuery =
+      `${program.name} ${program.provider} ${program.location} ${program.sourceName}`
+        .toLowerCase()
+        .includes(programQuery.trim().toLowerCase())
+    return matchesQuery && (programType === 'All' || program.type === programType)
+  })
+  const previewSection =
+    workspaceSections.find((section) => section.id === selectedSectionId) ??
+    workspaceSections.find((section) => section.status === 'working') ??
+    workspaceSections.find((section) => section.status === 'complete') ??
+    workspaceSections[0] ??
+    null
+  const summaryProgram = programName || generatedPackage?.programName || 'Not selected'
+  const summaryFundingRequest =
+    (amount ? `$${amount} CAD` : generatedPackage?.fundingRequest) || 'Not entered'
+  const summaryBusiness = businessName || generatedPackage?.businessName || 'Not entered'
+  const analyzeChecklist = [
+    programName ? `${programName} requirements detected` : 'Program requirements detected',
+    amount ? `Funding amount mapped to ${summaryFundingRequest}` : 'Funding amount captured',
+    'Mandatory sections and evidence checklist',
+    'Evaluation criteria and reviewer preferences',
+    'Preferred writing tone and commercialization signals',
+  ]
+  const planningChecklist = [
+    'Business Plan',
+    'Cash Flow',
+    'Market Research',
+    'Risk Analysis',
+    'Financial Assumptions',
+    'Funding Narrative',
+  ]
+  const workflowItems = [
+    {
+      label: 'Understand program',
+      status:
+        workspacePhase === 'analyzing'
+          ? 'working'
+          : quickGeneratePhaseRank[workspacePhase] > quickGeneratePhaseRank.analyzing
+            ? 'complete'
+            : 'waiting',
+    },
+    {
+      label: 'Analyze business',
+      status:
+        workspacePhase === 'planning'
+          ? 'working'
+          : quickGeneratePhaseRank[workspacePhase] > quickGeneratePhaseRank.planning
+            ? 'complete'
+            : 'waiting',
+    },
+    {
+      label: 'Build outline',
+      status:
+        workspacePhase === 'planning'
+          ? 'working'
+          : quickGeneratePhaseRank[workspacePhase] > quickGeneratePhaseRank.planning
+            ? 'complete'
+            : 'waiting',
+    },
+    {
+      label: 'Generate business plan',
+      status:
+        workspaceSections
+          .filter((section) => section.documentLabel === 'Business Plan')
+          .every((section) => section.status === 'complete')
+          ? 'complete'
+          : workspaceSections.some(
+                (section) =>
+                  section.documentLabel === 'Business Plan' && section.status === 'working',
+              )
+            ? 'working'
+            : 'waiting',
+    },
+    {
+      label: 'Generate cash flow',
+      status:
+        workspaceSections
+          .filter((section) => section.documentLabel === 'Cash Flow Forecast')
+          .every((section) => section.status === 'complete')
+          ? 'complete'
+          : workspaceSections.some(
+                (section) =>
+                  section.documentLabel === 'Cash Flow Forecast' && section.status === 'working',
+              )
+            ? 'working'
+            : 'waiting',
+    },
+    {
+      label: 'Generate funding narrative',
+      status:
+        workspaceSections
+          .filter((section) => section.documentLabel === 'Funding Narrative')
+          .every((section) => section.status === 'complete')
+          ? 'complete'
+          : workspaceSections.some(
+                (section) =>
+                  section.documentLabel === 'Funding Narrative' && section.status === 'working',
+              )
+            ? 'working'
+            : 'waiting',
+    },
+    {
+      label: 'AI review & improve',
+      status:
+        workspacePhase === 'reviewing'
+          ? 'working'
+          : workspacePhase === 'complete'
+            ? 'complete'
+            : 'waiting',
+    },
+  ] as const
+  const activeAgent =
+    workspacePhase === 'analyzing'
+      ? 'Program Analyst'
+      : workspacePhase === 'planning'
+        ? 'Business Consultant'
+        : workspacePhase === 'reviewing'
+          ? 'Reviewer'
+          : previewSection?.status === 'working'
+            ? previewSection.agent
+            : null
+  const agentCards = [
+    {
+      name: 'Program Analyst',
+      helper: 'Understands the funding opportunity and extracts requirements.',
+      status:
+        activeAgent === 'Program Analyst'
+          ? 'working'
+          : quickGeneratePhaseRank[workspacePhase] > quickGeneratePhaseRank.analyzing
+            ? 'completed'
+            : 'waiting',
+    },
+    {
+      name: 'Business Consultant',
+      helper: 'Frames the company story, positioning, and execution case.',
+      status:
+        activeAgent === 'Business Consultant'
+          ? 'working'
+          : workspaceSections.some(
+                (section) =>
+                  section.agent === 'Business Consultant' && section.status === 'complete',
+              ) || quickGeneratePhaseRank[workspacePhase] > quickGeneratePhaseRank.planning
+            ? 'completed'
+            : 'waiting',
+    },
+    {
+      name: 'Financial Analyst',
+      helper: 'Builds the forecast logic, runway, and financial assumptions.',
+      status:
+        activeAgent === 'Financial Analyst'
+          ? 'working'
+          : workspaceSections.some(
+                (section) => section.agent === 'Financial Analyst' && section.status === 'complete',
+              )
+            ? 'completed'
+            : 'waiting',
+    },
+    {
+      name: 'Grant Writer',
+      helper: 'Turns evidence into reviewer-ready narrative language.',
+      status:
+        activeAgent === 'Grant Writer'
+          ? 'working'
+          : workspaceSections.some(
+                (section) => section.agent === 'Grant Writer' && section.status === 'complete',
+              )
+            ? 'completed'
+            : 'waiting',
+    },
+    {
+      name: 'Reviewer',
+      helper: 'Runs a final AI review to strengthen clarity and measurable outcomes.',
+      status:
+        activeAgent === 'Reviewer'
+          ? 'working'
+          : workspacePhase === 'complete'
+            ? 'completed'
+            : 'waiting',
+    },
+  ] as const
+  const completedSections = workspaceSections.filter(
+    (section) => section.status === 'complete',
+  ).length
+  const workspaceLifecycle = [
+    'Analyze opportunity',
+    'Build funding strategy',
+    'Generate business plan',
+    'Generate financial model',
+    'Generate funding narrative',
+    'AI review & improve',
+    'Funding package ready',
+  ] as const
+  const stageSupportPoints =
+    activeStep === 1
+      ? [
+          'Anchor the package to an official funding source.',
+          'Define the request amount and required evidence early.',
+          'Import directly from Grants & Loans when a match already exists.',
+        ]
+      : activeStep === 2
+        ? [
+            'Summarize the business in reviewer language, not pitch language.',
+            'Pull from My Company to avoid retyping core details.',
+            'Give the AI enough detail to build a believable execution case.',
+          ]
+        : [
+            'Review the funding opportunity details before generating.',
+            'Confirm the business narrative and team details are accurate.',
+            'Generate only after both steps reflect the final brief.',
+          ]
+  const workspaceStagePills = workspaceLifecycle.map((label, index) => {
+    const status =
+      workspacePhase === 'complete'
+        ? 'complete'
+        : workspacePhase === 'analyzing'
+          ? index === 0
+            ? 'working'
+            : 'waiting'
+          : workspacePhase === 'planning'
+            ? index <= 1
+              ? index === 1
+                ? 'working'
+                : 'complete'
+              : 'waiting'
+            : workspacePhase === 'generating'
+              ? index <= 4
+                ? index === 2 ||
+                  index === 3 ||
+                  index === 4
+                  ? 'working'
+                  : 'complete'
+                : 'waiting'
+              : workspacePhase === 'reviewing'
+                ? index <= 5
+                  ? index === 5
+                    ? 'working'
+                    : 'complete'
+                  : 'waiting'
+                : 'waiting'
+    return { label, status }
+  })
+  const workspaceSignalCards = [
+    {
+      label: 'Current lead',
+      value: activeAgent ?? 'Queued',
+      helper: 'Who owns the next move',
+    },
+    {
+      label: 'Sections ready',
+      value: `${completedSections}/${workspaceSections.length || 6}`,
+      helper: 'Completed in the live room',
+    },
+    {
+      label: 'Thought stream',
+      value: `${workspaceThoughts.length}`,
+      helper: 'Narration updates published',
+    },
+    {
+      label: 'Next output',
+      value:
+        workspacePhase === 'complete'
+          ? 'Export package'
+          : previewSection?.title ?? 'Section stream',
+      helper: 'What the founder should expect',
+    },
+  ] as const
+
+  function persistGeneratedPackage(nextPackage: GeneratedPackage) {
+    setGeneratedPackage(nextPackage)
+    setPersistentItem(generatedDocumentsStorageKey, JSON.stringify(nextPackage))
+  }
+
+  function resetProgram() {
+    setProgramName('')
+    setProgramUrl('')
+    setAmount('')
+    setUseWinningTemplate(false)
+    setFileName('')
+    setFormMessage('')
+  }
+
+  function resetBusiness() {
+    setBusinessName('')
+    setFullName('')
+    setBusinessIdea('')
+    setTeamIntro('')
+    generationRun.current += 1
+    setWorkspacePhase('idle')
+    setWorkspaceSections([])
+    setWorkspaceThoughts([])
+    setSelectedSectionId(null)
+    setEditorMode(false)
+    setGeneratedPackage(null)
+    removePersistentItem(generatedDocumentsStorageKey)
+    setFormMessage('')
+  }
+
+  function openCompanyPicker() {
+    setCompanyOptions(loadCompanyRecords())
+    setCompanyQuery('')
+    setCompanyPickerOpen(true)
+  }
+
+  function openProgramPicker() {
+    setProgramQuery('')
+    setProgramType('All')
+    setProgramPickerOpen(true)
+  }
+
+  function importFundingProgram(program: FundingProgramRecord) {
+    setProgramName(program.name)
+    setProgramUrl(program.url)
+    setAmount(program.amount.toLocaleString('en-CA'))
+    setProgramPickerOpen(false)
+    setFormMessage(`${program.name} imported from Grants & Loans.`)
+  }
+
+  function importCompany(company: CompanyRecord) {
+    setBusinessName(company.name)
+    setFullName(company.owner)
+    setBusinessIdea(company.description)
+    setTeamIntro(
+      `${company.owner} leads a ${company.employees || 'growing'}-person ${
+        company.industry ? company.industry.toLowerCase() : 'business'
+      } team in ${company.location || 'Canada'}.`,
+    )
+    setCompanyPickerOpen(false)
+    setFormMessage(`${company.name} imported from My Companies.`)
+  }
+
+  function saveDraft() {
+    setPersistentItem(
+      draftStorageKey,
+      JSON.stringify({
+        programName,
+        programUrl,
+        amount,
+        useWinningTemplate,
+        fileName,
+        businessName,
+        fullName,
+        businessIdea,
+        teamIntro,
+      }),
+    )
+    setFormMessage('Draft saved securely to your workspace.')
+  }
+
+  function continueToBusiness() {
+    if (programComplete < 3) {
+      setFormMessage('Add the program name, official URL, and funding amount.')
+      return
+    }
+    setFormMessage('')
+    setActiveStep(2)
+  }
+
+  function continueToReview() {
+    if (businessComplete < 4) {
+      setFormMessage('Complete the company, founder, business idea, and team fields.')
+      return
+    }
+    setFormMessage('')
+    setActiveStep(3)
+  }
+
+  async function streamSection(
+    currentRun: number,
+    sectionId: string,
+    finalBody: string,
+    steps = Math.max(8, Math.min(18, Math.ceil(finalBody.length / 28))),
+  ) {
+    setSelectedSectionId(sectionId)
+    for (let stepIndex = 1; stepIndex <= steps; stepIndex += 1) {
+      if (generationRun.current !== currentRun) {
+        return false
+      }
+
+      const previewLength = Math.round((finalBody.length * stepIndex) / steps)
+      setWorkspaceSections((previous) =>
+        previous.map((section) =>
+          section.id === sectionId
+            ? {
+                ...section,
+                status: 'working',
+                progress: Math.round((stepIndex / steps) * 100),
+                preview: finalBody.slice(0, previewLength),
+              }
+            : section,
+        ),
+      )
+      await waitForWorkspace(stepIndex === 1 ? 180 : 90)
+    }
+
+    setWorkspaceSections((previous) =>
+      previous.map((section) =>
+        section.id === sectionId
+          ? {
+              ...section,
+              status: 'complete',
+              progress: 100,
+              preview: finalBody,
+              body: finalBody,
+            }
+          : section,
+      ),
+    )
+    return true
+  }
+
+  async function generateDocuments() {
+    if (isGenerating) {
+      return
+    }
+
+    const fundingNeed = Number(amount.replace(/[^0-9.]/g, ''))
+    if (programComplete < 3 || !Number.isFinite(fundingNeed)) {
+      setFormMessage('Complete the funding program details before launching the AI workspace.')
+      setActiveStep(1)
+      return
+    }
+
+    if (businessComplete < 4) {
+      setFormMessage('Complete the business profile before launching the AI workspace.')
+      setActiveStep(2)
+      return
+    }
+
+    const currentRun = generationRun.current + 1
+    generationRun.current = currentRun
+
+    const profile = {
+      ...defaultProfile,
+      companyName: businessName,
+      founderName: fullName,
+      fundingNeed,
+      differentiation: businessIdea,
+    }
+    const nextPackage = createGeneratedPackage(
+      profile,
+      programName,
+      `$${amount} CAD`,
+      fileName || (useWinningTemplate ? 'Bconomics structure' : 'Official URL'),
+    )
+    const startingSections = nextPackage.sections.map((section) => ({
+      ...section,
+      status: 'waiting' as const,
+      progress: 0,
+      preview: '',
+    }))
+
+    setActiveStep('workspace')
+    setEditorMode(false)
+    setWorkspacePhase('analyzing')
+    setWorkspaceSections(startingSections)
+    setWorkspaceThoughts([
+      `Analyzing ${programName} and matching the package structure to the official funding source.`,
+    ])
+    setSelectedSectionId(startingSections[0]?.id ?? null)
+    setFormMessage(`AI workspace launched with ${config.ai.defaultModel}.`)
+
+    await waitForWorkspace(700)
+    if (generationRun.current !== currentRun) {
+      return
+    }
+
+    setWorkspaceThoughts((previous) => [
+      ...previous,
+      `Reviewer criteria and mandatory sections were detected for ${programName}.`,
+      `The target raise of $${amount} CAD is being translated into a realistic execution plan.`,
+    ])
+    await waitForWorkspace(650)
+    if (generationRun.current !== currentRun) {
+      return
+    }
+
+    setWorkspacePhase('planning')
+    setWorkspaceThoughts((previous) => [
+      ...previous,
+      `Building the outline for business plan, cash flow, market analysis, and funding narrative.`,
+      `Thinking through what reviewers will need to believe before approving ${businessName}.`,
+    ])
+    await waitForWorkspace(900)
+    if (generationRun.current !== currentRun) {
+      return
+    }
+
+    setWorkspacePhase('generating')
+    for (const section of startingSections) {
+      setWorkspaceThoughts((previous) => [
+        ...previous,
+        section.id === 'market-analysis'
+          ? 'Adjusting market section to better emphasize traction and commercialization.'
+          : section.id === 'financial-model'
+            ? 'Pressure-testing the financial assumptions and runway logic.'
+            : section.id === 'funding-narrative'
+              ? 'Reframing the narrative so the ask is clear, measurable, and reviewer-friendly.'
+              : `Generating ${section.title.toLowerCase()}...`,
+      ])
+      const completed = await streamSection(currentRun, section.id, section.body)
+      if (!completed) {
+        return
+      }
+    }
+
+    setWorkspacePhase('reviewing')
+    setWorkspaceThoughts((previous) => [
+      ...previous,
+      'Running an AI reviewer pass to tighten tone, measurable outcomes, and confidence language.',
+      'Adding clearer KPIs, stronger use-of-funds framing, and a cleaner approval narrative.',
+    ])
+    await waitForWorkspace(850)
+    if (generationRun.current !== currentRun) {
+      return
+    }
+
+    setWorkspacePhase('complete')
+    persistGeneratedPackage(nextPackage)
+    setWorkspaceThoughts((previous) => [...previous, 'Funding package ready for editing, export, and sharing.'])
+    setSelectedSectionId(nextPackage.sections[0]?.id ?? null)
+    removePersistentItem(draftStorageKey)
+    setFormMessage(`Funding-ready workspace generated successfully with ${config.ai.defaultModel}.`)
+  }
+
+  function cancelGeneration() {
+    generationRun.current += 1
+    if (generatedPackage) {
+      setWorkspaceSections(hydrateWorkspaceSections(generatedPackage))
+      setWorkspaceThoughts(generatedPackage.thoughts)
+      setSelectedSectionId(generatedPackage.sections[0]?.id ?? null)
+      setWorkspacePhase('complete')
+      setFormMessage('Generation cancelled. Your last completed package is still available.')
+      return
+    }
+
+    setWorkspacePhase('idle')
+    setWorkspaceSections([])
+    setWorkspaceThoughts([])
+    setSelectedSectionId(null)
+    setActiveStep(3)
+    setFormMessage('Generation cancelled. Your inputs are still available.')
+  }
+
+  function openEditor() {
+    setActiveStep('workspace')
+    setEditorMode(true)
+    setSelectedSectionId(previewSection?.id ?? workspaceSections[0]?.id ?? null)
+    window.setTimeout(
+      () =>
+        document
+          .getElementById('quick-preview-panel')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      0,
+    )
+  }
+
+  function updatePreviewSection(nextBody: string) {
+    if (!previewSection) {
+      return
+    }
+
+    const updatedSections = workspaceSections.map((section) =>
+      section.id === previewSection.id
+        ? {
+            ...section,
+            body: nextBody,
+            preview: nextBody,
+            progress: 100,
+            status: 'complete' as const,
+          }
+        : section,
+    )
+    setWorkspaceSections(updatedSections)
+
+    if (!generatedPackage) {
+      return
+    }
+
+    const nextPackage = {
+      ...generatedPackage,
+      sections: updatedSections.map(({ status: _status, progress: _progress, preview, ...section }) => ({
+        ...section,
+        body: preview || section.body,
+      })),
+    }
+    persistGeneratedPackage(nextPackage)
+  }
+
+  async function regenerateSection(sectionId: string) {
+    const targetSection = workspaceSections.find((section) => section.id === sectionId)
+    if (!targetSection || isGenerating) {
+      return
+    }
+
+    const currentRun = generationRun.current + 1
+    generationRun.current = currentRun
+    const regeneratedBody = createSectionVariant(
+      targetSection,
+      summaryProgram,
+      summaryBusiness === 'Not entered' ? businessName || 'your company' : summaryBusiness,
+    )
+
+    setActiveStep('workspace')
+    setEditorMode(false)
+    setWorkspacePhase('generating')
+    setWorkspaceThoughts((previous) => [
+      ...previous,
+      `Regenerating ${targetSection.title.toLowerCase()} with sharper reviewer language.`,
+    ])
+    setWorkspaceSections((previous) =>
+      previous.map((section) =>
+        section.id === sectionId
+          ? { ...section, status: 'working', progress: 8, preview: '' }
+          : section,
+      ),
+    )
+
+    const completed = await streamSection(currentRun, sectionId, regeneratedBody, 10)
+    if (!completed) {
+      return
+    }
+
+    setWorkspacePhase(generatedPackage ? 'complete' : 'idle')
+    setWorkspaceThoughts((previous) => [
+      ...previous,
+      `${targetSection.title} regenerated and synced back into the package editor.`,
+    ])
+
+    if (!generatedPackage) {
+      return
+    }
+
+    const nextSections = workspaceSections.map((section) =>
+      section.id === sectionId
+        ? {
+            ...section,
+            body: regeneratedBody,
+            preview: regeneratedBody,
+            status: 'complete' as const,
+            progress: 100,
+          }
+        : section,
+    )
+    setWorkspaceSections(nextSections)
+    const nextPackage = {
+      ...generatedPackage,
+      sections: nextSections.map(({ status: _status, progress: _progress, preview, ...section }) => ({
+        ...section,
+        body: preview || section.body,
+      })),
+    }
+    persistGeneratedPackage(nextPackage)
+  }
+
+  function downloadWordCompatibleExport() {
+    if (!generatedPackage) {
+      setFormMessage('Generate the package first, then export it.')
+      return
+    }
+
+    const exportContent = buildPackageExport(generatedPackage, workspaceSections)
+    const blob = new Blob([exportContent], { type: 'application/msword;charset=utf-8' })
+    const objectUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = `${generatedPackage.businessName.replace(/\s+/gu, '-').toLowerCase()}-funding-package.doc`
+    link.click()
+    window.URL.revokeObjectURL(objectUrl)
+    setFormMessage('Word-compatible export downloaded. A true DOCX renderer can plug into this workflow next.')
+  }
+
+  async function shareWorkspace() {
+    const shareUrl = `${window.location.origin}/quick-generate`
+    try {
+      await window.navigator.clipboard.writeText(shareUrl)
+      setFormMessage('Workspace link copied to the clipboard.')
+    } catch {
+      setFormMessage(`Copy this workspace link: ${shareUrl}`)
+    }
+  }
+
+  return (
+    <section className="generator-page">
+      <header className="generator-header">
+        <div>
+          <p className="generator-eyebrow">Funding Studio</p>
+          <h1>Build a funding-ready document package</h1>
+          <p>
+            One guided workspace for your business plan, cash flow forecast, funding
+            narrative, and now a live AI generation room the founder can actually follow.
+          </p>
+        </div>
+        <button type="button" className="generator-save-button" onClick={saveDraft}>
+          <Glyph type="file" />
+          Save draft
+        </button>
+      </header>
+
+      {formMessage ? (
+        <p
+          className={`generator-message ${
+            formMessage.includes('Complete') || formMessage.includes('Add')
+              ? 'is-warning'
+              : ''
+          }`}
+          role="status"
+        >
+          {formMessage}
+        </p>
+      ) : null}
+
+      <div className={`generator-shell ${activeStep === 'workspace' ? 'is-workspace' : ''}`}>
+        <div className={`generator-workspace ${activeStep === 'workspace' ? 'is-ai-workspace' : ''}`}>
+          {activeStep === 1 ? (
+            <section className="generator-stage">
+              <div className="generator-stage-heading generator-stage-heading-row">
+                <div>
+                  <span>Step 01 · About 2 minutes</span>
+                  <h2>Which opportunity are you applying for?</h2>
+                  <p>
+                    We use the official program source and your target amount to shape
+                    the document structure, reviewer tone, and approval narrative.
+                  </p>
+                </div>
+                <button type="button" onClick={openProgramPicker}>
+                  <Glyph type="search" />
+                  Import from Grants &amp; Loans
+                </button>
+              </div>
+
+              <div className="generator-stage-ribbon">
+                {stageSupportPoints.map((point) => (
+                  <article key={point}>
+                    <i />
+                    <span>{point}</span>
+                  </article>
+                ))}
+              </div>
+
+              <div className="generator-stage-panel">
+                <div className="generator-stage-panel-copy">
+                  <span>Opportunity brief</span>
+                  <h3>Give the AI the source of truth.</h3>
+                  <p>
+                    When the program source is clear, the whole package becomes more believable.
+                    This is where we define the opportunity, funding request, and the template
+                    constraints the reviewer will expect to see.
+                  </p>
+                </div>
+                <div className="generator-stage-panel-form">
+                  <div className="generator-form-grid">
+                    <label className="generator-field generator-field-wide">
+                      <span>Program name <b>Required</b></span>
+                      <input
+                        value={programName}
+                        onChange={(event) => setProgramName(event.target.value)}
+                        placeholder="e.g. FedDev Ontario Growth Program"
+                      />
+                    </label>
+                    <label className="generator-field">
+                      <span>Official program URL <b>Required</b></span>
+                      <input
+                        type="url"
+                        value={programUrl}
+                        onChange={(event) => setProgramUrl(event.target.value)}
+                        placeholder="https://example.ca/program"
+                      />
+                    </label>
+                    <label className="generator-field">
+                      <span>Target amount <b>Required</b></span>
+                      <div className="generator-money-field">
+                        <i>$</i>
+                        <input
+                          inputMode="decimal"
+                          value={amount}
+                          onChange={(event) => setAmount(event.target.value)}
+                          placeholder="250,000"
+                        />
+                        <em>CAD</em>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="generator-source-row">
+                    <label className="generator-upload">
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx"
+                        onChange={(event) => setFileName(event.target.files?.[0]?.name ?? '')}
+                      />
+                      <span className="generator-upload-icon">
+                        <Glyph type="file" />
+                      </span>
+                      <span>
+                        <strong>{fileName || 'Add application files'}</strong>
+                        <small>PDF, DOCX, XLSX, JPG or PNG · optional</small>
+                      </span>
+                      <b>{fileName ? 'Replace' : 'Browse'}</b>
+                    </label>
+                    <label className="generator-template-toggle">
+                      <input
+                        type="checkbox"
+                        checked={useWinningTemplate}
+                        onChange={(event) => setUseWinningTemplate(event.target.checked)}
+                      />
+                      <span />
+                      <div>
+                        <strong>Use the Bconomics structure</strong>
+                        <small>Recommended when no official template exists.</small>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="generator-stage-actions">
+                <button type="button" className="is-quiet" onClick={resetProgram}>
+                  Clear
+                </button>
+                <button type="button" className="is-primary" onClick={continueToBusiness}>
+                  Continue to business profile
+                  <Glyph type="arrow" />
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {activeStep === 2 ? (
+            <section className="generator-stage">
+              <div className="generator-stage-heading generator-stage-heading-row">
+                <div>
+                  <span>Step 02 · About 5 minutes</span>
+                  <h2>Tell us why this business should be funded.</h2>
+                  <p>
+                    Focus on the problem, your solution, commercial model, and the
+                    team&apos;s ability to execute.
+                  </p>
+                </div>
+                <button type="button" onClick={openCompanyPicker}>
+                  <Glyph type="grid" />
+                  Import My Company
+                </button>
+              </div>
+
+              <div className="generator-stage-ribbon">
+                {stageSupportPoints.map((point) => (
+                  <article key={point}>
+                    <i />
+                    <span>{point}</span>
+                  </article>
+                ))}
+              </div>
+
+              <div className="generator-stage-panel is-business">
+                <div className="generator-stage-panel-copy">
+                  <span>Business narrative</span>
+                  <h3>Give the AI a fundable story to work with.</h3>
+                  <p>
+                    The strongest packages do not sound like generic marketing copy. They
+                    show the market problem, operating model, and a team that can execute
+                    against the funding milestone.
+                  </p>
+                </div>
+                <div className="generator-stage-panel-form">
+                  <div className="generator-form-grid">
+                    <label className="generator-field">
+                      <span>Business name <b>Required</b></span>
+                      <input
+                        value={businessName}
+                        onChange={(event) => setBusinessName(event.target.value)}
+                        placeholder="ABC Inc."
+                      />
+                    </label>
+                    <label className="generator-field">
+                      <span>Founder or lead applicant <b>Required</b></span>
+                      <input
+                        value={fullName}
+                        onChange={(event) => setFullName(event.target.value)}
+                        placeholder="John Joe"
+                      />
+                    </label>
+                    <label className="generator-field generator-field-wide">
+                      <span>Business idea and revenue model <b>Required</b></span>
+                      <textarea
+                        value={businessIdea}
+                        onChange={(event) => setBusinessIdea(event.target.value)}
+                        placeholder="What problem do you solve, for whom, and how does the business make money?"
+                      />
+                      <small>{businessIdea.length} characters</small>
+                    </label>
+                    <label className="generator-field generator-field-wide">
+                      <span>Team experience <b>Required</b></span>
+                      <textarea
+                        value={teamIntro}
+                        onChange={(event) => setTeamIntro(event.target.value)}
+                        placeholder="Describe the founders, relevant experience, and key responsibilities."
+                      />
+                      <small>{teamIntro.length} characters</small>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="generator-stage-actions">
+                <button type="button" className="is-quiet" onClick={resetBusiness}>
+                  Clear
+                </button>
+                <button type="button" className="is-secondary" onClick={() => setActiveStep(1)}>
+                  Back
+                </button>
+                <button type="button" className="is-primary" onClick={continueToReview}>
+                  Review package
+                  <Glyph type="arrow" />
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {activeStep === 3 ? (
+            <section className="generator-stage generator-review-stage">
+              <div className="generator-stage-heading">
+                <span>Step 03 · Final review</span>
+                <h2>Review your funding brief before generating.</h2>
+                <p>
+                  Confirm the funding opportunity and business profile first. Once these
+                  details look right, generate the package.
+                </p>
+              </div>
+
+              <div className="generator-stage-ribbon">
+                {stageSupportPoints.map((point) => (
+                  <article key={point}>
+                    <i />
+                    <span>{point}</span>
+                  </article>
+                ))}
+              </div>
+
+              <div className="generator-review-grid">
+                <article className="generator-review-panel">
+                  <header>
+                    <div>
+                      <span>Step 01</span>
+                      <h3>Funding program</h3>
+                    </div>
+                    <button type="button" onClick={() => setActiveStep(1)}>
+                      Edit
+                    </button>
+                  </header>
+                  <dl className="generator-review-list">
+                    <div>
+                      <dt>Program name</dt>
+                      <dd>{programName || 'Not entered'}</dd>
+                    </div>
+                    <div>
+                      <dt>Official URL</dt>
+                      <dd>{programUrl || 'Not entered'}</dd>
+                    </div>
+                    <div>
+                      <dt>Target amount</dt>
+                      <dd>{amount ? `$${amount} CAD` : 'Not entered'}</dd>
+                    </div>
+                    <div>
+                      <dt>Source files</dt>
+                      <dd>{fileName || 'None uploaded'}</dd>
+                    </div>
+                    <div>
+                      <dt>Structure</dt>
+                      <dd>{useWinningTemplate ? 'Bconomics structure enabled' : 'Official source only'}</dd>
+                    </div>
+                  </dl>
+                </article>
+
+                <article className="generator-review-panel">
+                  <header>
+                    <div>
+                      <span>Step 02</span>
+                      <h3>Business profile</h3>
+                    </div>
+                    <button type="button" onClick={() => setActiveStep(2)}>
+                      Edit
+                    </button>
+                  </header>
+                  <dl className="generator-review-list">
+                    <div>
+                      <dt>Business name</dt>
+                      <dd>{businessName || 'Not entered'}</dd>
+                    </div>
+                    <div>
+                      <dt>Lead applicant</dt>
+                      <dd>{fullName || 'Not entered'}</dd>
+                    </div>
+                    <div>
+                      <dt>Business idea</dt>
+                      <dd className="is-multiline">{businessIdea || 'Not entered'}</dd>
+                    </div>
+                    <div>
+                      <dt>Team experience</dt>
+                      <dd className="is-multiline">{teamIntro || 'Not entered'}</dd>
+                    </div>
+                  </dl>
+                </article>
+              </div>
+
+              <div className="generator-review-callout is-final-review">
+                <Glyph type="spark" />
+                <div>
+                  <strong>Final check before generation</strong>
+                  <p>
+                    The AI package will use these details to shape the opportunity fit,
+                    business plan, financial logic, and funding narrative.
+                  </p>
+                </div>
+              </div>
+
+              <div className="generator-stage-actions">
+                <button type="button" className="is-secondary" onClick={() => setActiveStep(2)}>
+                  Back
+                </button>
+                <button
+                  type="button"
+                  className="is-primary is-generate"
+                  onClick={generateDocuments}
+                  disabled={isGenerating}
+                >
+                  <Glyph type="spark" />
+                  Generate
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {activeStep === 'workspace' ? (
+            <section className="generator-stage generator-ai-stage">
+              <div className="generator-ai-hero">
+                <div className="generator-ai-hero-copy">
+                  <span>AI Workspace</span>
+                  <h2>Building your funding package in public, step by step.</h2>
+                  <p>
+                    The platform behaves like an AI funding team: it analyzes the
+                    opportunity, plans the structure, generates each section live, and
+                    leaves the founder with an editable package.
+                  </p>
+                  <div className="generator-ai-phase-strip">
+                    {workspaceStagePills.map((item) => (
+                      <span key={item.label} className={`is-${item.status}`}>
+                        {item.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="generator-ai-status">
+                  <div className="generator-ai-status-heading">
+                    <small>{summaryProgram}</small>
+                    <strong>
+                      {workspacePhase === 'complete'
+                        ? 'Funding package ready'
+                        : workspacePhase === 'analyzing'
+                          ? 'Analyzing opportunity'
+                          : workspacePhase === 'planning'
+                            ? 'Building funding strategy'
+                            : workspacePhase === 'reviewing'
+                              ? 'Running AI review'
+                              : previewSection
+                                ? `Generating ${previewSection.title}`
+                                : 'Waiting to start'}
+                    </strong>
+                    <span>{workspaceProgress}% complete</span>
+                  </div>
+                  <div className="generator-ai-status-metrics">
+                    {workspaceSignalCards.map((item) => (
+                      <article key={item.label}>
+                        <small>{item.label}</small>
+                        <strong>{item.value}</strong>
+                        <span>{item.helper}</span>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="generator-ai-grid">
+                <div className="generator-ai-column">
+                  <article className="generator-ai-card">
+                    <header>
+                      <div>
+                        <span>Analyze</span>
+                        <h3>Opportunity understanding</h3>
+                      </div>
+                      <b className={quickGeneratePhaseRank[workspacePhase] >= 2 ? 'is-complete' : ''}>
+                        {quickGeneratePhaseRank[workspacePhase] >= 2 ? 'Done' : 'Live'}
+                      </b>
+                    </header>
+                    <ul className="generator-ai-checklist">
+                      {analyzeChecklist.map((item) => (
+                        <li
+                          key={item}
+                          className={
+                            quickGeneratePhaseRank[workspacePhase] >= 2
+                              ? 'is-complete'
+                              : workspacePhase === 'analyzing'
+                                ? 'is-working'
+                                : ''
+                          }
+                        >
+                          <i>
+                            {quickGeneratePhaseRank[workspacePhase] >= 2
+                              ? '✓'
+                              : workspacePhase === 'analyzing'
+                                ? '•'
+                                : '○'}
+                          </i>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+
+                  <article className="generator-ai-card">
+                    <header>
+                      <div>
+                        <span>Planning</span>
+                        <h3>Document structure</h3>
+                      </div>
+                      <b className={quickGeneratePhaseRank[workspacePhase] >= 3 ? 'is-complete' : ''}>
+                        {quickGeneratePhaseRank[workspacePhase] >= 3 ? 'Planned' : 'Queued'}
+                      </b>
+                    </header>
+                    <ul className="generator-ai-checklist">
+                      {planningChecklist.map((item) => (
+                        <li
+                          key={item}
+                          className={
+                            quickGeneratePhaseRank[workspacePhase] >= 3
+                              ? 'is-complete'
+                              : workspacePhase === 'planning'
+                                ? 'is-working'
+                                : ''
+                          }
+                        >
+                          <i>
+                            {quickGeneratePhaseRank[workspacePhase] >= 3
+                              ? '✓'
+                              : workspacePhase === 'planning'
+                                ? '•'
+                                : '○'}
+                          </i>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </article>
+
+                  <article className="generator-ai-card">
+                    <header>
+                      <div>
+                        <span>Agents</span>
+                        <h3>AI consulting team</h3>
+                      </div>
+                    </header>
+                    <div className="generator-agent-list">
+                      {agentCards.map((agent) => (
+                        <article key={agent.name} className={`generator-agent-card is-${agent.status}`}>
+                          <div>
+                            <strong>{agent.name}</strong>
+                            <small>{agent.helper}</small>
+                          </div>
+                          <b>
+                            {agent.status === 'completed'
+                              ? 'Completed'
+                              : agent.status === 'working'
+                                ? 'Working'
+                                : 'Waiting'}
+                          </b>
+                        </article>
+                      ))}
+                    </div>
+                  </article>
+
+                  <article className="generator-ai-card">
+                    <header>
+                      <div>
+                        <span>Workflow</span>
+                        <h3>What the system is doing now</h3>
+                      </div>
+                    </header>
+                    <div className="generator-workflow-list">
+                      {workflowItems.map((item) => (
+                        <div key={item.label} className={`generator-workflow-item is-${item.status}`}>
+                          <i>
+                            {item.status === 'complete'
+                              ? '✓'
+                              : item.status === 'working'
+                                ? '⏳'
+                                : '○'}
+                          </i>
+                          <span>{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                </div>
+
+                <div className="generator-ai-column">
+                  <article className="generator-ai-card">
+                    <header>
+                      <div>
+                        <span>Section generation</span>
+                        <h3>Multiple sections, not one abstract progress bar</h3>
+                      </div>
+                    </header>
+                    <div className="generator-stream-list">
+                      {workspaceSections.map((section) => (
+                        <article
+                          key={section.id}
+                          className={`generator-stream-item ${
+                            previewSection?.id === section.id ? 'is-selected' : ''
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            className="generator-stream-meta"
+                            onClick={() => {
+                              setSelectedSectionId(section.id)
+                              setEditorMode(false)
+                            }}
+                          >
+                            <div>
+                              <small>{section.documentLabel}</small>
+                              <strong>{section.title}</strong>
+                            </div>
+                            <b>
+                              {section.status === 'complete'
+                                ? 'Done'
+                                : section.status === 'working'
+                                  ? 'Writing...'
+                                  : 'Waiting'}
+                            </b>
+                          </button>
+                          <div className="generator-stream-bar">
+                            <span style={{ width: `${section.progress}%` }} />
+                          </div>
+                          {section.status === 'complete' ? (
+                            <button
+                              type="button"
+                              className="generator-stream-regenerate"
+                              onClick={() => regenerateSection(section.id)}
+                            >
+                              Regenerate section
+                            </button>
+                          ) : null}
+                        </article>
+                      ))}
+                    </div>
+                  </article>
+
+                  <article className="generator-ai-card generator-thoughts-card">
+                    <header>
+                      <div>
+                        <span>Thought stream</span>
+                        <h3>System narration for the founder</h3>
+                      </div>
+                    </header>
+                    <div className="generator-thought-list">
+                      {[...workspaceThoughts].reverse().map((thought, index) => (
+                        <p key={`${thought}-${index}`}>{thought}</p>
+                      ))}
+                    </div>
+                  </article>
+
+                  <article className="generator-ai-preview" id="quick-preview-panel">
+                    <div className="generator-ai-preview-header">
+                      <div>
+                        <span>Live Preview</span>
+                        <h3>{previewSection?.title ?? 'Waiting for section data'}</h3>
+                        <p>
+                          {previewSection
+                            ? `${previewSection.documentLabel} · ${previewSection.agent}`
+                            : 'The live editor will appear as soon as the first section starts generating.'}
+                        </p>
+                      </div>
+                      <div className="generator-ai-preview-actions">
+                        {workspacePhase === 'complete' && previewSection ? (
+                          <button type="button" onClick={openEditor}>
+                            {editorMode ? 'Editing section' : 'Edit section'}
+                          </button>
+                        ) : null}
+                        {isGenerating ? (
+                          <button type="button" onClick={cancelGeneration}>
+                            Cancel
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {previewSection ? (
+                      editorMode && workspacePhase === 'complete' ? (
+                        <label className="generator-editor-field">
+                          <span>Editable section body</span>
+                          <textarea
+                            value={previewSection.preview || previewSection.body}
+                            onChange={(event) => updatePreviewSection(event.target.value)}
+                          />
+                        </label>
+                      ) : (
+                        <div className="generator-ai-preview-body">
+                          <p>{previewSection.preview || previewSection.body}</p>
+                        </div>
+                      )
+                    ) : (
+                      <div className="generator-ai-preview-body is-empty">
+                        <p>Launch the AI workspace to begin streaming the funding package.</p>
+                      </div>
+                    )}
+
+                    {workspacePhase === 'complete' && generatedPackage ? (
+                      <div className="generator-ai-ready">
+                        <div className="generator-ai-ready-heading">
+                          <div>
+                            <span>Funding Package Ready</span>
+                            <h3>{generatedPackage.title}</h3>
+                          </div>
+                          <b>{generatedPackage.readinessScore}% ready</b>
+                        </div>
+                        <div className="generator-ai-ready-grid">
+                          {[
+                            'Business Plan',
+                            'Cash Flow Forecast',
+                            'Market Analysis',
+                            'Funding Narrative',
+                          ].map((item) => (
+                            <div key={item}>
+                              <i>✓</i>
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="generator-ai-ready-actions">
+                          <button type="button" onClick={openEditor}>
+                            Open Editor
+                          </button>
+                          <button type="button" onClick={downloadWordCompatibleExport}>
+                            Download DOCX
+                          </button>
+                          <button type="button" onClick={() => window.print()}>
+                            Download PDF
+                          </button>
+                          <button type="button" onClick={shareWorkspace}>
+                            Share Workspace
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </article>
+                </div>
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        <aside className="generator-sidebar">
+          <div className="generator-stepper">
+            {(
+              [
+                {
+                  id: 1,
+                  label: 'Funding program',
+                  helper: `${programComplete}/3 required fields`,
+                  icon: 'search' as const,
+                  complete: programComplete === 3,
+                },
+                {
+                  id: 2,
+                  label: 'Business profile',
+                  helper: `${businessComplete}/4 required fields`,
+                  icon: 'grid' as const,
+                  complete: businessComplete === 4,
+                },
+                {
+                  id: 3,
+                  label: 'Review & launch',
+                  helper:
+                    activeStep === 'workspace'
+                      ? workspacePhase === 'complete'
+                        ? 'Package ready'
+                        : 'Generation in progress'
+                      : 'Final review',
+                  icon: 'spark' as const,
+                  complete: activeStep === 'workspace' || !!generatedPackage || isGenerating,
+                },
+              ] as const
+            ).map((step, index) => {
+              const stepLabel = typeof step.id === 'number' ? `0${step.id}` : `0${index + 1}`
+              const isActive = activeStep === step.id || (activeStep === 'workspace' && step.id === 3)
+              return (
+                <button
+                  key={step.label}
+                  type="button"
+                  className={`generator-step ${isActive ? 'is-active' : ''} ${
+                    step.complete ? 'is-complete' : ''
+                  }`}
+                  aria-current={isActive ? 'step' : undefined}
+                  onClick={() => {
+                    setActiveStep(step.id)
+                  }}
+                >
+                  <span className="generator-step-icon">
+                    <Glyph type={step.icon} />
+                  </span>
+                  <span>
+                    <strong>{step.label}</strong>
+                    <small>{step.helper}</small>
+                  </span>
+                  <b>{stepLabel}</b>
+                </button>
+              )
+            })}
+
+            {activeStep === 'workspace' ? (
+              <div className="generator-assurance">
+                <Glyph type="spark" />
+                <div>
+                  <strong>AI consulting team mode</strong>
+                  <p>Users can see the analysts, writers, and reviewer work section by section.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="generator-assurance">
+                <Glyph type="spark" />
+                <div>
+                  <strong>Your data stays editable</strong>
+                  <p>Review every section before exporting or sharing.</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className={`generator-summary ${activeStep === 'workspace' ? 'is-live' : ''}`}>
+            <div className="generator-summary-heading">
+              <span>Package progress</span>
+              <strong>
+                {workspacePhase === 'complete'
+                  ? 'Funding package ready'
+                  : isGenerating
+                    ? 'Generation in progress'
+                    : activeStep === 3
+                      ? 'Ready to generate'
+                      : 'In progress'}
+              </strong>
+            </div>
+            <div className="generator-completion generator-completion-sidebar">
+              <div>
+                <span>Overall completion</span>
+                <strong>{completion}%</strong>
+              </div>
+              <div>
+                <i style={{ width: `${completion}%` }} />
+              </div>
+            </div>
+
+            {activeStep === 'workspace' ? (
+              <>
+                <div className="generator-summary-checks">
+                  <span className={quickGeneratePhaseRank[workspacePhase] >= 2 ? 'is-complete' : ''}>
+                    <i>{quickGeneratePhaseRank[workspacePhase] >= 2 ? '✓' : '1'}</i>
+                    Opportunity analyzed
+                  </span>
+                  <span className={quickGeneratePhaseRank[workspacePhase] >= 3 ? 'is-complete' : ''}>
+                    <i>{quickGeneratePhaseRank[workspacePhase] >= 3 ? '✓' : '2'}</i>
+                    Strategy built
+                  </span>
+                  <span
+                    className={
+                      workspaceSections.every((section) => section.status === 'complete')
+                        ? 'is-complete'
+                        : ''
+                    }
+                  >
+                    <i>
+                      {workspaceSections.every((section) => section.status === 'complete')
+                        ? '✓'
+                        : '3'}
+                    </i>
+                    Section generation
+                  </span>
+                  <span className={workspacePhase === 'complete' ? 'is-complete' : ''}>
+                    <i>{workspacePhase === 'complete' ? '✓' : '4'}</i>
+                    Package review
+                  </span>
+                </div>
+
+                <div className="generator-summary-package">
+                  <strong>Workspace stats</strong>
+                  <div>
+                    <span>Sections</span>
+                    <b>{workspaceSections.length}</b>
+                  </div>
+                  <div>
+                    <span>Model</span>
+                    <b>{config.ai.defaultModel}</b>
+                  </div>
+                  <div>
+                    <span>Completed</span>
+                    <b>
+                      {generatedPackage
+                        ? new Intl.DateTimeFormat('en-CA', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          }).format(new Date(generatedPackage.completedAt))
+                        : 'Not yet'}
+                    </b>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="generator-summary-checks">
+                  <span className={programComplete === 3 ? 'is-complete' : ''}>
+                    <i>{programComplete === 3 ? '✓' : '1'}</i>
+                    Program details
+                  </span>
+                  <span className={businessComplete === 4 ? 'is-complete' : ''}>
+                    <i>{businessComplete === 4 ? '✓' : '2'}</i>
+                    Business profile
+                  </span>
+                  <span className={activeStep === 3 ? 'is-complete' : ''}>
+                    <i>{activeStep === 3 ? '✓' : '3'}</i>
+                    Review package
+                  </span>
+                </div>
+                <p>
+                  Model: {config.ai.defaultModel}
+                  <br />
+                  Estimated generation time: 30–60 seconds
+                </p>
+              </>
+            )}
+          </div>
+        </aside>
+      </div>
+
+      {programPickerOpen ? (
+        <div
+          className="company-picker-backdrop"
+          role="presentation"
+          onMouseDown={() => setProgramPickerOpen(false)}
+        >
+          <section
+            className="company-picker funding-program-picker"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="program-picker-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <p className="workspace-eyebrow">Grants &amp; Loans</p>
+                <h2 id="program-picker-title">Choose a funding program</h2>
+                <p>Import an opportunity and continue with its official details.</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close funding program picker"
+                onClick={() => setProgramPickerOpen(false)}
+              >
+                <Glyph type="close" />
+              </button>
+            </header>
+
+            <div className="funding-program-picker-tools">
+              <label className="company-picker-search">
+                <Glyph type="search" />
+                <input
+                  type="search"
+                  value={programQuery}
+                  onChange={(event) => setProgramQuery(event.target.value)}
+                  placeholder="Search program, provider, or location"
+                  autoFocus
+                />
+              </label>
+              <div>
+                {(['All', 'Grant', 'Loan'] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className={programType === type ? 'is-selected' : ''}
+                    onClick={() => setProgramType(type)}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="company-picker-list funding-program-picker-list">
+              {visibleFundingPrograms.map((program) => (
+                <button
+                  key={program.id}
+                  type="button"
+                  className="funding-program-option"
+                  onClick={() => importFundingProgram(program)}
+                >
+                  <span className={`funding-program-type type-${program.type.toLowerCase()}`}>
+                    {program.type.charAt(0)}
+                  </span>
+                  <span className="company-picker-copy">
+                    <strong>{program.name}</strong>
+                    <small>{program.provider} · {program.location}</small>
+                    <em>
+                      {program.type} · Deadline: {program.deadline} ·{' '}
+                      {program.sourceName ?? 'Bconomics catalog'}
+                    </em>
+                  </span>
+                  <span className="funding-program-amount">
+                    <b>${program.amount.toLocaleString('en-CA')}</b>
+                    <small>Maximum</small>
+                  </span>
+                  <span className="company-picker-score">
+                    <b>{program.match}%</b>
+                    <small>Match</small>
+                  </span>
+                  <span className="company-picker-select">
+                    Select <Glyph type="arrow" />
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {visibleFundingPrograms.length === 0 ? (
+              <div className="company-picker-empty">
+                <strong>No matching programs</strong>
+                <p>Try another search term or switch the funding type.</p>
+              </div>
+            ) : null}
+
+            <footer>
+              <span>{fundingProgramCatalog.length} opportunities available</span>
+              <Link to="/grants-loans">
+                Browse Grants &amp; Loans <Glyph type="arrow" />
+              </Link>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
+      {companyPickerOpen ? (
+        <div
+          className="company-picker-backdrop"
+          role="presentation"
+          onMouseDown={() => setCompanyPickerOpen(false)}
+        >
+          <section
+            className="company-picker"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="company-picker-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <p className="workspace-eyebrow">My Companies</p>
+                <h2 id="company-picker-title">Choose a company to import</h2>
+                <p>Select the business profile you want to use for this funding package.</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close company picker"
+                onClick={() => setCompanyPickerOpen(false)}
+              >
+                <Glyph type="close" />
+              </button>
+            </header>
+
+            <label className="company-picker-search">
+              <Glyph type="search" />
+              <input
+                type="search"
+                value={companyQuery}
+                onChange={(event) => setCompanyQuery(event.target.value)}
+                placeholder="Search company, industry, or owner"
+                autoFocus
+              />
+            </label>
+
+            <div className="company-picker-list">
+              {visibleCompanyOptions.map((company) => (
+                <button
+                  key={company.id}
+                  type="button"
+                  className="company-picker-option"
+                  onClick={() => importCompany(company)}
+                >
+                  <span className={`company-picker-logo ${company.logo ? 'has-logo' : ''}`}>
+                    {company.logo ? <img src={company.logo} alt="" /> : company.name.charAt(0)}
+                  </span>
+                  <span className="company-picker-copy">
+                    <strong>{company.name}</strong>
+                    <small>
+                      {company.industry} · {company.location}
+                    </small>
+                    <em>{company.owner}</em>
+                  </span>
+                  <span className="company-picker-score">
+                    <b>{company.readiness}%</b>
+                    <small>Ready</small>
+                  </span>
+                  <span className="company-picker-select">
+                    Select <Glyph type="arrow" />
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {visibleCompanyOptions.length === 0 ? (
+              <div className="company-picker-empty">
+                <strong>No matching companies</strong>
+                <p>Try another search term or add a company to your portfolio.</p>
+              </div>
+            ) : null}
+
+            <footer>
+              <span>{companyOptions.length} companies available</span>
+              <Link to="/my-company">
+                Manage My Companies <Glyph type="arrow" />
+              </Link>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        className="clone-report-bug"
+        onClick={() => {
+          window.location.href =
+            'mailto:support@bconomics.ai?subject=Bconomics%20bug%20report'
+        }}
+      >
+        Report a bug
+      </button>
+    </section>
+  )
+}
+
+function OverviewPage() {
+  const { config } = usePlatformConfig()
+  const visibleQuickActions = quickActionRoutes.filter(
+    (action) => config.modules[action.path.slice(1) as PlatformModuleId] !== false,
+  )
+
+  return (
+    <section className="workspace-dashboard">
+      <header className="workspace-dashboard-header">
+        <div>
+          <p className="workspace-eyebrow">Monday, July 28</p>
+          <h1>Good afternoon, Alex.</h1>
+          <p>Here is what needs your attention across the funding workspace.</p>
+        </div>
+        <Link to="/quick-generate" className="workspace-primary-action">
+          <Glyph type="spark" />
+          <span>Create funding package</span>
+        </Link>
+      </header>
+
+      <div className="dashboard-command-grid">
+        <article className="dashboard-readiness-card">
+          <div className="dashboard-card-topline">
+            <span>Funding readiness</span>
+            <Link to="/funding-readiness">View assessment</Link>
+          </div>
+          <div className="dashboard-readiness-content">
+            <div className="dashboard-score-ring">
+              <span><strong>72</strong>/100</span>
+            </div>
+            <div>
+              <p>Almost application ready</p>
+              <h2>Strengthen your financial story.</h2>
+              <span>Complete two high-impact actions to reach the recommended score of 80.</span>
+              <Link to="/funding-readiness">
+                Continue assessment <Glyph type="arrow" />
+              </Link>
+            </div>
+          </div>
+        </article>
+
+        <article className="dashboard-focus-card">
+          <div className="dashboard-card-topline">
+            <span>Today’s focus</span>
+            <b>3 actions</b>
+          </div>
+          <h2>Your next best move</h2>
+          <div className="dashboard-focus-action">
+            <span><Glyph type="file" /></span>
+            <div>
+              <strong>Finish the FedDev application</strong>
+              <small>Due in 6 days · 82% complete</small>
+            </div>
+          </div>
+          <div className="dashboard-focus-progress"><span /></div>
+          <Link to="/my-applications">Open application <Glyph type="arrow" /></Link>
+        </article>
+      </div>
+
+      <div className="dashboard-metrics">
+        <article>
+          <span>Matched funding</span>
+          <strong>$1.2M</strong>
+          <small><b>+18%</b> this month</small>
+        </article>
+        <article>
+          <span>Active applications</span>
+          <strong>5</strong>
+          <small>2 require attention</small>
+        </article>
+        <article>
+          <span>Saved opportunities</span>
+          <strong>14</strong>
+          <small>4 closing soon</small>
+        </article>
+        <article>
+          <span>Documents generated</span>
+          <strong>23</strong>
+          <small><b>+6</b> this week</small>
+        </article>
+      </div>
+
+      <div className="dashboard-content-grid">
+        <section className="dashboard-panel dashboard-applications">
+          <div className="dashboard-panel-header">
+            <div>
+              <p className="workspace-eyebrow">Application pipeline</p>
+              <h2>Keep every deadline moving</h2>
+            </div>
+            <Link to="/my-applications">View all</Link>
+          </div>
+          <div className="dashboard-application-list">
+            {[
+              ['FedDev Ontario Growth Program', '$250,000', 'Due Aug 3', '82'],
+              ['Canada Digital Adoption Program', '$15,000', 'Due Aug 14', '64'],
+              ['Starter Company Plus', '$5,000', 'Draft', '38'],
+            ].map(([name, amount, due, progress]) => (
+              <Link to="/my-applications" key={name} className="dashboard-application-row">
+                <span className="dashboard-application-icon"><Glyph type="file" /></span>
+                <span>
+                  <strong>{name}</strong>
+                  <small>{amount} · {due}</small>
+                </span>
+                <span className="dashboard-row-progress">
+                  <b>{progress}%</b>
+                  <i><em style={{ width: `${progress}%` }} /></i>
+                </span>
+                <Glyph type="arrow" />
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section className="dashboard-panel dashboard-opportunities">
+          <div className="dashboard-panel-header">
+            <div>
+              <p className="workspace-eyebrow">Top matches</p>
+              <h2>Recommended funding</h2>
+            </div>
+            <Link to="/grants-loans">Explore</Link>
+          </div>
+          <div className="dashboard-opportunity-list">
+            <Link to="/grants-loans">
+              <span className="dashboard-match">94% match</span>
+              <strong>Ontario Made Manufacturing Investment Tax Credit</strong>
+              <small>Up to $2M · Tax credit</small>
+              <b>Strong fit for your growth stage <Glyph type="arrow" /></b>
+            </Link>
+            <Link to="/grants-loans">
+              <span className="dashboard-match">89% match</span>
+              <strong>Business Scale-up and Productivity</strong>
+              <small>Up to $10M · Repayable contribution</small>
+              <b>Matched on industry and location <Glyph type="arrow" /></b>
+            </Link>
+          </div>
+        </section>
+      </div>
+
+      <div className="dashboard-lower-grid">
+        <section className="dashboard-panel dashboard-quick-panel">
+          <div className="dashboard-panel-header">
+            <div>
+              <p className="workspace-eyebrow">Shortcuts</p>
+              <h2>Move work forward</h2>
+            </div>
+          </div>
+          <div className="dashboard-quick-links">
+            {visibleQuickActions.map((action) => (
+              <Link key={action.label} to={action.path}>
+                <span><Glyph type={action.icon} /></span>
+                <strong>{action.label}</strong>
+                <Glyph type="arrow" />
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section className="dashboard-panel dashboard-activity-panel">
+          <div className="dashboard-panel-header">
+            <div>
+              <p className="workspace-eyebrow">Workspace activity</p>
+              <h2>Recently updated</h2>
+            </div>
+          </div>
+          <div className="dashboard-activity-list">
+            <article>
+              <span><Glyph type="spark" /></span>
+              <p><strong>Readiness score increased to 72</strong><small>2 hours ago</small></p>
+            </article>
+            <article>
+              <span><Glyph type="user" /></span>
+              <p><strong>Morgan updated Northstar Foods</strong><small>Yesterday</small></p>
+            </article>
+            <article>
+              <span><Glyph type="file" /></span>
+              <p><strong>Cash flow forecast was generated</strong><small>Jul 25</small></p>
+            </article>
+          </div>
+        </section>
+      </div>
+    </section>
+  )
+}
+
+export function DashboardPage() {
+  const { sectionId } = useParams()
+  const navigate = useNavigate()
+  const [partnerOpen, setPartnerOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const sidebarScrollRef = useRef<HTMLDivElement>(null)
+  const workspaceControlRef = useRef<HTMLDivElement>(null)
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
+  const [workspaceCreatorOpen, setWorkspaceCreatorOpen] = useState(false)
+  const [workspaceName, setWorkspaceName] = useState('')
+  const [workspaceKind, setWorkspaceKind] =
+    useState<WorkspaceKind>('Founder workspace')
+  const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>(
+    loadWorkspaceRecords,
+  )
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(() =>
+    loadActiveWorkspaceId(workspaces),
+  )
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(dashboardGroups.map((group) => [group.title, true])),
+  )
+  const { config } = usePlatformConfig()
+  const activeWorkspace =
+    workspaces.find((workspace) => workspace.id === activeWorkspaceId) ??
+    workspaces[0]
+
+  const currentItem = useMemo(() => findDashboardItem(sectionId), [sectionId])
+  const visibleGroups = dashboardGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) =>
+          item.id === 'dashboard' ||
+          config.modules[item.id as PlatformModuleId] !== false,
+      ),
+    }))
+    .filter((group) => group.items.length > 0)
+
+  useEffect(() => {
+    const pageName = currentItem?.label ?? 'Dashboard'
+    document.title = `${pageName} | ${config.productName}${config.productSuffix}`
+  }, [config.productName, config.productSuffix, currentItem])
+
+  useEffect(() => {
+    const scrollArea = sidebarScrollRef.current
+    const activeItem = scrollArea?.querySelector<HTMLElement>('.clone-nav-item.is-active')
+    if (!scrollArea || !activeItem) return
+
+    const scrollRect = scrollArea.getBoundingClientRect()
+    const itemRect = activeItem.getBoundingClientRect()
+    if (itemRect.top < scrollRect.top) {
+      scrollArea.scrollBy({ top: itemRect.top - scrollRect.top - 8 })
+    } else if (itemRect.bottom > scrollRect.bottom) {
+      scrollArea.scrollBy({ top: itemRect.bottom - scrollRect.bottom + 8 })
+    }
+  }, [currentItem, openGroups, partnerOpen])
+
+  useEffect(() => {
+    if (!workspaceMenuOpen) return
+
+    function closeWorkspaceMenu(event: PointerEvent) {
+      if (
+        event.target instanceof Node &&
+        !workspaceControlRef.current?.contains(event.target)
+      ) {
+        setWorkspaceMenuOpen(false)
+        setWorkspaceCreatorOpen(false)
+      }
+    }
+
+    function closeWorkspaceMenuWithKeyboard(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setWorkspaceMenuOpen(false)
+        setWorkspaceCreatorOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', closeWorkspaceMenu)
+    document.addEventListener('keydown', closeWorkspaceMenuWithKeyboard)
+    return () => {
+      document.removeEventListener('pointerdown', closeWorkspaceMenu)
+      document.removeEventListener('keydown', closeWorkspaceMenuWithKeyboard)
+    }
+  }, [workspaceMenuOpen])
+
+  if (sectionId === 'my-subscriptions') {
+    return <Navigate to="/settings#billing" replace />
+  }
+
+  if (sectionId && !currentItem) {
+    return <Navigate to="/404" replace />
+  }
+
+  if (
+    sectionId &&
+    currentItem &&
+    (config.modules[currentItem.id as PlatformModuleId] === false ||
+      (partnerItems.some((item) => item.id === currentItem.id) &&
+        !config.modules['partner-portal']))
+  ) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  const isOverview = !sectionId || sectionId === 'dashboard'
+  const isQuickGenerate = currentItem?.id === 'quick-generate'
+  const isFundingReadiness = currentItem?.id === 'funding-readiness'
+  const isMyCompany = currentItem?.id === 'my-company'
+  const isGrantsLoans = currentItem?.id === 'grants-loans'
+  const isSavedPrograms = currentItem?.id === 'saved-programs'
+  const isMyApplications = currentItem?.id === 'my-applications'
+  const isTemplates = currentItem?.id === 'templates'
+  const isSocialResources = currentItem?.id === 'social-resources'
+  const isTools = currentItem?.id === 'tools'
+  const isSettings = currentItem?.id === 'settings'
+  const showsProgramPanels = false
+
+  function signOut() {
+    const authStorageKeys = [
+      'bconomics-session',
+      'bconomics-auth',
+      'bconomics-auth-user',
+      'bconomics-access-token',
+      'bconomics-refresh-token',
+    ]
+    authStorageKeys.forEach((key) => window.localStorage.removeItem(key))
+    window.sessionStorage.clear()
+    setSidebarOpen(false)
+    navigate('/', { replace: true })
+  }
+
+  function selectWorkspace(workspaceId: string) {
+    setActiveWorkspaceId(workspaceId)
+    setPersistentItem(activeWorkspaceStorageKey, workspaceId)
+    setWorkspaceMenuOpen(false)
+    setWorkspaceCreatorOpen(false)
+    setSidebarOpen(false)
+  }
+
+  function createWorkspace(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const name = workspaceName.trim()
+    if (!name) return
+
+    const workspace: WorkspaceRecord = {
+      id: `workspace-${Date.now()}`,
+      name,
+      kind: workspaceKind,
+    }
+    const nextWorkspaces = [...workspaces, workspace]
+    setWorkspaces(nextWorkspaces)
+    setActiveWorkspaceId(workspace.id)
+    setPersistentItem(
+      workspaceStorageKey,
+      JSON.stringify(nextWorkspaces),
+    )
+    setPersistentItem(activeWorkspaceStorageKey, workspace.id)
+    setWorkspaceName('')
+    setWorkspaceKind('Founder workspace')
+    setWorkspaceCreatorOpen(false)
+    setWorkspaceMenuOpen(false)
+    setSidebarOpen(false)
+  }
+
+  return (
+    <div className="dashboard-clone">
+      <header className="clone-mobile-header">
+        <Link className="clone-brand" to="/">
+          <span className="clone-brand-badge">{config.productName.charAt(0)}</span>
+          <span className="clone-brand-text">
+            {config.productName.slice(1)}
+            {config.productSuffix}
+          </span>
+        </Link>
+        <button
+          type="button"
+          aria-label="Open navigation"
+          onClick={() => setSidebarOpen(true)}
+        >
+          <Glyph type="menu" />
+        </button>
+      </header>
+
+      {sidebarOpen ? (
+        <button
+          type="button"
+          className="clone-sidebar-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setSidebarOpen(false)}
+        />
+      ) : null}
+
+      <aside className={`clone-sidebar ${sidebarOpen ? 'is-open' : ''}`}>
+        <button
+          type="button"
+          className="clone-sidebar-close"
+          aria-label="Close navigation"
+          onClick={() => setSidebarOpen(false)}
+        >
+          <Glyph type="close" />
+        </button>
+        <Link className="clone-brand" to="/">
+          <span className="clone-brand-badge">{config.productName.charAt(0)}</span>
+          <span className="clone-brand-text">
+            {config.productName.slice(1)}
+            {config.productSuffix}
+          </span>
+        </Link>
+
+        <div className="clone-sidebar-context">
+          <div
+            className={`clone-workspace-control ${
+              workspaceMenuOpen ? 'is-open' : ''
+            }`}
+            ref={workspaceControlRef}
+          >
+            <button
+              type="button"
+              className="clone-workspace-switcher"
+              aria-expanded={workspaceMenuOpen}
+              aria-haspopup="dialog"
+              onClick={() => {
+                setWorkspaceMenuOpen((current) => !current)
+                setWorkspaceCreatorOpen(false)
+              }}
+            >
+              <span className="clone-workspace-avatar">
+                {getWorkspaceInitials(activeWorkspace?.name ?? '')}
+              </span>
+              <span>
+                <strong>{activeWorkspace?.name ?? 'Select workspace'}</strong>
+                <small>{activeWorkspace?.kind ?? 'Workspace'}</small>
+              </span>
+              <span className="clone-workspace-chevron">
+                <Glyph type="arrow" />
+              </span>
+            </button>
+
+            {workspaceMenuOpen ? (
+              <div
+                className="clone-workspace-menu"
+                role="dialog"
+                aria-label="Workspace switcher"
+              >
+                <header>
+                  <span>Workspaces</span>
+                  <b>{workspaces.length}</b>
+                </header>
+
+                <div className="clone-workspace-list">
+                  {workspaces.map((workspace) => (
+                    <button
+                      key={workspace.id}
+                      type="button"
+                      className={
+                        workspace.id === activeWorkspaceId ? 'is-active' : ''
+                      }
+                      onClick={() => selectWorkspace(workspace.id)}
+                    >
+                      <span>{getWorkspaceInitials(workspace.name)}</span>
+                      <span>
+                        <strong>{workspace.name}</strong>
+                        <small>{workspace.kind}</small>
+                      </span>
+                      {workspace.id === activeWorkspaceId ? <b>Current</b> : null}
+                    </button>
+                  ))}
+                </div>
+
+                {workspaceCreatorOpen ? (
+                  <form
+                    className="clone-workspace-create-form"
+                    onSubmit={createWorkspace}
+                  >
+                    <label>
+                      <span>Workspace name</span>
+                      <input
+                        autoFocus
+                        value={workspaceName}
+                        placeholder="e.g. Northstar team"
+                        onChange={(event) => setWorkspaceName(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>Workspace type</span>
+                      <select
+                        value={workspaceKind}
+                        onChange={(event) =>
+                          setWorkspaceKind(event.target.value as WorkspaceKind)
+                        }
+                      >
+                        <option>Founder workspace</option>
+                        <option>Partner workspace</option>
+                        <option>Client workspace</option>
+                      </select>
+                    </label>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setWorkspaceCreatorOpen(false)}
+                      >
+                        Cancel
+                      </button>
+                      <button type="submit" disabled={!workspaceName.trim()}>
+                        Create
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    className="clone-workspace-add"
+                    onClick={() => setWorkspaceCreatorOpen(true)}
+                  >
+                    <span>+</span>
+                    Create workspace
+                  </button>
+                )}
+
+                <Link
+                  to="/settings#workspace"
+                  className="clone-workspace-settings"
+                  onClick={() => {
+                    setWorkspaceMenuOpen(false)
+                    setSidebarOpen(false)
+                  }}
+                >
+                  <Glyph type="settings" />
+                  <span>
+                    <strong>Workspace settings</strong>
+                    <small>Defaults, region, and company</small>
+                  </span>
+                  <Glyph type="arrow" />
+                </Link>
+              </div>
+            ) : null}
+          </div>
+          <Link
+            to="/quick-generate"
+            className="clone-sidebar-create"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <Glyph type="spark" />
+            <span>New funding package</span>
+            <b>+</b>
+          </Link>
+        </div>
+
+        <div className="clone-sidebar-scroll" ref={sidebarScrollRef}>
+          {visibleGroups.map((group) => (
+            <section key={group.title} className="clone-nav-group">
+              <button
+                type="button"
+                className="clone-group-title"
+                aria-expanded={openGroups[group.title]}
+                onClick={() =>
+                  setOpenGroups((current) => ({
+                    ...current,
+                    [group.title]: !current[group.title],
+                  }))
+                }
+              >
+                <span>{group.title}</span>
+                <span
+                  className={`clone-chevron ${
+                    openGroups[group.title] ? 'is-open' : ''
+                  }`}
+                >
+                  <Glyph type="arrow" />
+                </span>
+              </button>
+
+              {openGroups[group.title] ? (
+                <div className="clone-group-items">
+                  {group.items.map((item) => (
+                    <NavLink
+                      key={item.id}
+                      to={itemPath(item.id)}
+                      end={item.id === 'dashboard'}
+                      onClick={() => setSidebarOpen(false)}
+                      className={({ isActive }) =>
+                        `clone-nav-item ${isActive ? 'is-active' : ''}`
+                      }
+                    >
+                      <span className="clone-nav-icon">
+                        <Glyph type={item.icon} />
+                      </span>
+                      <span>{item.label}</span>
+                      <span className="clone-nav-badge">
+                        <Glyph type={item.badgeIcon ?? 'user'} />
+                      </span>
+                    </NavLink>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ))}
+
+          {config.modules['partner-portal'] ? (
+            <section className="clone-nav-group">
+            <button
+              type="button"
+              className="clone-group-title clone-partner-title"
+              aria-expanded={partnerOpen}
+              onClick={() => setPartnerOpen((open) => !open)}
+            >
+              <span className="clone-partner-label">
+                <span>Partner Portal</span>
+                <span className="clone-partner-badge">☆</span>
+              </span>
+              <span className={`clone-chevron ${partnerOpen ? 'is-open' : ''}`}>
+                <Glyph type="arrow" />
+              </span>
+            </button>
+
+            {partnerOpen ? (
+              <div className="clone-group-items clone-partner-items">
+                {partnerItems.map((item) => (
+                  <NavLink
+                    key={item.id}
+                    to={itemPath(item.id)}
+                    onClick={() => setSidebarOpen(false)}
+                    className={({ isActive }) =>
+                      `clone-nav-item clone-nav-item-partner ${
+                        isActive ? 'is-active' : ''
+                      }`
+                    }
+                  >
+                    <span className="clone-nav-icon">
+                      <Glyph type={item.icon} />
+                    </span>
+                    <span>{item.label}</span>
+                    <span className="clone-nav-badge">
+                      <Glyph type={item.badgeIcon ?? 'spark'} />
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
+            ) : null}
+            </section>
+          ) : null}
+        </div>
+
+        <div className="clone-sidebar-footer">
+          <div className="clone-account-row">
+            <div className="clone-account-summary">
+              <span className="clone-profile-avatar">YU</span>
+              <span className="clone-profile-copy">
+                <strong>Workspace Admin</strong>
+                <small>ID 112434133</small>
+              </span>
+            </div>
+            <button
+              type="button"
+              className="clone-logout-button"
+              aria-label="Sign out"
+              title="Sign out"
+              onClick={signOut}
+            >
+              <Glyph type="logout" />
+            </button>
+          </div>
+
+          {footerItems.map((item) => (
+            <NavLink
+              key={item.id}
+              to={itemPath(item.id)}
+              onClick={() => setSidebarOpen(false)}
+              className={({ isActive }) =>
+                `clone-footer-link ${item.id === 'settings' ? 'is-strong' : ''} ${
+                  isActive ? 'is-active' : ''
+                }`
+              }
+            >
+              <span className="clone-nav-icon">
+                <Glyph type={item.icon} />
+              </span>
+              <span>{item.label}</span>
+              <span className="clone-nav-badge">
+                <Glyph type={item.badgeIcon ?? 'user'} />
+              </span>
+            </NavLink>
+          ))}
+          <NavLink
+            to="/admin"
+            onClick={() => setSidebarOpen(false)}
+            className={({ isActive }) =>
+              `clone-footer-link ${isActive ? 'is-active' : ''}`
+            }
+          >
+            <span className="clone-nav-icon">
+              <Glyph type="settings" />
+            </span>
+            <span>Admin Console</span>
+            <span className="clone-nav-badge">
+              <Glyph type="spark" />
+            </span>
+          </NavLink>
+        </div>
+      </aside>
+
+      <main className="clone-main">
+        <div className="clone-main-inner">
+          {isOverview ? (
+            <OverviewPage />
+          ) : isFundingReadiness ? (
+            <FundingReadinessPage />
+          ) : isQuickGenerate ? (
+            <QuickGeneratePage />
+          ) : isMyCompany ? (
+            <MyCompanyPage />
+          ) : isSavedPrograms ? (
+            <SavedProgramsPage />
+          ) : isMyApplications ? (
+            <MyApplicationsPage />
+          ) : isGrantsLoans ? (
+            <GrantsLoansPage />
+          ) : isTemplates ? (
+            <TemplatesPage />
+          ) : isSocialResources ? (
+            <SocialResourcesPage />
+          ) : isTools ? (
+            <ToolsPage />
+          ) : isSettings ? (
+            <SettingsPage />
+          ) : currentItem ? (
+            <SectionListing item={currentItem} />
+          ) : null}
+
+          {!isQuickGenerate && showsProgramPanels ? (
+            <>
+              {config.modules['saved-programs'] ? (
+                <section className="clone-section">
+                <div className="clone-section-header">
+                  <span className="clone-section-icon">
+                    <Glyph type="arrow" />
+                  </span>
+                  <h2>Saved Programs</h2>
+                  <Link to="/saved-programs" className="clone-inline-upgrade">
+                    View all
+                  </Link>
+                </div>
+                <div className="clone-program-grid">
+                  {allDashboardItems
+                    .find((item) => item.id === 'saved-programs')
+                    ?.entries.map((entry) => (
+                      <article key={entry.title} className="clone-program-card">
+                        <span className="clone-program-tag">{entry.status}</span>
+                        <h3>{entry.title}</h3>
+                        <p>{entry.subtitle}</p>
+                      </article>
+                    ))}
+                </div>
+                </section>
+              ) : null}
+
+              {config.modules['grants-loans'] ? (
+                <section className="clone-section">
+                <div className="clone-section-header">
+                  <span className="clone-section-icon">
+                    <Glyph type="spark" />
+                  </span>
+                  <h2>Recommended Programs</h2>
+                  <Link to="/grants-loans" className="clone-inline-upgrade">
+                    Explore
+                  </Link>
+                </div>
+                <div className="clone-program-grid">
+                  {allDashboardItems
+                    .find((item) => item.id === 'grants-loans')
+                    ?.entries.map((entry) => (
+                      <article
+                        key={entry.title}
+                        className="clone-program-card clone-program-card-light"
+                      >
+                        <span className="clone-program-tag clone-program-tag-accent">
+                          {entry.status}
+                        </span>
+                        <h3>{entry.title}</h3>
+                        <p>{entry.subtitle}</p>
+                      </article>
+                    ))}
+                </div>
+                </section>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </main>
+    </div>
+  )
+}

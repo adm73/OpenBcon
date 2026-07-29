@@ -1,0 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg: #f6f4ef;
+  --bg-deep: #ece7dc;
+  --surface: rgba(255, 252, 247, 0.8);
+  --ink: #1e241f;
+  --muted: #6d6a60;
+  --accent: #0f766e;
+  --warm: #df6a30;
+  --platform-primary: #6257f2;
+  --platform-sidebar: #121c31;
+  --soft-shadow:
+    0 20px 50px rgba(56, 42, 25, 0.08),
+    0 8px 18px rgba(56, 42, 25, 0.05);
+  --sans:
+    'Manrope', 'Avenir Next', 'Segoe UI', sans-serif;
+  --display:
+    'Instrument Serif', Georgia, serif;
+
+  font-family: var(--sans);
+  line-height: 1.55;
+  font-weight: 500;
+  color: var(--ink);
+  background: #ffffff;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #ffffff;
+}
+
+#root {
+  width: 100%;
+  margin: 0;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+h1,
+h2 {
+  font-family: var(--display);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  color: var(--ink);
+}
+
+h1 {
+  font-size: clamp(3.2rem, 8vw, 5.8rem);
+  line-height: 0.92;
+  margin-bottom: 1.25rem;
+}
+
+h2 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 0.98;
+}
+
+h3 {
+  font-size: 1.2rem;
+  color: var(--ink);
+}
+
+a,
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  border: 0;
+}
+
+p {
+  color: var(--muted);
+}
