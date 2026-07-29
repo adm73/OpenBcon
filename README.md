@@ -1,12 +1,55 @@
-# OpenBcon Open Platform
+# OpenBcon
 
-OpenBcon is an open-source funding workspace for discovering programs, organizing applications, and generating funding-ready business documents.
+**The Open Source AI Platform for Funding & Business Consultants**
+
+OpenBcon helps consultants, advisors, incubators, and funding teams run the full workflow in one place:
+
+- discover funding programs
+- assess business readiness
+- manage company and client records
+- generate funding-ready business plans
+- organize applications, templates, resources, and reports
 
 > Community edition: `AGPL-3.0-or-later`
 >
-> Commercial licensing available for private deployments, closed-source modifications, white-label/OEM distribution, and paid implementation work.
+> Commercial licensing available for private deployments, closed-source modifications, white-label/OEM distribution, implementation services, and ongoing support.
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
+
+## Why OpenBcon
+
+Funding consultants and business advisors still spend too much time on repetitive work:
+
+- searching and comparing grant or loan programs
+- collecting company information from clients
+- rewriting business plans and funding narratives
+- tracking applications, deadlines, and next actions
+- building reports and export packages manually
+
+OpenBcon turns that fragmented process into one AI-assisted workspace.
+
+## Who It's For
+
+OpenBcon is designed for teams that help businesses secure funding:
+
+- funding consultants and grant writers
+- business advisors and coaches
+- incubators and accelerators
+- economic development organizations
+- partner networks, internal advisory teams, and multi-client workspaces
+
+## Core Capabilities
+
+- **AI business plan generation**: turn company and funding-program context into a structured funding-ready package
+- **Funding readiness workflows**: assess strengths, risks, and missing inputs before submission
+- **Client and company management**: organize founder profiles, business details, and working records
+- **Funding program database**: manage grants, loans, and opportunity sources in one directory
+- **Partner and admin workspace**: configure modules, data sources, models, payment settings, and workspace behavior
+- **Resource and template libraries**: centralize templates, social resources, tools, and reusable content
+- **Google Sheets and Airtable integrations**: connect external resource sources with admin-managed sync
+- **Open-source customization**: self-host, extend, rebrand, or commercialize under the project's dual-license model
+
+## Product Surfaces
 
 The repository currently includes three product surfaces:
 
@@ -16,15 +59,20 @@ The repository currently includes three product surfaces:
 
 Every workspace module uses a flat route such as `/funding-readiness`, `/quick-generate`, and `/grants-loans`.
 
-## Screenshots
+## Demo Preview
+
+Live demo and short product walkthroughs are planned. Until then, the repository includes a visual snapshot of the current product experience.
+
+<p align="center">
+  <img src="./public/images/openbcon-screenshot-01.png" alt="OpenBcon landing page" width="32%" />
+  <img src="./public/images/openbcon-screenshot-02.png" alt="OpenBcon dashboard workspace" width="32%" />
+  <img src="./public/images/openbcon-screenshot-03.png" alt="OpenBcon quick generate workflow" width="32%" />
+</p>
+
+## Screenshot Gallery
 
 The current repository snapshot includes the landing experience, dashboard workspace, directories, and Quick Generate flow.
 
-<p align="center">
-  <img src="./public/images/openbcon-screenshot-01.png" alt="OpenBcon screenshot 01" width="32%" />
-  <img src="./public/images/openbcon-screenshot-02.png" alt="OpenBcon screenshot 02" width="32%" />
-  <img src="./public/images/openbcon-screenshot-03.png" alt="OpenBcon screenshot 03" width="32%" />
-</p>
 <p align="center">
   <img src="./public/images/openbcon-screenshot-04.png" alt="OpenBcon screenshot 04" width="32%" />
   <img src="./public/images/openbcon-screenshot-05.png" alt="OpenBcon screenshot 05" width="32%" />
