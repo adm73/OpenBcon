@@ -73,11 +73,11 @@ Live demo and short product walkthroughs are planned. Until then, the repository
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-02.png" alt="OpenBcon dashboard workspace" width="100%" /><br />
-      <sub>Dashboard Overview</sub>
+      <sub>Landing Page 2</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-03.png" alt="OpenBcon quick generate workflow" width="100%" /><br />
-      <sub>Quick Generate</sub>
+      <sub>Dashboard Overview</sub>
     </td>
   </tr>
 </table>
@@ -94,53 +94,53 @@ The current repository snapshot includes the landing experience, dashboard works
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-05.png" alt="My Company page" width="100%" /><br />
-      <sub>My Company</sub>
+      <sub>Quick Generate</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-06.png" alt="Saved Programs page" width="100%" /><br />
-      <sub>Saved Programs</sub>
+      <sub>Quick Generate 2</sub>
     </td>
   </tr>
   <tr>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-07.png" alt="My Applications page" width="100%" /><br />
-      <sub>My Applications</sub>
+      <sub>My Company</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-08.png" alt="Grants and Loans page" width="100%" /><br />
-      <sub>Grants &amp; Loans</sub>
+      <sub>Saved Programs</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-09.png" alt="Templates page" width="100%" /><br />
-      <sub>Templates</sub>
+      <sub>My Applications</sub>
     </td>
   </tr>
   <tr>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-10.png" alt="Social Resources page" width="100%" /><br />
-      <sub>Social Resources</sub>
+      <sub>Grants &amp; Loans</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-11.png" alt="Tools page" width="100%" /><br />
-      <sub>Tools Directory</sub>
+      <sub>Templates</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-12.png" alt="Admin Console page" width="100%" /><br />
-      <sub>Admin Console</sub>
+      <sub>Social Resources</sub>
     </td>
   </tr>
   <tr>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-13.png" alt="Quick Generate step 1" width="100%" /><br />
-      <sub>Quick Generate · Step 1</sub>
+      <sub>Tools</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-14.png" alt="Quick Generate step 2" width="100%" /><br />
-      <sub>Quick Generate · Step 2</sub>
+      <sub>Settings</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-15.png" alt="Quick Generate step 3 review" width="100%" /><br />
-      <sub>Quick Generate · Final Review</sub>
+      <sub>Admin Console</sub>
     </td>
   </tr>
 </table>
