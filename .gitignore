@@ -15,6 +15,12 @@ dist-ssr
 .env.*
 !.env.example
 coverage
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
 
 # Editor directories and files
 .vscode/*
