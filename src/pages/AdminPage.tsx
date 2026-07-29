@@ -19,6 +19,10 @@ import {
   type FundingDataSourceFrequency,
   type FundingDataSourceProvider,
 } from '../data/fundingSources'
+import {
+  OPEN_BCON_REPO_URL,
+  hasCommercialLicenseAccess,
+} from '../licensing/openBconAttribution'
 
 const moduleLabels: Array<{ id: PlatformModuleId; label: string; group: string }> = [
   { id: 'funding-readiness', label: 'Funding Readiness', group: 'Funding Centre' },
@@ -113,6 +117,7 @@ export function AdminPage() {
   const [sourceNotice, setSourceNotice] = useState('')
   const enabledModuleCount = Object.values(draft.modules).filter(Boolean).length
   const generationModeLabel = draft.ai.mockModeEnabled ? 'Mock mode' : 'Live backend'
+  const commercialLicenseUnlocked = hasCommercialLicenseAccess()
   const visibleDataSources = draft.dataSources.filter((source) => {
     const matchesQuery = `${source.name} ${source.provider} ${source.module}`
       .toLowerCase()
@@ -956,6 +961,33 @@ export function AdminPage() {
                   }
                 />
               </label>
+              {commercialLicenseUnlocked ? (
+                <label className="admin-field-wide">
+                  <span>OpenBcon footer attribution</span>
+                  <select
+                    value={draft.openBconAttributionVisible ? 'visible' : 'hidden'}
+                    onChange={(event) =>
+                      updateField(
+                        'openBconAttributionVisible',
+                        event.target.value === 'visible',
+                      )
+                    }
+                  >
+                    <option value="visible">Visible</option>
+                    <option value="hidden">Hidden</option>
+                  </select>
+                </label>
+              ) : (
+                <div className="admin-license-lock admin-field-wide">
+                  <strong>Community edition lock</strong>
+                  <p>
+                    OpenBcon attribution is required in the landing page and
+                    dashboard footer. Purchase a commercial license and set
+                    <code> VITE_COMMERCIAL_LICENSED=true </code>
+                    to unlock visibility control.
+                  </p>
+                </div>
+              )}
               <div className="admin-license-preview admin-field-wide">
                 <span>Community edition</span>
                 <strong>AGPL-3.0</strong>
@@ -965,6 +997,23 @@ export function AdminPage() {
                 <span>Commercial edition</span>
                 <strong>{draft.commercialLicensePrice}</strong>
                 <p>For proprietary use, private modifications, and OEM distribution.</p>
+              </div>
+              <div className="admin-license-preview admin-field-wide">
+                <span>OpenBcon attribution</span>
+                <strong>
+                  {commercialLicenseUnlocked
+                    ? draft.openBconAttributionVisible
+                      ? 'Visible'
+                      : 'Hidden'
+                    : 'Always visible in community edition'}
+                </strong>
+                <p>
+                  Footer credit points back to the{' '}
+                  <a href={OPEN_BCON_REPO_URL} target="_blank" rel="noreferrer">
+                    OpenBcon GitHub repository
+                  </a>
+                  .
+                </p>
               </div>
             </div>
           </section>

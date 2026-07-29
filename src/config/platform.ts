@@ -40,6 +40,7 @@ export type PlatformConfig = {
   landingSubheadline: string
   commercialLicenseUrl: string
   commercialLicensePrice: string
+  openBconAttributionVisible: boolean
   payments: PaymentConfig
   ai: AIConfig
   dataSources: FundingDataSource[]
@@ -49,14 +50,15 @@ export type PlatformConfig = {
 export const defaultPlatformConfig: PlatformConfig = {
   productName: 'Bconomics',
   productSuffix: '.ai',
-  supportEmail: 'licensing@bconomics.ai',
+  supportEmail: 'chenadm73@gmail.com',
   primaryColor: '#6257f2',
   sidebarColor: '#121c31',
   landingHeadline: 'Turn business information into funding-ready documents.',
   landingSubheadline:
     'Discover programs, organize applications, and generate lender-ready plans from one configurable workspace.',
-  commercialLicenseUrl: 'mailto:licensing@bconomics.ai',
+  commercialLicenseUrl: 'mailto:chenadm73@gmail.com',
   commercialLicensePrice: 'Contact sales',
+  openBconAttributionVisible: true,
   payments: {
     enabled: true,
     provider: 'stripe',

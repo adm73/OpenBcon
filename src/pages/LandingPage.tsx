@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { OpenBconAttribution } from '../components/OpenBconAttribution'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import { dashboardMetrics, landingHighlights } from '../data/demo'
 
@@ -23,7 +24,8 @@ export function LandingPage() {
           <a href="#opensource">Open source</a>
         </nav>
         <div>
-          <Link to="/admin">Admin</Link>
+          <Link to="/login">Log in</Link>
+          <Link to="/signup">Create account</Link>
           <Link to="/dashboard">Open workspace</Link>
         </div>
       </header>
@@ -36,7 +38,7 @@ export function LandingPage() {
             <p>{config.landingSubheadline}</p>
             <div className="landing-v2-actions">
               <Link to="/dashboard">Explore the live workspace <b>→</b></Link>
-              <a href="#opensource">View open-source edition</a>
+              <Link to="/signup">Create a founder account</Link>
             </div>
             <div className="landing-v2-proof">
               <span><b>75+</b> funding programs tracked</span>
@@ -138,7 +140,7 @@ export function LandingPage() {
               <a href={config.commercialLicenseUrl}>
                 Commercial license · {config.commercialLicensePrice}
               </a>
-              <Link to="/admin">Explore admin configuration</Link>
+              <Link to="/login?next=/admin">Request admin access</Link>
             </div>
           </div>
           <div className="landing-v2-license-card">
@@ -154,10 +156,13 @@ export function LandingPage() {
       </main>
 
       <footer className="landing-v2-footer">
-        <Link className="landing-v2-brand" to="/">
-          <span>{config.productName.charAt(0)}</span>
-          <strong>{config.productName}{config.productSuffix}</strong>
-        </Link>
+        <div className="landing-v2-footer-brand">
+          <Link className="landing-v2-brand" to="/">
+            <span>{config.productName.charAt(0)}</span>
+            <strong>{config.productName}{config.productSuffix}</strong>
+          </Link>
+          <OpenBconAttribution variant="landing" />
+        </div>
         <p>Open funding infrastructure for the next generation of businesses.</p>
         <Link to="/dashboard">Launch workspace →</Link>
       </footer>

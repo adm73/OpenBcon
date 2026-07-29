@@ -19,6 +19,12 @@ import {
   grantAdminAccess,
   revokeAdminAccess,
 } from '../auth/adminAccess'
+import {
+  clearAuthSession,
+  getCurrentAuthUser,
+  getUserInitials,
+} from '../auth/session'
+import { OpenBconAttribution } from '../components/OpenBconAttribution'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import type { PlatformModuleId } from '../config/platform'
 import { defaultProfile, documentTypes, fundingTracks } from '../data/demo'
@@ -7273,6 +7279,7 @@ export function DashboardPage() {
   const activeWorkspace =
     workspaces.find((workspace) => workspace.id === activeWorkspaceId) ??
     workspaces[0]
+  const currentAuthUser = getCurrentAuthUser()
 
   const currentItem = useMemo(() => findDashboardItem(sectionId), [sectionId])
   const visibleGroups = dashboardGroups
@@ -7365,18 +7372,11 @@ export function DashboardPage() {
   const showsProgramPanels = false
 
   function signOut() {
-    const authStorageKeys = [
-      'bconomics-session',
-      'bconomics-auth',
-      'bconomics-auth-user',
-      'bconomics-access-token',
-      'bconomics-refresh-token',
-    ]
-    authStorageKeys.forEach((key) => window.localStorage.removeItem(key))
+    clearAuthSession()
     revokeAdminAccess()
     window.sessionStorage.clear()
     setSidebarOpen(false)
-    navigate('/', { replace: true })
+    navigate('/login', { replace: true })
   }
 
   function selectWorkspace(workspaceId: string) {
@@ -7694,10 +7694,12 @@ export function DashboardPage() {
         <div className="clone-sidebar-footer">
           <div className="clone-account-row">
             <div className="clone-account-summary">
-              <span className="clone-profile-avatar">YU</span>
+              <span className="clone-profile-avatar">
+                {getUserInitials(currentAuthUser?.fullName || 'Workspace User')}
+              </span>
               <span className="clone-profile-copy">
-                <strong>Workspace Admin</strong>
-                <small>ID 112434133</small>
+                <strong>{currentAuthUser?.fullName || 'Workspace User'}</strong>
+                <small>{currentAuthUser?.role || 'Founder'}</small>
               </span>
             </div>
             <button
@@ -7749,6 +7751,7 @@ export function DashboardPage() {
               <Glyph type="spark" />
             </span>
           </NavLink>
+          <OpenBconAttribution variant="sidebar" />
         </div>
       </aside>
 
