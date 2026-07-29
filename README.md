@@ -2,6 +2,12 @@
 
 OpenBcon is an open-source funding workspace for discovering programs, organizing applications, and generating funding-ready business documents.
 
+> Community edition: `AGPL-3.0-or-later`
+>
+> Commercial licensing available for private deployments, closed-source modifications, white-label/OEM distribution, and paid implementation work.
+>
+> See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
+
 The repository currently includes three product surfaces:
 
 - `/` - public landing page
@@ -215,9 +221,21 @@ variables.
 
 ## Licensing
 
-The community edition is available under `AGPL-3.0-or-later`. A separate commercial license can be offered to customers that need proprietary use, private modifications, OEM distribution, or different support terms.
+OpenBcon uses a dual-license structure:
 
-See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) for the commercial licensing outline. Have final commercial terms reviewed by qualified legal counsel before selling licenses.
+- Community edition: `AGPL-3.0-or-later`
+- Commercial edition: available by separate paid agreement
+
+The commercial edition is intended for customers that need:
+
+- proprietary or closed-source deployment rights
+- private modifications without AGPL disclosure obligations
+- white-label, OEM, or embedded distribution rights
+- paid implementation, customization, or ongoing support
+
+See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) for the commercial
+licensing model and [CLA.md](./CLA.md) for the contributor agreement required
+for external contributions.
 
 ## Publishing to GitHub
 

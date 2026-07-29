@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping improve Bconomics.
+Thank you for helping improve OpenBcon.
 
 ## Development
 
@@ -14,8 +14,17 @@ Thank you for helping improve Bconomics.
 
 ## Licensing
 
-By submitting a contribution, you agree that your contribution is licensed under the repository's open-source license.
+OpenBcon uses an `AGPL-3.0-or-later` community license together with a
+commercial licensing model.
 
-The project owner may later introduce a Contributor License Agreement before accepting substantial external contributions. That agreement may be required to preserve the project's ability to offer the same code under both open-source and commercial licenses.
+Before we can accept an external contribution, the contributor must agree to
+the repository's Contributor License Agreement in [CLA.md](./CLA.md).
+
+By submitting a contribution, you confirm that:
+
+- you have the legal right to submit it
+- you agree to the terms in [CLA.md](./CLA.md)
+- you understand that accepted contributions may be used in both the community
+  edition and commercial editions of the project
 
 Do not submit customer data, credentials, confidential prompts, or assets that you do not have permission to redistribute.

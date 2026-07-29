@@ -1,4 +1,4 @@
-# Bconomics Commercial License
+# OpenBcon Commercial Licensing
 
 The source code in this repository is offered under a dual-license model.
 
@@ -8,13 +8,24 @@ The community edition is licensed under the GNU Affero General Public License, v
 
 ## Commercial edition
 
-A commercial license is intended for organizations that want rights beyond the AGPL terms, including:
+A commercial license is intended for organizations that want rights beyond the
+AGPL terms, including:
 
 - proprietary or closed-source deployments
 - private modifications without AGPL source disclosure obligations
 - embedding or OEM distribution in a proprietary product
 - negotiated warranty, indemnity, support, or service-level terms
 - custom branding and enterprise modules
+- paid implementation, migration, customization, or maintenance services
+
+Typical paid arrangements may include:
+
+- annual or perpetual commercial software licenses
+- private cloud or on-premise deployment rights
+- white-label or reseller rights
+- custom module development
+- integration and workflow implementation
+- upgrade, support, and managed service retainers
 
 Commercial terms, pricing, permitted deployments, support, and renewal conditions are defined in a separate signed agreement.
 
@@ -22,4 +33,8 @@ Contact `licensing@bconomics.ai` for commercial licensing.
 
 ## Important
 
-This file describes the intended business model and is not itself the final commercial license agreement. Have the commercial agreement and contributor process reviewed by qualified legal counsel before accepting third-party contributions or selling licenses.
+This file describes the repository's commercial licensing model and is not
+itself the final commercial license agreement. Have the commercial agreement,
+pricing, contributor process, and customer order forms reviewed by qualified
+legal counsel before accepting substantial third-party contributions or selling
+licenses.
