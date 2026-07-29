@@ -98,7 +98,7 @@ The current repository snapshot includes the landing experience, dashboard works
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-06.png" alt="Saved Programs page" width="100%" /><br />
-      <sub>Quick Generate 2</sub>
+      <sub>Quick Generate - Result Preview</sub>
     </td>
   </tr>
   <tr>
