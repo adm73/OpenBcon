@@ -1,0 +1,9 @@
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+langgraph==0.6.6
+langchain==0.3.27
+langchain-openai==0.3.32
+pydantic==2.11.7
+pydantic-settings==2.10.1
+psycopg[binary]==3.2.9
+python-dotenv==1.1.1
