@@ -1,6 +1,6 @@
-# Bconomics Open Platform
+# OpenBcon Open Platform
 
-Bconomics is an open-source funding workspace for discovering programs, organizing applications, and generating funding-ready business documents.
+OpenBcon is an open-source funding workspace for discovering programs, organizing applications, and generating funding-ready business documents.
 
 The repository currently includes three product surfaces:
 
