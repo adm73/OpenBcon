@@ -2185,12 +2185,66 @@
   text-decoration: none;
 }
 
+.openbcon-attribution-powered {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.openbcon-attribution-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(22, 31, 57, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #1a2238;
+  box-shadow: 0 8px 18px rgba(25, 34, 63, 0.06);
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    background 150ms ease;
+}
+
+.openbcon-attribution-link:hover {
+  transform: translateY(-1px);
+  border-color: rgba(82, 87, 189, 0.24);
+  background: #ffffff;
+  box-shadow: 0 12px 24px rgba(25, 34, 63, 0.1);
+}
+
+.openbcon-attribution-link svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+
+.openbcon-attribution-copyright {
+  color: inherit;
+  font-size: 0.95em;
+  white-space: nowrap;
+}
+
+.openbcon-attribution-copyright a {
+  font-weight: 800;
+}
+
 .openbcon-attribution-landing {
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   color: #667089;
   font-size: 0.64rem;
 }
 
 .openbcon-attribution-sidebar {
+  flex-direction: column;
+  align-items: flex-start;
   margin-top: 10px;
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.09);
@@ -2201,6 +2255,33 @@
 
 .openbcon-attribution-sidebar a {
   color: #dbe3ff;
+}
+
+.openbcon-attribution-sidebar .openbcon-attribution-link {
+  border-color: rgba(219, 227, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #dbe3ff;
+  box-shadow: none;
+}
+
+.openbcon-attribution-sidebar .openbcon-attribution-link:hover {
+  border-color: rgba(219, 227, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.openbcon-attribution-sidebar .openbcon-attribution-powered {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.openbcon-attribution-sidebar .openbcon-attribution-copyright {
+  width: 100%;
+}
+
+.openbcon-attribution-landing .openbcon-attribution-powered {
+  justify-content: flex-end;
 }
 
 .clone-main {
