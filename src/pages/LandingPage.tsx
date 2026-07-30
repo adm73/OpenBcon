@@ -1,11 +1,20 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { OpenBconAttribution } from '../components/OpenBconAttribution'
+import { hasActiveSession } from '../auth/session'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import { dashboardMetrics, landingHighlights } from '../data/demo'
+import {
+  OPEN_BCON_REPO_URL,
+  shouldShowOpenBconAttribution,
+} from '../licensing/openBconAttribution'
+
+const TTE_WEBSITE_URL = 'https://www.tritrient.com'
 
 export function LandingPage() {
   const { config } = usePlatformConfig()
+  const isSignedIn = hasActiveSession()
+  const showOpenBconAttribution = shouldShowOpenBconAttribution(config)
+  const currentYear = new Date().getFullYear()
 
   useEffect(() => {
     document.title = `${config.productName}${config.productSuffix} | Funding-ready business documents`
@@ -19,14 +28,15 @@ export function LandingPage() {
           <strong>{config.productName}{config.productSuffix}</strong>
         </Link>
         <nav>
-          <a href="#platform">Platform</a>
+          <a href="#">Homepage</a>
+          <a href="#features">Features</a>
           <a href="#workflow">How it works</a>
           <a href="#opensource">Open source</a>
         </nav>
-        <div>
-          <Link to="/login">Log in</Link>
-          <Link to="/signup">Create account</Link>
-          <Link to="/dashboard">Open workspace</Link>
+        <div className="landing-v2-header-actions">
+          <Link to={isSignedIn ? '/dashboard' : '/login'}>
+            {isSignedIn ? 'Go to dashboard' : 'Sign in'}
+          </Link>
         </div>
       </header>
 
@@ -86,7 +96,7 @@ export function LandingPage() {
           <strong>Funding consultants</strong>
         </section>
 
-        <section className="landing-v2-features" id="platform">
+        <section className="landing-v2-features" id="features">
           <div className="landing-v2-section-copy">
             <p>One connected platform</p>
             <h2>From “where do I start?” to a submission-ready package.</h2>
@@ -156,21 +166,68 @@ export function LandingPage() {
       </main>
 
       <footer className="landing-v2-footer">
-        <div className="landing-v2-footer-brand">
-          <Link className="landing-v2-brand" to="/">
-            <span>{config.productName.charAt(0)}</span>
-            <strong>{config.productName}{config.productSuffix}</strong>
-          </Link>
-          <OpenBconAttribution variant="landing" />
+        <div className="landing-v2-footer-top">
+          <div className="landing-v2-footer-brand-block">
+            <Link className="landing-v2-brand" to="/">
+              <span>{config.productName.charAt(0)}</span>
+              <strong>{config.productName}{config.productSuffix}</strong>
+            </Link>
+            <p className="landing-v2-footer-description">
+              Open funding infrastructure for the next generation of businesses.
+            </p>
+          </div>
+          <div className="landing-v2-footer-navs">
+            <div className="landing-v2-footer-column">
+              <span>Sitemap</span>
+              <a href="#">Homepage</a>
+              <a href="#features">Features</a>
+              <a href="#workflow">How it works</a>
+              <a href="#opensource">Open source</a>
+            </div>
+            <div className="landing-v2-footer-column">
+              <span>Platform</span>
+              <Link to={isSignedIn ? '/dashboard' : '/login'}>
+                {isSignedIn ? 'Go to dashboard' : 'Sign in'}
+              </Link>
+            </div>
+          </div>
         </div>
-        <div className="landing-v2-footer-meta">
-          <p>Open funding infrastructure for the next generation of businesses.</p>
+
+        <div className="landing-v2-footer-bottom">
+          <div className="landing-v2-footer-copyright">
+            <span>
+              Copyright &copy; {currentYear}{' '}
+              <a href={TTE_WEBSITE_URL} target="_blank" rel="noreferrer">
+                T.T.E
+              </a>
+            </span>
+          </div>
           <div className="landing-v2-footer-links">
             <Link to="/privacy-policy">Privacy Policy</Link>
             <Link to="/terms-of-service">Terms of Service</Link>
           </div>
+          {showOpenBconAttribution ? (
+            <div className="landing-v2-footer-powered">
+              <span>Powered by OpenBcon.</span>
+              <a
+                className="openbcon-attribution-link"
+                href={OPEN_BCON_REPO_URL}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M12 .5C5.65.5.5 5.66.5 12.03c0 5.09 3.29 9.4 7.86 10.92.58.11.79-.25.79-.56 0-.28-.01-1.2-.02-2.18-3.2.7-3.88-1.37-3.88-1.37-.52-1.34-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.09 1.77 1.2 1.77 1.2 1.03 1.78 2.69 1.27 3.35.97.1-.75.4-1.27.73-1.56-2.55-.29-5.24-1.29-5.24-5.74 0-1.27.45-2.31 1.19-3.12-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.17 1.19a10.9 10.9 0 0 1 5.78 0c2.2-1.5 3.17-1.19 3.17-1.19.62 1.58.23 2.75.11 3.04.74.81 1.19 1.85 1.19 3.12 0 4.46-2.7 5.45-5.28 5.73.41.36.78 1.08.78 2.18 0 1.57-.01 2.84-.01 3.23 0 .31.21.68.8.56a11.55 11.55 0 0 0 7.85-10.92C23.5 5.66 18.35.5 12 .5Z"
+                  />
+                </svg>
+                <span>GitHub</span>
+              </a>
+            </div>
+          ) : (
+            <div />
+          )}
         </div>
-        <Link to="/dashboard">Launch workspace →</Link>
       </footer>
     </div>
   )
