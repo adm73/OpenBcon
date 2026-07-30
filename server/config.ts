@@ -21,6 +21,7 @@ const environmentSchema = z.object({
   API_HOST: z.string().default('0.0.0.0'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   STATE_BODY_LIMIT: z.string().default('12mb'),
+  APP_STATE_ENCRYPTION_KEY: z.string().optional(),
   AUTO_MIGRATE: booleanFromEnvironment(true),
   SEED_DEMO_DATA: booleanFromEnvironment(true),
   DEMO_USER_ID: z

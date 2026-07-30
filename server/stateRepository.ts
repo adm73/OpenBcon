@@ -1,8 +1,9 @@
 import type { Pool, PoolClient } from 'pg'
 import { platformOwnerId } from './config'
+import { redactPlatformConfigForClient } from './secureState'
 import { persistentStateKeys, type StateScope } from './stateScope'
 
-type QueryClient = Pick<Pool, 'query'> | Pick<PoolClient, 'query'>
+export type QueryClient = Pick<Pool, 'query'> | Pick<PoolClient, 'query'>
 
 export type RequestContext = {
   userId: string
@@ -68,7 +69,10 @@ export async function readBootstrapState(
   const values: Record<string, unknown> = {}
   let updatedAt: Date | null = null
   for (const row of result.rows) {
-    values[row.key] = row.value
+    values[row.key] =
+      row.key === 'bconomics-platform-config-v1'
+        ? redactPlatformConfigForClient(row.value)
+        : row.value
     if (!updatedAt || row.updated_at > updatedAt) updatedAt = row.updated_at
   }
 
@@ -76,6 +80,25 @@ export async function readBootstrapState(
     values,
     updatedAt: updatedAt?.toISOString() ?? null,
   }
+}
+
+export async function readPlatformStateValue(
+  database: QueryClient,
+  key: string,
+) {
+  const result = await database.query<{ value: unknown }>(
+    `
+      SELECT value
+      FROM app_state
+      WHERE scope = 'platform'
+        AND owner_id = $1
+        AND key = $2
+      LIMIT 1
+    `,
+    [platformOwnerId, key],
+  )
+
+  return result.rows[0]?.value ?? null
 }
 
 async function writeAuditLog(

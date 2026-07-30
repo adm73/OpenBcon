@@ -187,6 +187,32 @@ Open [http://localhost:5173](http://localhost:5173).
 Copy `.env.example` to `.env` before changing database credentials or ports.
 `npm run dev` starts both the API on port `8787` and Vite on port `5173`.
 
+### Stripe setup
+
+The billing flow now supports Stripe Checkout and the Stripe customer portal.
+
+1. Copy `.env.example` to `.env`.
+2. Add your Stripe server credentials:
+   - `STRIPE_TEST_SECRET_KEY`
+   - `STRIPE_LIVE_SECRET_KEY`
+   - `STRIPE_WEBHOOK_SECRET`
+   - `APP_STATE_ENCRYPTION_KEY`
+3. Start the app with `npm run dev`.
+4. Open `/admin#payments` and confirm these Stripe references:
+   - `testSecretKeyReference` -> `STRIPE_TEST_SECRET_KEY`
+   - `liveSecretKeyReference` -> `STRIPE_LIVE_SECRET_KEY`
+   - `webhookSecretReference` -> `STRIPE_WEBHOOK_SECRET`
+5. Save the Admin Console configuration in the browser.
+   Platform settings now stay local-only and are not synchronized into PostgreSQL.
+   Raw payment secrets are stored locally in encrypted browser storage rather than
+   plaintext localStorage.
+6. In the Stripe Dashboard, register your webhook endpoint, for example:
+   - `http://localhost:8787/api/webhooks/stripe`
+
+If the checkout success, cancel, or billing-portal return URLs are left blank in
+the Admin Console, the server automatically falls back to the current app origin
+and routes users back to `/settings#billing`.
+
 ## Scripts
 
 ```bash
@@ -219,10 +245,12 @@ server/
 
 ## Admin configuration
 
-The Admin Console persists platform configuration and data-source settings through
-the API. Browser storage remains a local cache and offline fallback. The server
-validates a strict state-key allowlist so session tokens and credentials cannot be
-stored in the state database.
+The Admin Console now keeps platform settings in local browser storage only.
+Those settings are not synchronized to the API or PostgreSQL. Sensitive payment
+fields are stored in encrypted browser storage, while synced data-source records
+continue to use the API-backed persistence layer. The server validates a strict
+state-key allowlist so session tokens and local-only settings cannot be written
+to the state database.
 
 The landing page can be managed directly from `/admin#landing-page`, including:
 
@@ -231,12 +259,25 @@ The landing page can be managed directly from `/admin#landing-page`, including:
 - dynamic proof points shown on the public homepage
 - footer sitemap links, platform links, and legal link destinations
 
+Payment settings under `/admin#payments` now focus on gateway configuration:
+
+- Stripe and Waffo Pancake can each store separate test and live secret references
+- environment-variable names remain visible as references
+- raw payment keys are redacted in localStorage and stored in encrypted browser storage
+- checkout success and cancel URLs can be overridden per deployment
+- customer self-serve subscription changes use the Stripe billing portal
+- webhook signature verification uses server environment variables rather than synced admin state
+
+Stripe checkout remains the only live billing flow wired to the server today.
+Waffo Pancake is available in the Admin Console as a configurable gateway option
+for secret and mode management.
+
 Before production deployment:
 
 1. Replace the demo auth flow and seeded development identity with production authentication and user provisioning.
 2. Add role-based authorization for founder, advisor, admin, and partner workflows.
 3. Add row-level workspace authorization before accepting user-supplied IDs.
-4. Keep secrets and API keys in a secret manager, not browser or state storage.
+4. Keep production secrets in a secret manager and use Admin only for references or encrypted-at-rest secure storage.
 5. Configure TLS and a managed PostgreSQL backup policy.
 
 ## PostgreSQL persistence
@@ -246,6 +287,11 @@ The API stores the current product state in PostgreSQL using three scopes:
 - `platform` for branding, modules, AI/payment configuration, and data sources
 - `workspace` for companies, applications, saved programs, and generated documents
 - `user` for personal settings, pinned resources, and active workspace selection
+
+Sensitive payment keys inside `bconomics-platform-config-v1` are not returned to
+the browser in plaintext. The API redacts them in bootstrap payloads, encrypts
+raw values before saving them to PostgreSQL, and decrypts them only for
+server-side payment operations.
 
 On first connection, existing supported browser state is uploaded automatically.
 On later visits, PostgreSQL is loaded before the React application mounts. Mutations

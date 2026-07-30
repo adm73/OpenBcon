@@ -10,6 +10,7 @@ import {
   type LandingHeaderConfig,
   type LandingHeaderNavItemConfig,
   type LegalDocumentConfig,
+  type PaymentCatalogItem,
   type PaymentConfig,
   type PlatformConfig,
   type PlatformModuleId,
@@ -78,6 +79,42 @@ const recentTransactions = [
   ['INV-1046', 'Fieldnote Studio', '$79.00', 'Refunded', 'Jul 25'],
 ]
 
+const paymentProviderOptions: Array<{
+  id: 'stripe' | 'waffo-pancake'
+  label: string
+  icon: string
+}> = [
+  { id: 'stripe', label: 'Stripe', icon: 'S' },
+  { id: 'waffo-pancake', label: 'Waffo Pancake', icon: 'W' },
+]
+
+const revenueHighlights = [
+  ['Gross revenue', '$18,420', '+11.8% vs last month'],
+  ['Operating expenses', '$6,940', '+4.1% vs last month'],
+  ['Net operating income', '$11,480', '62.3% operating margin'],
+  ['Active subscriptions', '164', '19 annual · 145 monthly'],
+]
+
+const revenueBreakdown = [
+  ['Subscriptions', '$14,920', '81% of total revenue'],
+  ['Setup & onboarding', '$2,500', 'One-time implementation fees'],
+  ['Partner services', '$1,000', 'Advisory and support retainers'],
+]
+
+const expenseBreakdown = [
+  ['AI & infrastructure', '$2,860', 'OpenAI, compute, storage'],
+  ['Payment processing', '$1,120', 'Gateway fees and chargebacks'],
+  ['Operations', '$1,760', 'Support, admin, tooling'],
+  ['Sales & growth', '$1,200', 'Ads, outbound, partnerships'],
+]
+
+const subscriptionHealth = [
+  ['Partner Pro monthly', '145', '$79 / month'],
+  ['Partner Pro annual', '19', '$790 / year'],
+  ['Past due', '3', 'Needs collection follow-up'],
+  ['Churn this month', '2.4%', '4 cancelled subscriptions'],
+]
+
 const dataSourceModuleLabels: Record<DataSourceModule, string> = {
   'grants-loans': 'Grants & Loans',
   templates: 'Templates',
@@ -132,6 +169,31 @@ function createLandingProofItem() {
   }
 }
 
+function createPaymentPriceItem(
+  provider: PaymentCatalogItem['provider'] = 'stripe',
+): PaymentCatalogItem {
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+
+  return {
+    id: `price-${suffix}`,
+    name: 'New offering',
+    description: '',
+    offeringType: 'service',
+    billingType: 'monthly',
+    amount: '0',
+    currency: 'CAD',
+    provider,
+    externalProductId: '',
+    externalPriceId: '',
+    active: true,
+    isDefault: false,
+  }
+}
+
+function isEnvironmentReference(value: string) {
+  return /^[A-Z][A-Z0-9_]*$/u.test(value.trim())
+}
+
 export function AdminPage() {
   const { config, updateConfig, resetConfig } = usePlatformConfig()
   const [draft, setDraft] = useState<PlatformConfig>(config)
@@ -152,6 +214,8 @@ export function AdminPage() {
   const commercialLicenseUnlocked = hasCommercialLicenseAccess()
   const platformName = getPlatformDisplayName(draft)
   const platformInitial = getPlatformInitial(draft)
+  const activePaymentProvider =
+    draft.payments.provider === 'waffo-pancake' ? 'waffo-pancake' : 'stripe'
   const visibleDataSources = draft.dataSources.filter((source) => {
     const matchesQuery = `${source.name} ${source.provider} ${source.module}`
       .toLowerCase()
@@ -209,6 +273,70 @@ export function AdminPage() {
     }))
     setSaved(false)
     setPaymentNotice('')
+  }
+
+  function updatePaymentsEnabled(enabled: boolean) {
+    setDraft((current) => ({
+      ...current,
+      payments: {
+        ...current.payments,
+        enabled,
+        provider:
+          enabled && current.payments.provider === 'manual'
+            ? 'stripe'
+            : current.payments.provider,
+      },
+    }))
+    setSaved(false)
+    setPaymentNotice('')
+  }
+
+  function updatePaymentCatalogItem<Key extends keyof PaymentCatalogItem>(
+    itemId: string,
+    field: Key,
+    value: PaymentCatalogItem[Key],
+  ) {
+    setDraft((current) => ({
+      ...current,
+      payments: {
+        ...current.payments,
+        priceCatalog: current.payments.priceCatalog.map((item) => {
+          if (field === 'isDefault' && value === true) {
+            return { ...item, isDefault: item.id === itemId }
+          }
+
+          return item.id === itemId ? { ...item, [field]: value } : item
+        }),
+      },
+    }))
+    setSaved(false)
+  }
+
+  function addPaymentCatalogItem() {
+    setDraft((current) => ({
+      ...current,
+      payments: {
+        ...current.payments,
+        priceCatalog: [
+          ...current.payments.priceCatalog,
+          createPaymentPriceItem(activePaymentProvider),
+        ],
+      },
+    }))
+    setSaved(false)
+  }
+
+  function removePaymentCatalogItem(itemId: string) {
+    setDraft((current) => ({
+      ...current,
+      payments: {
+        ...current.payments,
+        priceCatalog: current.payments.priceCatalog.filter(
+          (item) => item.id !== itemId,
+        ),
+      },
+    }))
+    setSaved(false)
   }
 
   function updateAIField<Key extends keyof AIConfig>(
@@ -596,6 +724,56 @@ export function AdminPage() {
     setAiTestStatus('connected')
   }
 
+  function validatePaymentGatewayConfig() {
+    if (!draft.payments.enabled) {
+      setPaymentNotice('Enable payments before validating the gateway configuration.')
+      return
+    }
+
+    if (draft.payments.provider === 'manual') {
+      setPaymentNotice(
+        'Manual invoicing is active. No gateway secrets are required.',
+      )
+      return
+    }
+
+    const activeSecretReference = draft.payments.testMode
+      ? draft.payments.testSecretKeyReference
+      : draft.payments.liveSecretKeyReference
+    const activePublishableKey = draft.payments.testMode
+      ? draft.payments.testPublishableKeyReference
+      : draft.payments.livePublishableKeyReference
+    const activeModeLabel = draft.payments.testMode ? 'Dev' : 'Live'
+
+    if (!activeSecretReference.trim()) {
+      setPaymentNotice(
+        `${activeModeLabel} secret key is required for ${draft.payments.provider}.`,
+      )
+      return
+    }
+
+    if (!activePublishableKey.trim()) {
+      setPaymentNotice(
+        `${activeModeLabel} publishable key is required for ${draft.payments.provider}.`,
+      )
+      return
+    }
+
+    setPaymentNotice(
+      `${draft.payments.provider} is configured in ${
+        draft.payments.testMode ? 'test' : 'live'
+      } mode. ${
+        isEnvironmentReference(activeSecretReference)
+          ? `Secret key source: ${activeSecretReference}. `
+          : 'Secret key is present. '
+      }${
+        isEnvironmentReference(activePublishableKey)
+          ? `Publishable key source: ${activePublishableKey}.`
+          : 'Publishable key is present.'
+      }`,
+    )
+  }
+
   function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     updateConfig(draft)
@@ -621,6 +799,8 @@ export function AdminPage() {
           <a href="#modules">Modules</a>
           <a href="#data-sources">Data Sources</a>
           <a href="#payments">Payments</a>
+          <a href="#pricing">Pricing</a>
+          <a href="#revenue">Revenue</a>
           <a href="#ai-models">AI Models</a>
           <a href="#legal">Legal</a>
           <a href="#licensing">Licensing</a>
@@ -1463,151 +1643,569 @@ export function AdminPage() {
               <p className="admin-section-number">06</p>
               <h2>Payment management</h2>
               <p>
-                Configure checkout, subscription pricing, and payment event routing.
+                Configure payment gateways, runtime mode, and secret references.
               </p>
             </div>
             <div className="admin-management-content">
-              <div className="admin-management-status">
-                <span className={draft.payments.enabled ? 'is-online' : ''}>
-                  <i />
-                  {draft.payments.enabled ? 'Payments enabled' : 'Payments disabled'}
+              <label className="admin-switch-row">
+                <span>
+                  <strong>Payments enabled</strong>
+                  <small>Turn this on to configure a payment provider and validate the setup.</small>
                 </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setPaymentNotice(
-                      `Test checkout created with ${draft.payments.provider} in ${
-                        draft.payments.testMode ? 'test' : 'live'
-                      } mode.`,
-                    )
-                  }
-                >
-                  Run test checkout
-                </button>
-              </div>
-
-              {paymentNotice ? (
-                <div className="admin-management-notice" role="status">
-                  {paymentNotice}
-                </div>
-              ) : null}
-
-              <div className="admin-payment-metrics">
-                <article><span>Monthly recurring</span><strong>$12,640</strong><small>+14.2% this month</small></article>
-                <article><span>Active subscriptions</span><strong>164</strong><small>3 past due</small></article>
-                <article><span>Successful payments</span><strong>98.7%</strong><small>Last 30 days</small></article>
-              </div>
-
-              <div className="admin-fields">
-                <label>
-                  <span>Payment provider</span>
-                  <select
-                    value={draft.payments.provider}
-                    onChange={(event) =>
-                      updatePaymentField(
-                        'provider',
-                        event.target.value as PaymentConfig['provider'],
-                      )
-                    }
-                  >
-                    <option value="stripe">Stripe</option>
-                    <option value="paddle">Paddle</option>
-                    <option value="manual">Manual invoicing</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Billing currency</span>
-                  <select
-                    value={draft.payments.currency}
-                    onChange={(event) =>
-                      updatePaymentField(
-                        'currency',
-                        event.target.value as PaymentConfig['currency'],
-                      )
-                    }
-                  >
-                    <option value="CAD">CAD</option>
-                    <option value="USD">USD</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Monthly price</span>
-                  <input
-                    inputMode="decimal"
-                    value={draft.payments.monthlyPrice}
-                    onChange={(event) =>
-                      updatePaymentField('monthlyPrice', event.target.value)
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Annual price</span>
-                  <input
-                    inputMode="decimal"
-                    value={draft.payments.annualPrice}
-                    onChange={(event) =>
-                      updatePaymentField('annualPrice', event.target.value)
-                    }
-                  />
-                </label>
-                <label className="admin-field-wide">
-                  <span>Webhook endpoint</span>
-                  <input
-                    value={draft.payments.webhookUrl}
-                    onChange={(event) =>
-                      updatePaymentField('webhookUrl', event.target.value)
-                    }
-                  />
-                </label>
-                <label className="admin-switch-row">
-                  <span>
-                    <strong>Accept payments</strong>
-                    <small>Show checkout and subscription actions to users.</small>
-                  </span>
                   <input
                     type="checkbox"
                     checked={draft.payments.enabled}
-                    onChange={(event) =>
-                      updatePaymentField('enabled', event.target.checked)
-                    }
+                    onChange={(event) => updatePaymentsEnabled(event.target.checked)}
                   />
                 </label>
-                <label className="admin-switch-row">
-                  <span>
-                    <strong>Test mode</strong>
-                    <small>Use sandbox credentials and non-billable transactions.</small>
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={draft.payments.testMode}
-                    onChange={(event) =>
-                      updatePaymentField('testMode', event.target.checked)
-                    }
-                  />
-                </label>
-              </div>
 
-              <div className="admin-transaction-panel">
-                <div>
-                  <strong>Recent transactions</strong>
-                  <span>Demo transaction feed</span>
+              {draft.payments.enabled ? (
+                <>
+                  <div className="admin-management-status">
+                    <span className="is-online">
+                      <i />
+                      Payment provider configuration is active
+                    </span>
+                    <button
+                      type="button"
+                      onClick={validatePaymentGatewayConfig}
+                    >
+                      Validate config
+                    </button>
+                  </div>
+
+                  {paymentNotice ? (
+                    <div className="admin-management-notice" role="status">
+                      {paymentNotice}
+                    </div>
+                  ) : null}
+
+                  <div className="admin-fields">
+                    <div className="admin-field-wide admin-payment-provider-group">
+                      <span>Payment provider</span>
+                      <div
+                        className="admin-payment-provider-tabs"
+                        role="tablist"
+                        aria-label="Payment provider"
+                      >
+                        {paymentProviderOptions.map((provider) => (
+                          <button
+                            key={provider.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={activePaymentProvider === provider.id}
+                            className={
+                              activePaymentProvider === provider.id
+                                ? 'is-active'
+                                : ''
+                            }
+                            onClick={() => updatePaymentField('provider', provider.id)}
+                          >
+                            <span
+                              className={`admin-payment-provider-icon is-${provider.id}`}
+                              aria-hidden="true"
+                            >
+                              {provider.icon}
+                            </span>
+                            <span>{provider.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <label>
+                      <span>Secret Key - Dev</span>
+                      <input
+                        value={draft.payments.testSecretKeyReference}
+                        onChange={(event) =>
+                          updatePaymentField(
+                            'testSecretKeyReference',
+                            event.target.value,
+                          )
+                        }
+                        placeholder={
+                          activePaymentProvider === 'waffo-pancake'
+                            ? 'WAFFO_PANCAKE_TEST_SECRET_KEY'
+                            : 'STRIPE_TEST_SECRET_KEY'
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Secret Key - Live</span>
+                      <input
+                        value={draft.payments.liveSecretKeyReference}
+                        onChange={(event) =>
+                          updatePaymentField(
+                            'liveSecretKeyReference',
+                            event.target.value,
+                          )
+                        }
+                        placeholder={
+                          activePaymentProvider === 'waffo-pancake'
+                            ? 'WAFFO_PANCAKE_LIVE_SECRET_KEY'
+                            : 'STRIPE_LIVE_SECRET_KEY'
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Publishable Key - Dev</span>
+                      <input
+                        value={draft.payments.testPublishableKeyReference}
+                        onChange={(event) =>
+                          updatePaymentField(
+                            'testPublishableKeyReference',
+                            event.target.value,
+                          )
+                        }
+                        placeholder={
+                          activePaymentProvider === 'waffo-pancake'
+                            ? 'WAFFO_PANCAKE_DEV_PUBLISHABLE_KEY'
+                            : 'STRIPE_DEV_PUBLISHABLE_KEY'
+                        }
+                      />
+                    </label>
+                    <label>
+                      <span>Publishable Key - Live</span>
+                      <input
+                        value={draft.payments.livePublishableKeyReference}
+                        onChange={(event) =>
+                          updatePaymentField(
+                            'livePublishableKeyReference',
+                            event.target.value,
+                          )
+                        }
+                        placeholder={
+                          activePaymentProvider === 'waffo-pancake'
+                            ? 'WAFFO_PANCAKE_LIVE_PUBLISHABLE_KEY'
+                            : 'STRIPE_LIVE_PUBLISHABLE_KEY'
+                        }
+                      />
+                    </label>
+                    <label className="admin-field-wide">
+                      <span>Webhook endpoint</span>
+                      <input
+                        value={draft.payments.webhookUrl}
+                        onChange={(event) =>
+                          updatePaymentField('webhookUrl', event.target.value)
+                        }
+                        placeholder="/api/webhooks/stripe"
+                      />
+                    </label>
+                    <label className="admin-field-wide">
+                      <span>Webhook signing secret reference</span>
+                      <input
+                        value={draft.payments.webhookSecretReference}
+                        onChange={(event) =>
+                          updatePaymentField(
+                            'webhookSecretReference',
+                            event.target.value,
+                          )
+                        }
+                        placeholder="STRIPE_WEBHOOK_SECRET"
+                      />
+                    </label>
+                    <label className="admin-field-wide">
+                      <span>Checkout success URL</span>
+                      <input
+                        value={draft.payments.checkoutSuccessUrl}
+                        onChange={(event) =>
+                          updatePaymentField('checkoutSuccessUrl', event.target.value)
+                        }
+                        placeholder="/settings?checkout=success&session_id={CHECKOUT_SESSION_ID}#billing"
+                      />
+                    </label>
+                    <label className="admin-field-wide">
+                      <span>Checkout cancel URL</span>
+                      <input
+                        value={draft.payments.checkoutCancelUrl}
+                        onChange={(event) =>
+                          updatePaymentField('checkoutCancelUrl', event.target.value)
+                        }
+                        placeholder="/settings?checkout=cancel#billing"
+                      />
+                    </label>
+                    <label className="admin-field-wide">
+                      <span>Billing portal return URL</span>
+                      <input
+                        value={draft.payments.billingPortalReturnUrl}
+                        onChange={(event) =>
+                          updatePaymentField(
+                            'billingPortalReturnUrl',
+                            event.target.value,
+                          )
+                        }
+                        placeholder="/settings#billing"
+                      />
+                    </label>
+                  </div>
+                </>
+              ) : (
+                <div className="admin-secret-note">
+                  <strong>Payments are currently off</strong>
+                  <p>
+                    Turn on payments to choose a provider, enter gateway credentials,
+                    and validate the configuration.
+                  </p>
                 </div>
-                {recentTransactions.map(([invoice, customer, amount, status, date]) => (
-                  <article key={invoice}>
-                    <b>{invoice}</b>
-                    <span>{customer}</span>
-                    <strong>{amount}</strong>
-                    <em className={`status-${status.toLowerCase()}`}>{status}</em>
-                    <small>{date}</small>
+              )}
+            </div>
+          </section>
+
+          <section className="admin-card admin-management-card" id="pricing">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">07</p>
+              <h2>Pricing</h2>
+              <p>
+                Create products or services, set one-time or recurring billing,
+                and map each offering to Stripe or Waffo Pancake.
+              </p>
+            </div>
+            <div className="admin-management-content">
+              <div className="admin-price-management">
+                <div className="admin-price-management-header">
+                  <div>
+                    <strong>Price management</strong>
+                    <p>
+                      Add products or services, choose one-time or recurring
+                      billing, and link each item to Stripe or Waffo Pancake.
+                    </p>
+                  </div>
+                  <button
+                    className="admin-button-secondary"
+                    type="button"
+                    onClick={addPaymentCatalogItem}
+                  >
+                    Add product or service
+                  </button>
+                </div>
+
+                <div className="admin-price-management-list">
+                  {draft.payments.priceCatalog.map((item, index) => (
+                    <article className="admin-price-card" key={item.id}>
+                      <div className="admin-price-card-header">
+                        <div>
+                          <span>Offering {index + 1}</span>
+                          <strong>{item.name.trim() || 'Untitled offering'}</strong>
+                        </div>
+                        <div className="admin-price-card-toggles">
+                          <label className="admin-price-card-toggle">
+                            <input
+                              type="checkbox"
+                              checked={item.isDefault}
+                              onChange={(event) =>
+                                updatePaymentCatalogItem(
+                                  item.id,
+                                  'isDefault',
+                                  event.target.checked,
+                                )
+                              }
+                            />
+                            <span>Default</span>
+                          </label>
+                          <label className="admin-price-card-toggle">
+                            <input
+                              type="checkbox"
+                              checked={item.active}
+                              onChange={(event) =>
+                                updatePaymentCatalogItem(
+                                  item.id,
+                                  'active',
+                                  event.target.checked,
+                                )
+                              }
+                            />
+                            <span>Active</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="admin-fields">
+                        <label>
+                          <span>Name</span>
+                          <input
+                            value={item.name}
+                            onChange={(event) =>
+                              updatePaymentCatalogItem(
+                                item.id,
+                                'name',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>Offering type</span>
+                          <select
+                            value={item.offeringType}
+                            onChange={(event) =>
+                              updatePaymentCatalogItem(
+                                item.id,
+                                'offeringType',
+                                event.target.value as PaymentCatalogItem['offeringType'],
+                              )
+                            }
+                          >
+                            <option value="product">Product</option>
+                            <option value="service">Service</option>
+                          </select>
+                        </label>
+                        <label>
+                          <span>Billing type</span>
+                          <select
+                            value={item.billingType}
+                            onChange={(event) =>
+                              updatePaymentCatalogItem(
+                                item.id,
+                                'billingType',
+                                event.target.value as PaymentCatalogItem['billingType'],
+                              )
+                            }
+                          >
+                            <option value="one-time">One-time</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="annual">Annual</option>
+                          </select>
+                        </label>
+                        <label>
+                          <span>Amount</span>
+                          <input
+                            inputMode="decimal"
+                            value={item.amount}
+                            onChange={(event) =>
+                              updatePaymentCatalogItem(
+                                item.id,
+                                'amount',
+                                event.target.value,
+                              )
+                            }
+                            placeholder="0.00"
+                          />
+                        </label>
+                        <label>
+                          <span>Currency</span>
+                          <select
+                            value={item.currency}
+                            onChange={(event) =>
+                              updatePaymentCatalogItem(
+                                item.id,
+                                'currency',
+                                event.target.value as PaymentCatalogItem['currency'],
+                              )
+                            }
+                          >
+                            <option value="CAD">CAD</option>
+                            <option value="USD">USD</option>
+                          </select>
+                        </label>
+                        <label className="admin-field-wide">
+                          <span>Description</span>
+                          <textarea
+                            value={item.description}
+                            onChange={(event) =>
+                              updatePaymentCatalogItem(
+                                item.id,
+                                'description',
+                                event.target.value,
+                              )
+                            }
+                            placeholder="Optional internal note or checkout description."
+                          />
+                        </label>
+                        <div className="admin-field-wide admin-payment-provider-group">
+                          <span>Linked gateway product</span>
+                          <div
+                            className="admin-payment-provider-tabs"
+                            role="tablist"
+                            aria-label={`Linked gateway for ${item.name || 'offering'}`}
+                          >
+                            {paymentProviderOptions.map((provider) => (
+                              <button
+                                key={provider.id}
+                                type="button"
+                                role="tab"
+                                aria-selected={item.provider === provider.id}
+                                className={
+                                  item.provider === provider.id ? 'is-active' : ''
+                                }
+                                onClick={() =>
+                                  updatePaymentCatalogItem(
+                                    item.id,
+                                    'provider',
+                                    provider.id,
+                                  )
+                                }
+                              >
+                                <span
+                                  className={`admin-payment-provider-icon is-${provider.id}`}
+                                  aria-hidden="true"
+                                >
+                                  {provider.icon}
+                                </span>
+                                <span>{provider.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <label>
+                          <span>
+                            {item.provider === 'waffo-pancake'
+                              ? 'Waffo product ID'
+                              : 'Stripe product ID'}
+                          </span>
+                          <input
+                            value={item.externalProductId}
+                            onChange={(event) =>
+                              updatePaymentCatalogItem(
+                                item.id,
+                                'externalProductId',
+                                event.target.value,
+                              )
+                            }
+                            placeholder={
+                              item.provider === 'waffo-pancake'
+                                ? 'waffo_product_id'
+                                : 'prod_...'
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>
+                            {item.billingType === 'one-time'
+                              ? 'Linked price ID'
+                              : 'Linked recurring price ID'}
+                          </span>
+                          <input
+                            value={item.externalPriceId}
+                            onChange={(event) =>
+                              updatePaymentCatalogItem(
+                                item.id,
+                                'externalPriceId',
+                                event.target.value,
+                              )
+                            }
+                            placeholder={
+                              item.provider === 'waffo-pancake'
+                                ? 'waffo_price_id'
+                                : 'price_...'
+                            }
+                          />
+                        </label>
+                      </div>
+
+                      <div className="admin-price-card-footer">
+                        <small>
+                          Keep the billing type here aligned with the linked
+                          product or price in your payment gateway.
+                        </small>
+                        <button
+                          className="admin-button-secondary"
+                          type="button"
+                          onClick={() => removePaymentCatalogItem(item.id)}
+                        >
+                          Remove offering
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-card admin-management-card" id="revenue">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">08</p>
+              <h2>Revenue</h2>
+              <p>
+                Review income, expenses, subscription performance, and recent
+                transaction activity.
+              </p>
+            </div>
+            <div className="admin-management-content">
+              <div className="admin-revenue-grid">
+                {revenueHighlights.map(([label, value, detail]) => (
+                  <article key={label}>
+                    <span>{label}</span>
+                    <strong>{value}</strong>
+                    <small>{detail}</small>
                   </article>
                 ))}
+              </div>
+
+              <div className="admin-revenue-panels">
+                <div className="admin-revenue-breakdown">
+                  <div>
+                    <strong>Income</strong>
+                    <span>Current month revenue mix</span>
+                  </div>
+                  {revenueBreakdown.map(([label, value, detail]) => (
+                    <article key={label}>
+                      <div>
+                        <strong>{label}</strong>
+                        <small>{detail}</small>
+                      </div>
+                      <b>{value}</b>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="admin-revenue-breakdown">
+                  <div>
+                    <strong>Expenses</strong>
+                    <span>Current month operating spend</span>
+                  </div>
+                  {expenseBreakdown.map(([label, value, detail]) => (
+                    <article key={label}>
+                      <div>
+                        <strong>{label}</strong>
+                        <small>{detail}</small>
+                      </div>
+                      <b>{value}</b>
+                    </article>
+                  ))}
+                </div>
+              </div>
+
+              <div className="admin-revenue-panels">
+                <div className="admin-revenue-subscriptions">
+                  <div>
+                    <strong>Subscriptions</strong>
+                    <span>Plan mix and retention signals</span>
+                  </div>
+                  {subscriptionHealth.map(([label, value, detail]) => (
+                    <article key={label}>
+                      <span>{label}</span>
+                      <strong>{value}</strong>
+                      <small>{detail}</small>
+                    </article>
+                  ))}
+                </div>
+
+                <div className="admin-transaction-panel admin-revenue-ledger">
+                  <div>
+                    <strong>Transactions</strong>
+                    <span>Latest payment activity</span>
+                  </div>
+                  {recentTransactions.map(
+                    ([invoice, customer, amount, status, date]) => (
+                      <article key={`revenue-${invoice}`}>
+                        <b>{invoice}</b>
+                        <span>{customer}</span>
+                        <strong>{amount}</strong>
+                        <em className={`status-${status.toLowerCase()}`}>
+                          {status}
+                        </em>
+                        <small>{date}</small>
+                      </article>
+                    ),
+                  )}
+                </div>
               </div>
             </div>
           </section>
 
           <section className="admin-card admin-management-card" id="ai-models">
             <div className="admin-section-copy">
-              <p className="admin-section-number">07</p>
+              <p className="admin-section-number">09</p>
               <h2>AI model management</h2>
               <p>
                 Choose providers and models used by document generation workflows.
@@ -1762,7 +2360,7 @@ export function AdminPage() {
 
           <section className="admin-card" id="legal">
             <div className="admin-section-copy">
-              <p className="admin-section-number">08</p>
+              <p className="admin-section-number">10</p>
               <h2>Legal pages</h2>
               <p>
                 Edit the public Privacy Policy and Terms of Service shown in the
@@ -1858,7 +2456,7 @@ export function AdminPage() {
 
           <section className="admin-card" id="licensing">
             <div className="admin-section-copy">
-              <p className="admin-section-number">09</p>
+              <p className="admin-section-number">11</p>
               <h2>Commercial licensing</h2>
               <p>
                 Configure the paid alternative for organizations that cannot use

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getPersistentStateScope, isPersistentStateKey } from './storage'
+import {
+  getPersistentStateScope,
+  isPersistentStateKey,
+  isRemotePersistentStateKey,
+} from './storage'
 
 describe('browser persistence scopes', () => {
   it('routes configuration to the platform', () => {
@@ -10,6 +14,9 @@ describe('browser persistence scopes', () => {
 
   it('routes personal settings to the user', () => {
     expect(getPersistentStateScope('bconomics-user-settings-v1')).toBe('user')
+    expect(getPersistentStateScope('bconomics-billing-transactions-v1')).toBe(
+      'user',
+    )
   })
 
   it('routes domain data to the workspace', () => {
@@ -25,5 +32,21 @@ describe('browser persistence scopes', () => {
     expect(isPersistentStateKey('bconomics-access-token')).toBe(false)
     expect(isPersistentStateKey('bconomics-refresh-token')).toBe(false)
     expect(isPersistentStateKey('bconomics-session')).toBe(false)
+  })
+
+  it('keeps settings local without sending them to the remote store', () => {
+    expect(isPersistentStateKey('bconomics-platform-config-v1')).toBe(true)
+    expect(isPersistentStateKey('bconomics-user-settings-v1')).toBe(true)
+    expect(isPersistentStateKey('bconomics-billing-transactions-v1')).toBe(true)
+
+    expect(isRemotePersistentStateKey('bconomics-platform-config-v1')).toBe(
+      false,
+    )
+    expect(isRemotePersistentStateKey('bconomics-user-settings-v1')).toBe(
+      false,
+    )
+    expect(
+      isRemotePersistentStateKey('bconomics-billing-transactions-v1'),
+    ).toBe(false)
   })
 })

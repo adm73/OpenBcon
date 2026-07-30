@@ -11,12 +11,21 @@ import { z } from 'zod'
 import { environment } from './config'
 import { databasePool } from './db/pool'
 import {
-  applyStateBatch,
   applyStateMutation,
+  applyStateBatch,
   readBootstrapState,
   type RequestContext,
 } from './stateRepository'
 import { isPersistentStateKey } from './stateScope'
+import {
+  createStripeBillingPortalSession,
+  createStripeCheckoutSession,
+  lookupStripeCheckoutSession,
+  parseStripeBillingPortalRequest,
+  parseStripeCheckoutLookupRequest,
+  parseStripeCheckoutRequest,
+  verifyStripeWebhookEvent,
+} from './payments'
 
 const scopeSchema = z.enum(['platform', 'workspace', 'user'])
 const keySchema = z
@@ -80,6 +89,50 @@ export function createApp(database: Pool = databasePool) {
       credentials: true,
     }),
   )
+
+  app.post(
+    '/api/webhooks/stripe',
+    express.raw({ type: 'application/json' }),
+    async (request, response, next) => {
+      const signature = request.headers['stripe-signature']
+      if (typeof signature !== 'string' || signature.trim().length === 0) {
+        response.status(400).json({
+          error: 'invalid_request',
+          message: 'Missing Stripe signature header.',
+        })
+        return
+      }
+
+      try {
+        const event = await verifyStripeWebhookEvent(
+          Buffer.isBuffer(request.body)
+            ? request.body
+            : Buffer.from(request.body as string),
+          signature,
+          database,
+        )
+
+        switch (event.type) {
+          case 'checkout.session.completed':
+          case 'customer.subscription.updated':
+          case 'customer.subscription.deleted':
+          case 'invoice.paid':
+          case 'invoice.payment_failed':
+            break
+          default:
+            break
+        }
+
+        response.json({
+          received: true,
+          eventType: event.type,
+        })
+      } catch (error) {
+        next(error)
+      }
+    },
+  )
+
   app.use(express.json({ limit: environment.STATE_BODY_LIMIT }))
 
   app.get('/api/health', async (_request, response) => {
@@ -126,6 +179,56 @@ export function createApp(database: Pool = databasePool) {
         saved: parsed.data.mutations.length,
       })
     } catch (error) {
+      next(error)
+    }
+  })
+
+  app.post('/api/payments/stripe/checkout-session', async (request, response, next) => {
+    try {
+      const payload = parseStripeCheckoutRequest(request.body)
+      const session = await createStripeCheckoutSession(
+        request,
+        database,
+        payload,
+      )
+      response.status(201).json(session)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        sendValidationError(response, error)
+        return
+      }
+      next(error)
+    }
+  })
+
+  app.post('/api/payments/stripe/billing-portal', async (request, response, next) => {
+    try {
+      const payload = parseStripeBillingPortalRequest(request.body)
+      const session = await createStripeBillingPortalSession(
+        request,
+        database,
+        payload,
+      )
+      response.status(201).json(session)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        sendValidationError(response, error)
+        return
+      }
+      next(error)
+    }
+  })
+
+  app.post('/api/payments/stripe/checkout-session/lookup', async (request, response, next) => {
+    try {
+      const payload = parseStripeCheckoutLookupRequest(request.body)
+      const session = await lookupStripeCheckoutSession(database, payload)
+      response.json(session)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        sendValidationError(response, error)
+        return
+      }
       next(error)
     }
   })

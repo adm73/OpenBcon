@@ -26,6 +26,7 @@ const platformStateKeys = new Set([
 
 const userStateKeys = new Set([
   'bconomics-user-settings-v1',
+  'bconomics-billing-transactions-v1',
   'bconomics-pinned-social-resources-v1',
   'bconomics-saved-tools-v1',
   'bconomics-workspaces-v2',
@@ -48,6 +49,12 @@ const persistentStateKeys = new Set([
   ...workspaceStateKeys,
 ])
 
+const localOnlyStateKeys = new Set([
+  'bconomics-platform-config-v1',
+  'bconomics-user-settings-v1',
+  'bconomics-billing-transactions-v1',
+])
+
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? '/api'
 const persistenceEnabled =
   import.meta.env.VITE_PERSISTENCE_ENABLED !== 'false'
@@ -67,6 +74,10 @@ export function isPersistentStateKey(key: string) {
   return persistentStateKeys.has(key)
 }
 
+export function isRemotePersistentStateKey(key: string) {
+  return isPersistentStateKey(key) && !localOnlyStateKeys.has(key)
+}
+
 function parseStoredValue(value: string): unknown {
   try {
     return JSON.parse(value) as unknown
@@ -83,7 +94,7 @@ function collectLocalState() {
   const values: Record<string, unknown> = {}
   for (let index = 0; index < window.localStorage.length; index += 1) {
     const key = window.localStorage.key(index)
-    if (!key || !isPersistentStateKey(key)) continue
+    if (!key || !isRemotePersistentStateKey(key)) continue
 
     const value = window.localStorage.getItem(key)
     if (value !== null) values[key] = parseStoredValue(value)
@@ -132,7 +143,7 @@ function queueMutation(mutation: PendingMutation) {
 
 export function setPersistentItem(key: string, value: string) {
   window.localStorage.setItem(key, value)
-  if (!isPersistentStateKey(key)) return
+  if (!isRemotePersistentStateKey(key)) return
 
   queueMutation({
     operation: 'upsert',
@@ -142,9 +153,25 @@ export function setPersistentItem(key: string, value: string) {
   })
 }
 
+export function setPersistentItemWithRemoteValue(
+  key: string,
+  localValue: string,
+  remoteValue: unknown,
+) {
+  window.localStorage.setItem(key, localValue)
+  if (!isRemotePersistentStateKey(key)) return
+
+  queueMutation({
+    operation: 'upsert',
+    key,
+    scope: getPersistentStateScope(key),
+    value: remoteValue,
+  })
+}
+
 export function removePersistentItem(key: string) {
   window.localStorage.removeItem(key)
-  if (!isPersistentStateKey(key)) return
+  if (!isRemotePersistentStateKey(key)) return
 
   queueMutation({
     operation: 'delete',

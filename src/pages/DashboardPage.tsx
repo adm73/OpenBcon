@@ -26,7 +26,14 @@ import {
 } from '../auth/session'
 import { OpenBconAttribution } from '../components/OpenBconAttribution'
 import { usePlatformConfig } from '../config/usePlatformConfig'
-import type { PlatformModuleId } from '../config/platform'
+import {
+  sanitizePlatformConfigForPersistence,
+  platformConfigStorageKey,
+  type PaymentCatalogItem,
+  type PaymentConfig,
+  type PlatformModuleId,
+} from '../config/platform'
+import { persistLocalPlatformSecureConfig } from '../config/localSecureConfig'
 import { defaultProfile, documentTypes, fundingTracks } from '../data/demo'
 import {
   loadFundingPrograms,
@@ -42,6 +49,11 @@ import {
   type SavedProgramPriority,
   type SavedProgramStage,
 } from '../data/savedPrograms'
+import {
+  createStripeBillingPortalSession,
+  createStripeCheckoutSession,
+  lookupStripeCheckoutSession,
+} from '../lib/stripeBillingApi'
 import {
   loadApplications,
   saveApplications,
@@ -4405,9 +4417,30 @@ type UserSettings = {
   twoFactor: boolean
   sessionTimeout: string
   billingCycle: 'monthly' | 'annual'
+  stripeCustomerId: string
+  stripeSubscriptionId: string
+  activePriceItemId: string
+}
+
+type BillingTransaction = {
+  id: string
+  date: string
+  amount: string
+  currency: PaymentCatalogItem['currency']
+  status: string
+  priceItemId: string
+  label: string
+}
+
+type LegacyUserSettings = Partial<UserSettings> & {
+  billingTransactions?: BillingTransaction[]
 }
 
 const userSettingsStorageKey = 'bconomics-user-settings-v1'
+const billingTransactionsStorageKey = 'bconomics-billing-transactions-v1'
+const pendingStripeCheckoutStorageKey = 'bconomics-pending-stripe-checkout-v1'
+const pendingStripeCheckoutPriceItemStorageKey =
+  'bconomics-pending-stripe-price-item-v1'
 
 const defaultUserSettings: UserSettings = {
   fullName: 'Alex Morgan',
@@ -4425,17 +4458,226 @@ const defaultUserSettings: UserSettings = {
   twoFactor: false,
   sessionTimeout: '30 minutes',
   billingCycle: 'monthly',
+  stripeCustomerId: '',
+  stripeSubscriptionId: '',
+  activePriceItemId: '',
 }
 
 function loadUserSettings() {
   try {
     const saved = window.localStorage.getItem(userSettingsStorageKey)
     return saved
-      ? { ...defaultUserSettings, ...(JSON.parse(saved) as Partial<UserSettings>) }
+      ? { ...defaultUserSettings, ...(JSON.parse(saved) as LegacyUserSettings) }
       : defaultUserSettings
   } catch {
     return defaultUserSettings
   }
+}
+
+function loadBillingTransactions() {
+  try {
+    const savedTransactions = window.localStorage.getItem(
+      billingTransactionsStorageKey,
+    )
+    if (savedTransactions) {
+      return JSON.parse(savedTransactions) as BillingTransaction[]
+    }
+
+    const savedSettings = window.localStorage.getItem(userSettingsStorageKey)
+    if (!savedSettings) return []
+
+    const parsedSettings = JSON.parse(savedSettings) as LegacyUserSettings
+    return Array.isArray(parsedSettings.billingTransactions)
+      ? parsedSettings.billingTransactions
+      : []
+  } catch {
+    return []
+  }
+}
+
+function formatSettingsBillingAmount(
+  amount: string,
+  currency: PaymentCatalogItem['currency'],
+) {
+  const parsed = Number.parseFloat(amount.replace(/,/gu, ''))
+
+  if (!Number.isFinite(parsed)) {
+    return `${currency} ${amount}`
+  }
+
+  return new Intl.NumberFormat('en-CA', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: parsed % 1 === 0 ? 0 : 2,
+  }).format(parsed)
+}
+
+function isZeroCostPricingItem(item: PaymentCatalogItem | null) {
+  if (!item) return false
+
+  const parsed = Number.parseFloat(item.amount.replace(/,/gu, ''))
+  return Number.isFinite(parsed) && parsed <= 0
+}
+
+function getPricingItemPlanLabel(item: PaymentCatalogItem | null) {
+  if (!item) return 'No active plan'
+  return item.isDefault || isZeroCostPricingItem(item) ? 'Free Account' : item.name
+}
+
+function formatBillingTransactionDate(date: string) {
+  const parsed = new Date(date)
+
+  if (Number.isNaN(parsed.getTime())) {
+    return date
+  }
+
+  return new Intl.DateTimeFormat('en-CA', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(parsed)
+}
+
+function getNextPaymentDateLabel(
+  item: PaymentCatalogItem | null,
+  transactions: BillingTransaction[],
+) {
+  if (!item || isZeroCostPricingItem(item) || item.billingType === 'one-time') {
+    return '--'
+  }
+
+  const latestTransaction = [...transactions]
+    .filter((transaction) => transaction.priceItemId === item.id)
+    .sort((left, right) => right.date.localeCompare(left.date))[0]
+
+  if (!latestTransaction) {
+    return '--'
+  }
+
+  const parsed = new Date(latestTransaction.date)
+  if (Number.isNaN(parsed.getTime())) {
+    return '--'
+  }
+
+  const nextPaymentDate = new Date(parsed)
+
+  if (item.billingType === 'annual') {
+    nextPaymentDate.setFullYear(nextPaymentDate.getFullYear() + 1)
+  } else {
+    nextPaymentDate.setMonth(nextPaymentDate.getMonth() + 1)
+  }
+
+  return formatBillingTransactionDate(nextPaymentDate.toISOString())
+}
+
+function getPricingAmountSuffix(item: PaymentCatalogItem | null) {
+  if (!item) {
+    return 'CAD / month'
+  }
+
+  if (item.billingType === 'one-time') {
+    return item.currency
+  }
+
+  if (item.billingType === 'annual') {
+    return `${item.currency} / year`
+  }
+
+  return `${item.currency} / month`
+}
+
+function getCurrentPlanPaymentLabel(
+  item: PaymentCatalogItem | null,
+  transactions: BillingTransaction[],
+) {
+  return `Next payment date ${getNextPaymentDateLabel(item, transactions)}`
+}
+
+function buildBillingTransactionId(prefix: 'FREE' | 'INV') {
+  const stamp = Date.now().toString().slice(-6)
+  return `${prefix}-${stamp}`
+}
+
+function normalizeBillingStatus(status: string) {
+  const trimmed = status.trim().toLowerCase()
+
+  if (trimmed === 'paid') return 'Paid'
+  if (trimmed === 'active') return 'Active'
+  if (trimmed === 'succeeded') return 'Succeeded'
+  if (trimmed === 'no_payment_required') return 'No payment required'
+  if (trimmed === 'unpaid') return 'Unpaid'
+  if (trimmed === 'open') return 'Open'
+
+  return status.trim() || 'Completed'
+}
+
+function appendBillingTransaction(
+  current: BillingTransaction[],
+  transaction: BillingTransaction,
+) {
+  const nextTransactions = [
+    transaction,
+    ...current.filter(
+      (entry) =>
+        entry.id !== transaction.id &&
+        !(
+          entry.priceItemId === transaction.priceItemId &&
+          entry.date === transaction.date &&
+          entry.status === transaction.status &&
+          entry.amount === transaction.amount
+        ),
+    ),
+  ]
+
+  return nextTransactions
+    .sort((left, right) => right.date.localeCompare(left.date))
+    .slice(0, 20)
+}
+
+function savePendingStripeCheckoutPayments(payments: PaymentConfig) {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(
+    pendingStripeCheckoutStorageKey,
+    JSON.stringify(payments),
+  )
+}
+
+function loadPendingStripeCheckoutPayments() {
+  if (typeof window === 'undefined') return null
+
+  const saved = window.sessionStorage.getItem(pendingStripeCheckoutStorageKey)
+  if (!saved) return null
+
+  try {
+    return JSON.parse(saved) as PaymentConfig
+  } catch {
+    return null
+  }
+}
+
+function clearPendingStripeCheckoutPayments() {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.removeItem(pendingStripeCheckoutStorageKey)
+}
+
+function savePendingStripeCheckoutPriceItemId(priceItemId: string) {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(
+    pendingStripeCheckoutPriceItemStorageKey,
+    priceItemId,
+  )
+}
+
+function loadPendingStripeCheckoutPriceItemId() {
+  if (typeof window === 'undefined') return ''
+  return (
+    window.sessionStorage.getItem(pendingStripeCheckoutPriceItemStorageKey) ?? ''
+  )
+}
+
+function clearPendingStripeCheckoutPriceItemId() {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.removeItem(pendingStripeCheckoutPriceItemStorageKey)
 }
 
 function SettingsPage() {
@@ -4453,7 +4695,13 @@ function SettingsPage() {
       : 'profile',
   )
   const [settings, setSettings] = useState<UserSettings>(loadUserSettings)
+  const [billingTransactions, setBillingTransactions] = useState<BillingTransaction[]>(
+    loadBillingTransactions,
+  )
   const [notice, setNotice] = useState('')
+  const [billingActionState, setBillingActionState] = useState<
+    'idle' | 'checkout' | 'portal' | 'sync'
+  >('idle')
   const sectionItems: Array<{
     id: SettingsSection
     label: string
@@ -4491,10 +4739,49 @@ function SettingsPage() {
       icon: 'file',
     },
   ]
-  const currentPlanPrice =
-    settings.billingCycle === 'annual'
-      ? config.payments.annualPrice
-      : config.payments.monthlyPrice
+  const activePaymentProvider = config.payments.provider
+  const activePricingOptions = useMemo(
+    () =>
+      config.payments.priceCatalog.filter(
+        (item) =>
+          item.active &&
+          (!config.payments.enabled || item.provider === activePaymentProvider),
+      ),
+    [activePaymentProvider, config.payments.enabled, config.payments.priceCatalog],
+  )
+  const defaultPricingOffer =
+    activePricingOptions.find((item) => item.isDefault) ??
+    config.payments.priceCatalog.find((item) => item.active && item.isDefault) ??
+    null
+  const selectedPlanItem =
+    config.payments.priceCatalog.find(
+      (item) => item.active && item.id === settings.activePriceItemId,
+    ) ?? null
+  const subscribedPlanItem =
+    settings.stripeSubscriptionId.trim().length > 0
+      ? activePricingOptions.find(
+          (item) =>
+            item.billingType !== 'one-time' &&
+            item.billingType === settings.billingCycle &&
+            !isZeroCostPricingItem(item),
+        ) ?? null
+      : null
+  const currentPlanItem =
+    selectedPlanItem ??
+    subscribedPlanItem ??
+    defaultPricingOffer ??
+    activePricingOptions.find((item) => item.billingType !== 'one-time') ??
+    activePricingOptions[0] ??
+    null
+  const stripeBillingEnabled =
+    config.payments.enabled && config.payments.provider === 'stripe'
+  const hasStripeCustomer = settings.stripeCustomerId.trim().length > 0
+  const currentPlanLabel = getPricingItemPlanLabel(currentPlanItem)
+  const isFreeCurrentPlan = isZeroCostPricingItem(currentPlanItem)
+  const recentBillingTransactions = billingTransactions.slice(0, 5)
+  const visiblePricingOptions = activePricingOptions.filter(
+    (item) => item.id !== currentPlanItem?.id,
+  )
 
   useEffect(() => {
     const hashSection = location.hash.slice(1)
@@ -4506,6 +4793,167 @@ function SettingsPage() {
       setActiveSection(hashSection as SettingsSection)
     }
   }, [location.hash])
+
+  useEffect(() => {
+    const persistedTransactions = window.localStorage.getItem(
+      billingTransactionsStorageKey,
+    )
+    const savedSettings = window.localStorage.getItem(userSettingsStorageKey)
+
+    if (persistedTransactions || !savedSettings) return
+
+    try {
+      const parsedSettings = JSON.parse(savedSettings) as LegacyUserSettings
+      const legacyTransactions = Array.isArray(parsedSettings.billingTransactions)
+        ? parsedSettings.billingTransactions
+        : []
+
+      if (legacyTransactions.length === 0) return
+
+      setBillingTransactions(legacyTransactions)
+      setPersistentItem(
+        billingTransactionsStorageKey,
+        JSON.stringify(legacyTransactions),
+      )
+    } catch {
+      // Ignore malformed legacy records and continue with empty history.
+    }
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const checkoutState = params.get('checkout')
+    const sessionId = params.get('session_id')
+    const pendingCheckoutPayments = loadPendingStripeCheckoutPayments()
+    const pendingCheckoutPriceItemId = loadPendingStripeCheckoutPriceItemId()
+
+    if (checkoutState !== 'success' && checkoutState !== 'cancel') return
+
+    setActiveSection('billing')
+
+    if (checkoutState === 'cancel') {
+      clearPendingStripeCheckoutPayments()
+      clearPendingStripeCheckoutPriceItemId()
+      setNotice('Stripe Checkout was canceled before payment was completed.')
+      navigate('/settings#billing', { replace: true })
+      return
+    }
+
+    const lookupPayments = pendingCheckoutPayments ?? config.payments
+
+    if (!sessionId || lookupPayments.provider !== 'stripe') {
+      navigate('/settings#billing', { replace: true })
+      return
+    }
+
+    let active = true
+    setBillingActionState('sync')
+
+    lookupStripeCheckoutSession({
+      sessionId,
+      payments: lookupPayments,
+    })
+      .then((session) => {
+        if (!active) return
+
+        const pendingCheckoutItem =
+          lookupPayments.priceCatalog.find(
+            (item) => item.id === pendingCheckoutPriceItemId,
+          ) ??
+          config.payments.priceCatalog.find(
+            (item) => item.id === pendingCheckoutPriceItemId,
+          ) ??
+          null
+
+        let nextSettings: UserSettings | null = null
+        setSettings((current) => {
+          const baseSettings: UserSettings = {
+            ...current,
+            stripeCustomerId: session.customerId ?? current.stripeCustomerId,
+            stripeSubscriptionId:
+              session.subscriptionId ?? current.stripeSubscriptionId,
+            activePriceItemId:
+              pendingCheckoutItem?.billingType !== 'one-time'
+                ? pendingCheckoutItem?.id ?? current.activePriceItemId
+                : current.activePriceItemId,
+            billingCycle:
+              pendingCheckoutItem?.billingType === 'annual'
+                ? 'annual'
+                : pendingCheckoutItem?.billingType === 'monthly'
+                ? 'monthly'
+                : current.billingCycle,
+          }
+          nextSettings = baseSettings
+          return nextSettings
+        })
+        if (nextSettings) {
+          setPersistentItem(userSettingsStorageKey, JSON.stringify(nextSettings))
+        }
+
+        if (pendingCheckoutItem) {
+          setBillingTransactions((current) => {
+            const nextTransactions = appendBillingTransaction(current, {
+              id: buildBillingTransactionId('INV'),
+              date: new Date().toISOString(),
+              amount: pendingCheckoutItem.amount,
+              currency: pendingCheckoutItem.currency,
+              status: normalizeBillingStatus(
+                session.paymentStatus ?? session.status ?? 'Paid',
+              ),
+              priceItemId: pendingCheckoutItem.id,
+              label: pendingCheckoutItem.name,
+            })
+            setPersistentItem(
+              billingTransactionsStorageKey,
+              JSON.stringify(nextTransactions),
+            )
+            return nextTransactions
+          })
+        }
+
+        if (pendingCheckoutPayments) {
+          const nextPlatformConfig = {
+            ...config,
+            payments: pendingCheckoutPayments,
+          }
+
+          void persistLocalPlatformSecureConfig(nextPlatformConfig)
+          setPersistentItem(
+            platformConfigStorageKey,
+            JSON.stringify({
+              ...sanitizePlatformConfigForPersistence(nextPlatformConfig),
+            }),
+          )
+        }
+
+        setNotice(
+          session.subscriptionId
+            ? 'Stripe subscription activated. Your billing portal is now ready.'
+            : 'Stripe payment completed successfully.',
+        )
+        clearPendingStripeCheckoutPayments()
+        clearPendingStripeCheckoutPriceItemId()
+        navigate('/settings#billing', { replace: true })
+      })
+      .catch((error) => {
+        if (!active) return
+        clearPendingStripeCheckoutPriceItemId()
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : 'Stripe checkout completed, but the session could not be verified.',
+        )
+        navigate('/settings#billing', { replace: true })
+      })
+      .finally(() => {
+        if (!active) return
+        setBillingActionState('idle')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [config, config.payments, location.search, navigate])
 
   function updateSetting<Key extends keyof UserSettings>(
     key: Key,
@@ -4523,6 +4971,136 @@ function SettingsPage() {
   function saveSettings() {
     setPersistentItem(userSettingsStorageKey, JSON.stringify(settings))
     setNotice('Your settings have been saved.')
+  }
+
+  function activateFreePlan(item: PaymentCatalogItem) {
+    let nextSettings: UserSettings | null = null
+
+    setSettings((current) => {
+      nextSettings = {
+        ...current,
+        activePriceItemId: item.id,
+        billingCycle: item.billingType === 'annual' ? 'annual' : 'monthly',
+        stripeCustomerId: '',
+        stripeSubscriptionId: '',
+      }
+      return nextSettings
+    })
+
+    if (nextSettings) {
+      setPersistentItem(userSettingsStorageKey, JSON.stringify(nextSettings))
+    }
+
+    setBillingTransactions((current) => {
+      const nextTransactions = appendBillingTransaction(current, {
+        id: buildBillingTransactionId('FREE'),
+        date: new Date().toISOString(),
+        amount: item.amount,
+        currency: item.currency,
+        status: 'Activated',
+        priceItemId: item.id,
+        label: item.name,
+      })
+      setPersistentItem(
+        billingTransactionsStorageKey,
+        JSON.stringify(nextTransactions),
+      )
+      return nextTransactions
+    })
+
+    clearPendingStripeCheckoutPayments()
+    clearPendingStripeCheckoutPriceItemId()
+    setNotice('Free Account activated. No payment gateway step was required.')
+  }
+
+  async function startPricingCheckout(item: PaymentCatalogItem) {
+    if (isZeroCostPricingItem(item)) {
+      activateFreePlan(item)
+      return
+    }
+
+    if (!config.payments.enabled) {
+      setNotice('Billing is not enabled for this workspace yet.')
+      return
+    }
+
+    if (item.provider !== config.payments.provider) {
+      setNotice(
+        `${item.name} is linked to ${item.provider}, but the active payment provider is ${config.payments.provider}.`,
+      )
+      return
+    }
+
+    if (item.provider !== 'stripe') {
+      setNotice(
+        `${item.name} is linked to Waffo Pancake. Connect its checkout flow before selling it from workspace billing.`,
+      )
+      return
+    }
+
+    try {
+      setBillingActionState('checkout')
+      savePendingStripeCheckoutPayments(config.payments)
+      savePendingStripeCheckoutPriceItemId(item.id)
+      const session = await createStripeCheckoutSession({
+        priceItemId: item.id,
+        customerEmail: settings.email,
+        customerId: settings.stripeCustomerId || undefined,
+        platformName,
+        payments: config.payments,
+      })
+      window.location.assign(session.url)
+    } catch (error) {
+      setBillingActionState('idle')
+      clearPendingStripeCheckoutPriceItemId()
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : 'The selected checkout could not be opened.',
+      )
+    }
+  }
+
+  async function openStripeBillingPortal() {
+    if (!stripeBillingEnabled) {
+      setNotice('Stripe billing is not enabled for this workspace yet.')
+      return
+    }
+
+    if (!hasStripeCustomer) {
+      setNotice('Complete Stripe checkout once before opening the billing portal.')
+      return
+    }
+
+    try {
+      setBillingActionState('portal')
+      const session = await createStripeBillingPortalSession({
+        customerId: settings.stripeCustomerId,
+        platformName,
+        payments: config.payments,
+      })
+      window.location.assign(session.url)
+    } catch (error) {
+      setBillingActionState('idle')
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : 'The Stripe billing portal could not be opened.',
+      )
+    }
+  }
+
+  function handleEditPaymentMethod() {
+    if (isFreeCurrentPlan && !hasStripeCustomer) {
+      setNotice('No payment method is required while you are on Free Account.')
+      return
+    }
+
+    if (hasStripeCustomer) {
+      void openStripeBillingPortal()
+      return
+    }
+    setNotice('Start Stripe checkout first to create a customer billing profile.')
   }
 
   return (
@@ -4554,7 +5132,7 @@ function SettingsPage() {
       <div className="settings-overview">
         <article>
           <span className="settings-overview-icon"><Glyph type="file" /></span>
-          <div><small>Current plan</small><strong>Partner Pro</strong></div>
+          <div><small>Current plan</small><strong>{currentPlanLabel}</strong></div>
           <b>Active</b>
         </article>
         <article>
@@ -4696,25 +5274,127 @@ function SettingsPage() {
           {activeSection === 'billing' ? (
             <section className="settings-section settings-billing">
               <header>
-                <div><span>Billing & Subscription</span><h2>Your Partner Pro plan</h2></div>
-                <p>Manage your plan, payment method, usage, and invoices.</p>
+                <div><span>Billing & Subscription</span><h2>Choose how you want to pay</h2></div>
+                <p>Review active pricing options, start checkout, and manage billing after purchase.</p>
               </header>
-              <div className="settings-plan-card">
-                <div className="settings-plan-heading">
-                  <span><Glyph type="spark" /></span>
-                  <div><small>Current subscription</small><strong>Partner Pro</strong><p>Advanced funding workflows for growing teams.</p></div>
-                  <b>Active</b>
-                </div>
-                <div className="settings-plan-price">
-                  <strong>${currentPlanPrice}</strong>
-                  <span>{config.payments.currency} / {settings.billingCycle === 'annual' ? 'year' : 'month'}</span>
-                  <small>Next billing date · Aug 28, 2026</small>
-                </div>
-                <div className="settings-cycle-switch">
-                  <button type="button" className={settings.billingCycle === 'monthly' ? 'is-active' : ''} onClick={() => updateSetting('billingCycle', 'monthly')}>Monthly</button>
-                  <button type="button" className={settings.billingCycle === 'annual' ? 'is-active' : ''} onClick={() => updateSetting('billingCycle', 'annual')}>Annual</button>
-                </div>
-                <button type="button" className="settings-manage-billing" onClick={() => setNotice('The secure billing portal is ready for backend connection.')}>Manage subscription</button>
+              <div className="settings-current-subscription">
+                <strong>Current subscription</strong>
+                <article
+                  className={
+                    currentPlanItem?.billingType === 'monthly'
+                      ? 'settings-pricing-card settings-pricing-card-current is-featured'
+                      : 'settings-pricing-card settings-pricing-card-current'
+                  }
+                >
+                  <div className="settings-pricing-card-topline">
+                    <span>{currentPlanItem?.offeringType ?? 'Service'}</span>
+                    <b>
+                      {currentPlanItem
+                        ? currentPlanItem.billingType === 'one-time'
+                          ? 'One-time'
+                          : currentPlanItem.billingType
+                        : 'Monthly'}
+                    </b>
+                  </div>
+                  <strong>{currentPlanItem?.name ?? currentPlanLabel}</strong>
+                  <p>{currentPlanItem?.description || 'Configured in the admin pricing catalogue.'}</p>
+                  <div className="settings-pricing-price">
+                    <div className="settings-pricing-amount-line">
+                      <span>
+                        {currentPlanItem
+                          ? formatSettingsBillingAmount(
+                              currentPlanItem.amount,
+                              currentPlanItem.currency,
+                            )
+                          : '$0'}
+                      </span>
+                      <small>{getPricingAmountSuffix(currentPlanItem)}</small>
+                    </div>
+                    <small>
+                      {getCurrentPlanPaymentLabel(
+                        currentPlanItem,
+                        billingTransactions,
+                      )}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    className="settings-pricing-action"
+                    disabled
+                  >
+                    Current plan
+                  </button>
+                </article>
+              </div>
+              <div className="settings-pricing-grid">
+                {visiblePricingOptions.length > 0 ? (
+                  visiblePricingOptions.map((item) => (
+                    (() => {
+                      const isCurrentPlan =
+                        item.id === currentPlanItem?.id &&
+                        item.billingType !== 'one-time'
+                      const isFreeItem = isZeroCostPricingItem(item)
+
+                      return (
+                    <article
+                      key={item.id}
+                      className={
+                        item.billingType === 'monthly'
+                          ? 'settings-pricing-card is-featured'
+                          : 'settings-pricing-card'
+                      }
+                    >
+                      <div className="settings-pricing-card-topline">
+                        <span>{item.offeringType}</span>
+                        <b>{item.billingType === 'one-time' ? 'One-time' : item.billingType}</b>
+                      </div>
+                      <strong>{item.name}</strong>
+                      <p>{item.description || 'Configured in the admin pricing catalogue.'}</p>
+                      <div className="settings-pricing-price">
+                        <div className="settings-pricing-amount-line">
+                          <span>{formatSettingsBillingAmount(item.amount, item.currency)}</span>
+                          <small>{getPricingAmountSuffix(item)}</small>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="settings-pricing-action"
+                        disabled={
+                          billingActionState !== 'idle' ||
+                          isCurrentPlan ||
+                          (!isFreeItem && item.provider !== 'stripe')
+                        }
+                        onClick={() => void startPricingCheckout(item)}
+                      >
+                        {isCurrentPlan
+                          ? 'Current plan'
+                          : billingActionState === 'checkout'
+                          ? 'Opening checkout...'
+                          : !isFreeItem && item.provider !== 'stripe'
+                            ? 'Checkout unavailable'
+                            : isFreeItem
+                              ? 'Choose free plan'
+                              : item.billingType === 'one-time'
+                              ? 'Pay now'
+                              : 'Subscribe'}
+                      </button>
+                    </article>
+                      )
+                    })()
+                  ))
+                ) : (
+                  <article className="settings-pricing-card is-empty">
+                    <div className="settings-pricing-card-topline">
+                      <span>Pricing</span>
+                      <b>Pending</b>
+                    </div>
+                    <strong>No active pricing options</strong>
+                    <p>
+                      Add and activate products or services in the admin console to
+                      make them available here.
+                    </p>
+                  </article>
+                )}
               </div>
               <div className="settings-usage-grid">
                 <article><span>Document packages</span><strong>23 <small>/ 50</small></strong><i><b style={{ width: '46%' }} /></i></article>
@@ -4722,18 +5402,20 @@ function SettingsPage() {
                 <article><span>Storage</span><strong>1.8 <small>/ 10 GB</small></strong><i><b style={{ width: '18%' }} /></i></article>
               </div>
               <div className="settings-payment-card">
-                <div><span>VISA</span><p><strong>Visa ending in 4242</strong><small>Expires 08/28 · Default payment method</small></p></div>
-                <button type="button" onClick={() => setNotice('Payment method editing is ready for the billing portal.')}>Edit</button>
+                <div><span>{isFreeCurrentPlan && !hasStripeCustomer ? 'FREE' : 'VISA'}</span><p><strong>{isFreeCurrentPlan && !hasStripeCustomer ? 'No payment method required' : 'Visa ending in 4242'}</strong><small>{isFreeCurrentPlan && !hasStripeCustomer ? 'Free Account does not require a saved billing profile.' : 'Expires 08/28 · Default payment method'}</small></p></div>
+                <button type="button" onClick={handleEditPaymentMethod} disabled={billingActionState !== 'idle'}>
+                  {isFreeCurrentPlan && !hasStripeCustomer ? 'Not needed' : 'Edit'}
+                </button>
               </div>
               <div className="settings-invoices">
                 <header><strong>Recent invoices</strong><button type="button" onClick={() => setNotice('Invoice history is ready for backend connection.')}>View all</button></header>
-                {[
-                  ['INV-1048', 'Jul 28, 2026', `$${config.payments.monthlyPrice}.00 ${config.payments.currency}`, 'Paid'],
-                  ['INV-1032', 'Jun 28, 2026', `$${config.payments.monthlyPrice}.00 ${config.payments.currency}`, 'Paid'],
-                  ['INV-1016', 'May 28, 2026', `$${config.payments.monthlyPrice}.00 ${config.payments.currency}`, 'Paid'],
-                ].map((invoice) => (
-                  <div key={invoice[0]}><strong>{invoice[0]}</strong><span>{invoice[1]}</span><b>{invoice[2]}</b><em>{invoice[3]}</em><button type="button" aria-label={`Download ${invoice[0]}`}><Glyph type="file" /></button></div>
-                ))}
+                {recentBillingTransactions.length > 0 ? (
+                  recentBillingTransactions.map((transaction) => (
+                    <div key={transaction.id}><strong>{transaction.id}</strong><span>{formatBillingTransactionDate(transaction.date)}</span><b>{formatSettingsBillingAmount(transaction.amount, transaction.currency)}</b><em>{transaction.status}</em><button type="button" aria-label={`Download ${transaction.id}`} onClick={() => setNotice(`${transaction.label} receipt export is ready for backend connection.`)}><Glyph type="file" /></button></div>
+                  ))
+                ) : (
+                  <div><strong>No transactions yet</strong><span>Waiting for the first completed billing event</span><b>--</b><em>Empty</em><button type="button" aria-label="Billing history unavailable"><Glyph type="file" /></button></div>
+                )}
               </div>
             </section>
           ) : null}
@@ -5770,7 +6452,7 @@ function QuickGeneratePage() {
     let nextPackage: GeneratedPackage
     try {
       nextPackage = await backendPromise
-    } catch (error) {
+    } catch {
       setWorkspaceThoughts((previous) => [
         ...previous,
         usingMockGeneration

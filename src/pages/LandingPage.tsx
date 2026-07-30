@@ -11,6 +11,20 @@ import {
 
 const TTE_WEBSITE_URL = 'https://www.tritrient.com'
 
+function formatLandingPrice(amount: string, currency: 'CAD' | 'USD') {
+  const normalizedAmount = Number.parseFloat(amount.replace(/,/gu, ''))
+
+  if (!Number.isFinite(normalizedAmount)) {
+    return `${currency} ${amount}`
+  }
+
+  return new Intl.NumberFormat('en-CA', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: normalizedAmount % 1 === 0 ? 0 : 2,
+  }).format(normalizedAmount)
+}
+
 function renderLandingLink(
   href: string,
   label: string,
@@ -56,6 +70,7 @@ export function LandingPage() {
   const { header, content, footer } = config.landingPage
   const platformName = getPlatformDisplayName(config)
   const platformInitial = getPlatformInitial(config)
+  const activePricingItems = config.payments.priceCatalog.filter((item) => item.active)
 
   useEffect(() => {
     document.title = `${platformName} | Funding-ready business documents`
@@ -183,6 +198,59 @@ export function LandingPage() {
               <div><strong>Generate and improve</strong><p>Create editable plans, forecasts, and narratives aligned to reviewer criteria.</p></div>
             </li>
           </ol>
+        </section>
+
+        <section className="landing-v2-pricing" id="pricing">
+          <div className="landing-v2-section-copy">
+            <p>Flexible pricing</p>
+            <h2>Choose the setup that fits how your team delivers funding work.</h2>
+            <span>
+              Offerings below are configured from the admin console and can be mapped
+              directly to Stripe or Waffo Pancake products for live checkout flows.
+            </span>
+          </div>
+          <div className="landing-v2-pricing-grid">
+            {activePricingItems.length > 0 ? (
+              activePricingItems.map((item) => (
+                <article
+                  key={item.id}
+                  className={
+                    item.billingType === 'monthly'
+                      ? 'landing-v2-pricing-card is-featured'
+                      : 'landing-v2-pricing-card'
+                  }
+                >
+                  <h3>{item.name}</h3>
+                  <p>{item.description || `${platformName} ${item.offeringType} offering.`}</p>
+                  <strong>{formatLandingPrice(item.amount, item.currency)}</strong>
+                  <small>
+                    {item.billingType === 'one-time'
+                      ? 'One-time charge'
+                      : item.billingType === 'annual'
+                        ? 'Billed yearly'
+                        : 'Billed monthly'}
+                  </small>
+                  <div className="landing-v2-actions">
+                    <Link to="/signup">Get started</Link>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <article className="landing-v2-pricing-card is-empty">
+                <div className="landing-v2-pricing-topline">
+                  <span>Pricing</span>
+                </div>
+                <h3>Pricing is being configured</h3>
+                <p>
+                  Add active products or services in the admin console to publish
+                  pricing options here.
+                </p>
+                <div className="landing-v2-actions">
+                  <Link to="/login?next=/admin#pricing">Open admin console</Link>
+                </div>
+              </article>
+            )}
+          </div>
         </section>
 
         <section className="landing-v2-open" id="opensource">
