@@ -44,7 +44,7 @@ OpenBcon is designed for teams that help businesses secure funding:
 - **Funding readiness workflows**: assess strengths, risks, and missing inputs before submission
 - **Client and company management**: organize founder profiles, business details, and working records
 - **Funding program database**: manage grants, loans, and opportunity sources in one directory
-- **Partner and admin workspace**: configure modules, data sources, models, payment settings, and workspace behavior
+- **Partner and admin workspace**: configure modules, branding, landing-page content, legal links, data sources, models, payment settings, and workspace behavior
 - **Resource and template libraries**: centralize templates, social resources, tools, and reusable content
 - **Google Sheets and Airtable integrations**: connect external resource sources with admin-managed sync
 - **Open-source customization**: self-host, extend, rebrand, or commercialize under the project's dual-license model
@@ -149,7 +149,8 @@ The current repository snapshot includes the landing experience, dashboard works
 
 - Responsive landing page and dashboard shell
 - Mobile drawer navigation and collapsible sidebar groups
-- Configurable branding and public messaging
+- Configurable branding, logo, and public messaging
+- Admin-managed landing page header, content, footer navigation, and legal-link configuration
 - Module and Partner Portal feature flags
 - Searchable and filterable listing views with record details
 - Three-step Quick Generate workflow with validation, draft recovery, company import, and generated previews
@@ -222,6 +223,13 @@ The Admin Console persists platform configuration and data-source settings throu
 the API. Browser storage remains a local cache and offline fallback. The server
 validates a strict state-key allowlist so session tokens and credentials cannot be
 stored in the state database.
+
+The landing page can be managed directly from `/admin#landing-page`, including:
+
+- header navigation items and signed-in or signed-out CTA labels
+- grouped content sections for hero, CTA copy, features, workflow, and open-source messaging
+- dynamic proof points shown on the public homepage
+- footer sitemap links, platform links, and legal link destinations
 
 Before production deployment:
 

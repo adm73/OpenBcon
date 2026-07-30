@@ -125,6 +125,13 @@ function createLandingFooterNavItem(
   }
 }
 
+function createLandingProofItem() {
+  return {
+    value: 'New',
+    label: 'proof point',
+  }
+}
+
 export function AdminPage() {
   const { config, updateConfig, resetConfig } = usePlatformConfig()
   const [draft, setDraft] = useState<PlatformConfig>(config)
@@ -141,7 +148,6 @@ export function AdminPage() {
   const [syncingSourceId, setSyncingSourceId] = useState('')
   const [deleteSourceId, setDeleteSourceId] = useState('')
   const [sourceNotice, setSourceNotice] = useState('')
-  const enabledModuleCount = Object.values(draft.modules).filter(Boolean).length
   const generationModeLabel = draft.ai.mockModeEnabled ? 'Mock mode' : 'Live backend'
   const commercialLicenseUnlocked = hasCommercialLicenseAccess()
   const platformName = getPlatformDisplayName(draft)
@@ -433,6 +439,39 @@ export function AdminPage() {
     setSaved(false)
   }
 
+  function addLandingProofItem() {
+    setDraft((current) => ({
+      ...current,
+      landingPage: {
+        ...current.landingPage,
+        content: {
+          ...current.landingPage.content,
+          proofItems: [
+            ...current.landingPage.content.proofItems,
+            createLandingProofItem(),
+          ],
+        },
+      },
+    }))
+    setSaved(false)
+  }
+
+  function removeLandingProofItem(index: number) {
+    setDraft((current) => ({
+      ...current,
+      landingPage: {
+        ...current.landingPage,
+        content: {
+          ...current.landingPage.content,
+          proofItems: current.landingPage.content.proofItems.filter(
+            (_, itemIndex) => itemIndex !== index,
+          ),
+        },
+      },
+    }))
+    setSaved(false)
+  }
+
   function toggleModel(modelId: string) {
     const isEnabled = draft.ai.enabledModels.includes(modelId)
     const nextModels = isEnabled
@@ -575,7 +614,6 @@ export function AdminPage() {
         <Link className="admin-brand" to="/">
           <strong>Admin Console</strong>
         </Link>
-        <p className="admin-environment"><i /> Community workspace</p>
         <nav>
           <a href="#general">General</a>
           <a href="#branding">Branding</a>
@@ -593,49 +631,6 @@ export function AdminPage() {
       </aside>
 
       <main className="admin-main">
-        <header className="admin-header">
-          <div>
-            <p className="admin-eyebrow">Control plane · Local environment</p>
-            <h1>Platform configuration</h1>
-            <p>
-              Shape the product identity, module access, and licensing model
-              without changing application code.
-            </p>
-          </div>
-          <Link className="admin-preview-link" to="/dashboard">Preview workspace</Link>
-        </header>
-
-        <div className="admin-notice">
-          <strong>Production checklist</strong>
-          <span>
-            This UI is intentionally front-end only for the demo. Protect `/admin`
-            with server-side authentication before production deployment.
-          </span>
-        </div>
-
-        <section className="admin-overview">
-          <article>
-            <span>Enabled modules</span>
-            <strong>{enabledModuleCount}<small> / {Object.keys(draft.modules).length}</small></strong>
-            <p>Visible in the user workspace</p>
-          </article>
-          <article>
-            <span>Payment provider</span>
-            <strong>{draft.payments.provider}</strong>
-            <p>{draft.payments.testMode ? 'Test mode enabled' : 'Live payments'}</p>
-          </article>
-          <article>
-            <span>Default AI model</span>
-            <strong className="admin-overview-model">{draft.ai.defaultModel}</strong>
-            <p>{draft.ai.enabledModels.length} enabled models</p>
-          </article>
-          <article>
-            <span>Configuration state</span>
-            <strong>{saved ? 'Saved' : 'Draft'}</strong>
-            <p>{saved ? 'Stored in this browser' : 'Changes not published'}</p>
-          </article>
-        </section>
-
         <form className="admin-form" onSubmit={saveSettings}>
           <section className="admin-card" id="general">
             <div className="admin-section-copy">
@@ -821,185 +816,254 @@ export function AdminPage() {
                     on the homepage.
                   </p>
                 </div>
-                <div className="admin-fields">
-                  <label className="admin-field-wide">
-                    <span>Hero eyebrow</span>
-                    <input
-                      value={draft.landingPage.content.heroEyebrow}
-                      onChange={(event) =>
-                        updateLandingContentField('heroEyebrow', event.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="admin-field-wide">
-                    <span>Hero headline</span>
-                    <input
-                      value={draft.landingPage.content.headline}
-                      onChange={(event) =>
-                        updateLandingContentField('headline', event.target.value)
-                      }
-                    />
-                  </label>
-                  <label className="admin-field-wide">
-                    <span>Hero subheadline</span>
-                    <textarea
-                      value={draft.landingPage.content.subheadline}
-                      onChange={(event) =>
-                        updateLandingContentField('subheadline', event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Primary CTA label</span>
-                    <input
-                      value={draft.landingPage.content.primaryCtaLabel}
-                      onChange={(event) =>
-                        updateLandingContentField('primaryCtaLabel', event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Secondary CTA label</span>
-                    <input
-                      value={draft.landingPage.content.secondaryCtaLabel}
-                      onChange={(event) =>
-                        updateLandingContentField(
-                          'secondaryCtaLabel',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Features eyebrow</span>
-                    <input
-                      value={draft.landingPage.content.featuresEyebrow}
-                      onChange={(event) =>
-                        updateLandingContentField(
-                          'featuresEyebrow',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="admin-field-wide">
-                    <span>Features heading</span>
-                    <input
-                      value={draft.landingPage.content.featuresHeading}
-                      onChange={(event) =>
-                        updateLandingContentField(
-                          'featuresHeading',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="admin-field-wide">
-                    <span>Features body</span>
-                    <textarea
-                      value={draft.landingPage.content.featuresBody}
-                      onChange={(event) =>
-                        updateLandingContentField('featuresBody', event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Workflow eyebrow</span>
-                    <input
-                      value={draft.landingPage.content.workflowEyebrow}
-                      onChange={(event) =>
-                        updateLandingContentField(
-                          'workflowEyebrow',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="admin-field-wide">
-                    <span>Workflow heading</span>
-                    <input
-                      value={draft.landingPage.content.workflowHeading}
-                      onChange={(event) =>
-                        updateLandingContentField(
-                          'workflowHeading',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Open source eyebrow</span>
-                    <input
-                      value={draft.landingPage.content.openSourceEyebrow}
-                      onChange={(event) =>
-                        updateLandingContentField(
-                          'openSourceEyebrow',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="admin-field-wide">
-                    <span>Open source heading</span>
-                    <input
-                      value={draft.landingPage.content.openSourceHeading}
-                      onChange={(event) =>
-                        updateLandingContentField(
-                          'openSourceHeading',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label className="admin-field-wide">
-                    <span>Open source body</span>
-                    <textarea
-                      value={draft.landingPage.content.openSourceBody}
-                      onChange={(event) =>
-                        updateLandingContentField(
-                          'openSourceBody',
-                          event.target.value,
-                        )
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>Admin CTA label</span>
-                    <input
-                      value={draft.landingPage.content.adminCtaLabel}
-                      onChange={(event) =>
-                        updateLandingContentField('adminCtaLabel', event.target.value)
-                      }
-                    />
-                  </label>
-                </div>
-
-                <div className="admin-landing-proof-grid">
-                  {draft.landingPage.content.proofItems.map((item, index) => (
-                    <div key={`${item.value}-${index}`} className="admin-landing-proof-card">
-                      <strong>Proof item {index + 1}</strong>
-                      <div className="admin-fields">
-                        <label>
-                          <span>Value</span>
-                          <input
-                            value={item.value}
-                            onChange={(event) =>
-                              updateLandingProofItem(index, 'value', event.target.value)
-                            }
-                          />
-                        </label>
-                        <label className="admin-field-wide">
-                          <span>Label</span>
-                          <input
-                            value={item.label}
-                            onChange={(event) =>
-                              updateLandingProofItem(index, 'label', event.target.value)
-                            }
-                          />
-                        </label>
-                      </div>
+                <div className="admin-landing-nav-list">
+                  <div className="admin-landing-nav-card">
+                    <strong className="admin-landing-section-title">Hero</strong>
+                    <div className="admin-fields">
+                      <label className="admin-field-wide">
+                        <span>Eyebrow</span>
+                        <input
+                          value={draft.landingPage.content.heroEyebrow}
+                          onChange={(event) =>
+                            updateLandingContentField('heroEyebrow', event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="admin-field-wide">
+                        <span>Headline</span>
+                        <input
+                          value={draft.landingPage.content.headline}
+                          onChange={(event) =>
+                            updateLandingContentField('headline', event.target.value)
+                          }
+                        />
+                      </label>
+                      <label className="admin-field-wide">
+                        <span>Subheadline</span>
+                        <textarea
+                          value={draft.landingPage.content.subheadline}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'subheadline',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="admin-landing-nav-card">
+                    <strong className="admin-landing-section-title">Call to actions</strong>
+                    <div className="admin-fields">
+                      <label>
+                        <span>Primary CTA label</span>
+                        <input
+                          value={draft.landingPage.content.primaryCtaLabel}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'primaryCtaLabel',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Secondary CTA label</span>
+                        <input
+                          value={draft.landingPage.content.secondaryCtaLabel}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'secondaryCtaLabel',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        <span>Admin CTA label</span>
+                        <input
+                          value={draft.landingPage.content.adminCtaLabel}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'adminCtaLabel',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="admin-landing-nav-card">
+                    <strong className="admin-landing-section-title">Features section</strong>
+                    <div className="admin-fields">
+                      <label>
+                        <span>Eyebrow</span>
+                        <input
+                          value={draft.landingPage.content.featuresEyebrow}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'featuresEyebrow',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="admin-field-wide">
+                        <span>Heading</span>
+                        <input
+                          value={draft.landingPage.content.featuresHeading}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'featuresHeading',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="admin-field-wide">
+                        <span>Body</span>
+                        <textarea
+                          value={draft.landingPage.content.featuresBody}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'featuresBody',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="admin-landing-nav-card">
+                    <strong className="admin-landing-section-title">Workflow section</strong>
+                    <div className="admin-fields">
+                      <label>
+                        <span>Eyebrow</span>
+                        <input
+                          value={draft.landingPage.content.workflowEyebrow}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'workflowEyebrow',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="admin-field-wide">
+                        <span>Heading</span>
+                        <input
+                          value={draft.landingPage.content.workflowHeading}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'workflowHeading',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="admin-landing-nav-card">
+                    <strong className="admin-landing-section-title">Open source section</strong>
+                    <div className="admin-fields">
+                      <label>
+                        <span>Eyebrow</span>
+                        <input
+                          value={draft.landingPage.content.openSourceEyebrow}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'openSourceEyebrow',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="admin-field-wide">
+                        <span>Heading</span>
+                        <input
+                          value={draft.landingPage.content.openSourceHeading}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'openSourceHeading',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                      <label className="admin-field-wide">
+                        <span>Body</span>
+                        <textarea
+                          value={draft.landingPage.content.openSourceBody}
+                          onChange={(event) =>
+                            updateLandingContentField(
+                              'openSourceBody',
+                              event.target.value,
+                            )
+                          }
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="admin-landing-nav-card">
+                    <strong className="admin-landing-section-title">Proof points</strong>
+                    <div className="admin-landing-nav-list">
+                      {draft.landingPage.content.proofItems.map((item, index) => (
+                        <div
+                          key={`${item.value}-${index}`}
+                          className="admin-landing-nav-card"
+                        >
+                          <strong>Item {index + 1}</strong>
+                          <div className="admin-fields">
+                            <label>
+                              <span>Value</span>
+                              <input
+                                value={item.value}
+                                onChange={(event) =>
+                                  updateLandingProofItem(
+                                    index,
+                                    'value',
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                            <label className="admin-field-wide">
+                              <span>Label</span>
+                              <input
+                                value={item.label}
+                                onChange={(event) =>
+                                  updateLandingProofItem(
+                                    index,
+                                    'label',
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </label>
+                          </div>
+                          <button
+                            className="admin-button-secondary"
+                            type="button"
+                            onClick={() => removeLandingProofItem(index)}
+                          >
+                            Delete item
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      className="admin-button-secondary"
+                      type="button"
+                      onClick={addLandingProofItem}
+                    >
+                      Add proof item
+                    </button>
+                  </div>
                 </div>
               </article>
 
