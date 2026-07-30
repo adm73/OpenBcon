@@ -6347,9 +6347,10 @@
 
 .admin-brand-upload-button {
   width: fit-content;
-  min-height: 38px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 0 14px;
   border: 1px solid #d5daeb;
   border-radius: 10px;
@@ -6357,11 +6358,22 @@
   color: #22304d;
   font-size: 0.76rem;
   font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  box-sizing: border-box;
+  vertical-align: middle;
   cursor: pointer;
 }
 
 .admin-brand-upload-button input {
   display: none;
+}
+
+.admin-brand-upload-button > span {
+  display: block;
+  line-height: 1;
+  transform: translateY(12px);
 }
 
 .admin-landing-grid {

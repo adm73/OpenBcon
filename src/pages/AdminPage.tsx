@@ -671,7 +671,7 @@ export function AdminPage() {
                         accept="image/png,image/jpeg,image/webp,image/svg+xml"
                         onChange={updatePlatformLogo}
                       />
-                      Upload logo
+                      <span>Upload logo</span>
                     </label>
                     {draft.platformLogo ? (
                       <button
