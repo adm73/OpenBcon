@@ -163,7 +163,13 @@ export function LandingPage() {
           </Link>
           <OpenBconAttribution variant="landing" />
         </div>
-        <p>Open funding infrastructure for the next generation of businesses.</p>
+        <div className="landing-v2-footer-meta">
+          <p>Open funding infrastructure for the next generation of businesses.</p>
+          <div className="landing-v2-footer-links">
+            <Link to="/privacy-policy">Privacy Policy</Link>
+            <Link to="/terms-of-service">Terms of Service</Link>
+          </div>
+        </div>
         <Link to="/dashboard">Launch workspace →</Link>
       </footer>
     </div>

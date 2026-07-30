@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import {
   type AIConfig,
+  type LegalDocumentConfig,
   type PaymentConfig,
   type PlatformConfig,
   type PlatformModuleId,
@@ -175,6 +176,21 @@ export function AdminPage() {
     setAiTestStatus('idle')
   }
 
+  function updateLegalField<Key extends keyof LegalDocumentConfig>(
+    documentKey: 'privacyPolicy' | 'termsOfService',
+    field: Key,
+    value: LegalDocumentConfig[Key],
+  ) {
+    setDraft((current) => ({
+      ...current,
+      [documentKey]: {
+        ...current[documentKey],
+        [field]: value,
+      },
+    }))
+    setSaved(false)
+  }
+
   function toggleModel(modelId: string) {
     const isEnabled = draft.ai.enabledModels.includes(modelId)
     const nextModels = isEnabled
@@ -326,6 +342,7 @@ export function AdminPage() {
           <a href="#data-sources">Data Sources</a>
           <a href="#payments">Payments</a>
           <a href="#ai-models">AI Models</a>
+          <a href="#legal">Legal</a>
           <a href="#licensing">Licensing</a>
         </nav>
         <Link className="admin-back-link" to="/dashboard">
@@ -933,9 +950,105 @@ export function AdminPage() {
             </div>
           </section>
 
-          <section className="admin-card" id="licensing">
+          <section className="admin-card" id="legal">
             <div className="admin-section-copy">
               <p className="admin-section-number">07</p>
+              <h2>Legal pages</h2>
+              <p>
+                Edit the public Privacy Policy and Terms of Service shown in the
+                landing page footer. Both pages support Markdown and raw HTML.
+              </p>
+            </div>
+            <div className="admin-fields">
+              <div className="admin-legal-grid admin-field-wide">
+                <article className="admin-legal-editor">
+                  <header>
+                    <div>
+                      <strong>Privacy Policy</strong>
+                      <span>Public page: /privacy-policy</span>
+                    </div>
+                    <Link to="/privacy-policy" target="_blank" rel="noreferrer">
+                      Open page
+                    </Link>
+                  </header>
+                  <label>
+                    <span>Format</span>
+                    <select
+                      value={draft.privacyPolicy.format}
+                      onChange={(event) =>
+                        updateLegalField(
+                          'privacyPolicy',
+                          'format',
+                          event.target.value as LegalDocumentConfig['format'],
+                        )
+                      }
+                    >
+                      <option value="markdown">Markdown</option>
+                      <option value="html">HTML</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Content</span>
+                    <textarea
+                      value={draft.privacyPolicy.content}
+                      onChange={(event) =>
+                        updateLegalField('privacyPolicy', 'content', event.target.value)
+                      }
+                    />
+                  </label>
+                </article>
+
+                <article className="admin-legal-editor">
+                  <header>
+                    <div>
+                      <strong>Terms of Service</strong>
+                      <span>Public page: /terms-of-service</span>
+                    </div>
+                    <Link to="/terms-of-service" target="_blank" rel="noreferrer">
+                      Open page
+                    </Link>
+                  </header>
+                  <label>
+                    <span>Format</span>
+                    <select
+                      value={draft.termsOfService.format}
+                      onChange={(event) =>
+                        updateLegalField(
+                          'termsOfService',
+                          'format',
+                          event.target.value as LegalDocumentConfig['format'],
+                        )
+                      }
+                    >
+                      <option value="markdown">Markdown</option>
+                      <option value="html">HTML</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Content</span>
+                    <textarea
+                      value={draft.termsOfService.content}
+                      onChange={(event) =>
+                        updateLegalField('termsOfService', 'content', event.target.value)
+                      }
+                    />
+                  </label>
+                </article>
+              </div>
+              <div className="admin-license-preview admin-field-wide">
+                <span>Supported formats</span>
+                <strong>Markdown and HTML</strong>
+                <p>
+                  Use Markdown for easy editing, or switch to HTML when you need
+                  exact structure and custom markup.
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-card" id="licensing">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">08</p>
               <h2>Commercial licensing</h2>
               <p>
                 Configure the paid alternative for organizations that cannot use

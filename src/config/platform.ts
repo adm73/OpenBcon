@@ -1,3 +1,8 @@
+import {
+  defaultFundingDataSources,
+  type FundingDataSource,
+} from '../data/fundingSources'
+
 export type PlatformModuleId =
   | 'funding-readiness'
   | 'quick-generate'
@@ -30,6 +35,13 @@ export type AIConfig = {
   mockModeEnabled: boolean
 }
 
+export type LegalDocumentFormat = 'markdown' | 'html'
+
+export type LegalDocumentConfig = {
+  format: LegalDocumentFormat
+  content: string
+}
+
 export type PlatformConfig = {
   productName: string
   productSuffix: string
@@ -41,11 +53,63 @@ export type PlatformConfig = {
   commercialLicenseUrl: string
   commercialLicensePrice: string
   openBconAttributionVisible: boolean
+  privacyPolicy: LegalDocumentConfig
+  termsOfService: LegalDocumentConfig
   payments: PaymentConfig
   ai: AIConfig
   dataSources: FundingDataSource[]
   modules: Record<PlatformModuleId, boolean>
 }
+
+const defaultPrivacyPolicyContent = `# Privacy Policy
+
+Last updated: July 30, 2026
+
+This workspace is operated by **T.T.E** and may include OpenBcon-powered software components.
+
+## What we collect
+
+- account and workspace profile information
+- company, funding, and application records entered by users
+- operational usage data required to run and secure the service
+
+## How we use information
+
+- to provide workspace functionality
+- to support funding workflow automation
+- to maintain reliability, security, and audit history
+
+## Your responsibilities
+
+Do not upload confidential third-party data unless you have permission to do so and a lawful basis for processing it.
+
+## Contact
+
+For privacy questions, contact **chenadm73@gmail.com**.`
+
+const defaultTermsOfServiceContent = `# Terms of Service
+
+Last updated: July 30, 2026
+
+These Terms govern access to this workspace and related OpenBcon-powered services operated by **T.T.E**.
+
+## Acceptable use
+
+- use the platform only for lawful business and funding workflow purposes
+- do not attempt to disrupt, reverse engineer, or abuse the service
+- ensure that submitted content does not violate third-party rights
+
+## Open-source and commercial licensing
+
+This project includes an AGPL community edition and may also be offered under a separate commercial license.
+
+## Service availability
+
+The platform may change, improve, or remove features over time. Demo and preview environments may be reset without notice.
+
+## Contact
+
+Questions about these terms can be sent to **chenadm73@gmail.com**.`
 
 export const defaultPlatformConfig: PlatformConfig = {
   productName: 'Bconomics',
@@ -59,6 +123,14 @@ export const defaultPlatformConfig: PlatformConfig = {
   commercialLicenseUrl: 'mailto:chenadm73@gmail.com',
   commercialLicensePrice: 'Contact sales',
   openBconAttributionVisible: true,
+  privacyPolicy: {
+    format: 'markdown',
+    content: defaultPrivacyPolicyContent,
+  },
+  termsOfService: {
+    format: 'markdown',
+    content: defaultTermsOfServiceContent,
+  },
   payments: {
     enabled: true,
     provider: 'stripe',
@@ -111,6 +183,14 @@ export function loadPlatformConfig(): PlatformConfig {
     return {
       ...defaultPlatformConfig,
       ...parsedConfig,
+      privacyPolicy: {
+        ...defaultPlatformConfig.privacyPolicy,
+        ...parsedConfig.privacyPolicy,
+      },
+      termsOfService: {
+        ...defaultPlatformConfig.termsOfService,
+        ...parsedConfig.termsOfService,
+      },
       modules: {
         ...defaultPlatformConfig.modules,
         ...parsedConfig.modules,
@@ -137,7 +217,3 @@ export function loadPlatformConfig(): PlatformConfig {
     return defaultPlatformConfig
   }
 }
-import {
-  defaultFundingDataSources,
-  type FundingDataSource,
-} from '../data/fundingSources'

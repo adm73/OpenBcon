@@ -9,6 +9,7 @@ import { AdminPage } from './pages/AdminPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { LandingPage } from './pages/LandingPage'
+import { LegalDocumentPage } from './pages/LegalDocumentPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
@@ -48,6 +49,14 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route
+              path="/privacy-policy"
+              element={<LegalDocumentPage documentType="privacyPolicy" />}
+            />
+            <Route
+              path="/terms-of-service"
+              element={<LegalDocumentPage documentType="termsOfService" />}
+            />
             <Route path="/login" element={<GuestOnlyRoute><LoginPage /></GuestOnlyRoute>} />
             <Route path="/signup" element={<GuestOnlyRoute><SignupPage /></GuestOnlyRoute>} />
             <Route

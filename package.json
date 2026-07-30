@@ -23,9 +23,11 @@
   },
   "dependencies": {
     "cors": "^2.8.6",
+    "dompurify": "^3.4.12",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
+    "marked": "^18.0.7",
     "pg": "^8.22.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
