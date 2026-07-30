@@ -551,3 +551,17 @@ export function loadFundingPrograms(enabledSourceIds?: string[]) {
   )
   return [...builtInFundingPrograms, ...syncedPrograms]
 }
+
+export function findFundingProgramByName(
+  name: string,
+  enabledSourceIds?: string[],
+) {
+  const normalizedName = name.trim().toLowerCase()
+  if (!normalizedName) return null
+
+  return (
+    loadFundingPrograms(enabledSourceIds).find(
+      (program) => program.name.trim().toLowerCase() === normalizedName,
+    ) ?? null
+  )
+}

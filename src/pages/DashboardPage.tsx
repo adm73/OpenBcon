@@ -21,8 +21,10 @@ import {
 } from '../auth/adminAccess'
 import {
   clearAuthSession,
+  authUserUpdatedEvent,
   getCurrentAuthUser,
   getUserInitials,
+  updateCurrentAuthUserProfile,
 } from '../auth/session'
 import { OpenBconAttribution } from '../components/OpenBconAttribution'
 import { usePlatformConfig } from '../config/usePlatformConfig'
@@ -36,6 +38,7 @@ import {
 import { persistLocalPlatformSecureConfig } from '../config/localSecureConfig'
 import { defaultProfile, documentTypes, fundingTracks } from '../data/demo'
 import {
+  findFundingProgramByName,
   loadFundingPrograms,
   loadResourceRecords,
   type DataSourceModule,
@@ -55,8 +58,13 @@ import {
   lookupStripeCheckoutSession,
 } from '../lib/stripeBillingApi'
 import {
+  buildGeneratedApplicationId,
+  findApplicationRecord,
+  getLatestGeneratedApplication,
   loadApplications,
+  materializeSavedProgramApplication,
   saveApplications,
+  upsertGeneratedApplication,
   updateApplicationRecord,
   type ApplicationRecord,
   type ApplicationStatus,
@@ -111,6 +119,8 @@ function Glyph({ type }: { type: DashboardGlyph }) {
     search:
       'M10.5 4.5a6 6 0 1 0 3.782 10.657l4.53 4.53 1.06-1.06-4.53-4.53A6 6 0 0 0 10.5 4.5Zm0 1.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z',
     bolt: 'M12.46 2 5 13h5l-1 9 7.54-11H12l.46-9Z',
+    currency:
+      'M12 3.25c-2.66 0-4.75 1.52-4.75 3.5 0 1.9 1.67 2.89 4.52 3.48 2.65.55 3.73 1.05 3.73 2.2 0 1.21-1.38 2.07-3.5 2.07-2.03 0-3.5-.79-4.27-2.18l-1.33.76c.99 1.79 2.75 2.73 4.85 2.88v1.79h1.5v-1.81c2.78-.22 4.75-1.74 4.75-3.72 0-2.22-1.73-3.17-4.87-3.82-2.42-.5-3.38-.99-3.38-1.92 0-1 1.18-1.79 3.18-1.79 1.74 0 3 .6 3.76 1.79l1.28-.82c-.93-1.5-2.38-2.31-4.29-2.48v-1.71h-1.5v1.78Z',
     file: 'M6 3.75A1.75 1.75 0 0 1 7.75 2h6.19L19 7.06V20.25A1.75 1.75 0 0 1 17.25 22H7.75A1.75 1.75 0 0 1 6 20.25V3.75Zm7 0v4h4',
     user:
       'M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2.25c-4.1 0-7.5 2.14-7.5 4.78V21h15v-1.97c0-2.64-3.4-4.78-7.5-4.78Z',
@@ -1516,6 +1526,7 @@ function FundingReadinessPage() {
 }
 
 function SavedProgramsPage() {
+  const navigate = useNavigate()
   const { config } = usePlatformConfig()
   const enabledSourceIds = config.dataSources
     .filter((source) => source.enabled && source.module === 'grants-loans')
@@ -1535,6 +1546,57 @@ function SavedProgramsPage() {
   useEffect(() => {
     saveSavedProgramEntries(entries)
   }, [entries])
+
+  useEffect(() => {
+    const { company, owner } = resolveDefaultApplicationCompany()
+    if (!company) return
+
+    let nextApplications = loadApplications()
+    let applicationsChanged = false
+    let entriesChanged = false
+
+    const nextEntries = entries.map((entry) => {
+      const program = programs.find((item) => item.id === entry.programId)
+      if (!program) return entry
+
+      const result = materializeSavedProgramApplication(nextApplications, {
+        applicationId: entry.applicationId,
+        programName: program.name,
+        programUrl: program.url,
+        company: company.name,
+        fundingType: program.type,
+        amount: program.amount,
+        deadline: program.deadline,
+        owner,
+        stage: entry.stage,
+        note: entry.note,
+      })
+
+      if (result.applications !== nextApplications) {
+        nextApplications = result.applications
+        applicationsChanged = true
+      }
+
+      if (entry.applicationId !== result.applicationId) {
+        entriesChanged = true
+        return {
+          ...entry,
+          applicationId: result.applicationId,
+        }
+      }
+
+      return entry
+    })
+
+    if (applicationsChanged) {
+      saveApplications(nextApplications)
+    }
+
+    if (entriesChanged) {
+      setEntries(nextEntries)
+      saveSavedProgramEntries(nextEntries)
+    }
+  }, [entries, programs])
 
   const savedPrograms = entries
     .map((entry) => {
@@ -1598,6 +1660,16 @@ function SavedProgramsPage() {
       current.filter((entry) => entry.programId !== programId),
     )
     setSelectedId('')
+  }
+
+  function openSavedProgramApplication(programId: string) {
+    const entry = entries.find((item) => item.programId === programId)
+    if (!entry?.applicationId) {
+      return
+    }
+
+    setSelectedId('')
+    navigate(`/quick-generate?applicationId=${encodeURIComponent(entry.applicationId)}`)
   }
 
   return (
@@ -1902,13 +1974,14 @@ function SavedProgramsPage() {
                 Remove
               </button>
               <Link
-                to="/quick-generate"
-                onClick={() =>
-                  setPersistentItem(
-                    selectedFundingProgramStorageKey,
-                    JSON.stringify(selectedProgram.program),
-                  )
+                to={
+                  selectedProgram.entry.applicationId
+                    ? `/quick-generate?applicationId=${encodeURIComponent(
+                        selectedProgram.entry.applicationId,
+                      )}`
+                    : '/quick-generate'
                 }
+                onClick={() => openSavedProgramApplication(selectedProgram.program.id)}
               >
                 Build application package
               </Link>
@@ -1929,6 +2002,7 @@ const applicationStatuses: ApplicationStatus[] = [
 ]
 
 function MyApplicationsPage() {
+  const navigate = useNavigate()
   const [applications, setApplications] = useState<ApplicationRecord[]>(
     loadApplications,
   )
@@ -1994,6 +2068,11 @@ function MyApplicationsPage() {
     setApplications((current) =>
       updateApplicationRecord(current, applicationId, updates),
     )
+  }
+
+  function continueApplication(application: ApplicationRecord) {
+    setSelectedId('')
+    navigate(`/quick-generate?applicationId=${encodeURIComponent(application.id)}`)
   }
 
   return (
@@ -2186,8 +2265,16 @@ function MyApplicationsPage() {
                   <button
                     type="button"
                     className="application-open"
-                    aria-label={`Open ${application.title}`}
-                    onClick={() => setSelectedId(application.id)}
+                    aria-label={
+                      application.generatedPackage
+                        ? `Open workspace for ${application.title}`
+                        : `Open ${application.title}`
+                    }
+                    onClick={() =>
+                      application.generatedPackage
+                        ? continueApplication(application)
+                        : setSelectedId(application.id)
+                    }
                   >
                     <Glyph type="arrow" />
                   </button>
@@ -2431,27 +2518,14 @@ function MyApplicationsPage() {
                   ? 'Mark awarded'
                   : 'Mark submitted'}
               </button>
-              <Link
-                to="/quick-generate"
-                onClick={() =>
-                  setPersistentItem(
-                    selectedFundingProgramStorageKey,
-                    JSON.stringify({
-                      id: selectedApplication.id,
-                      name: selectedApplication.programName,
-                      type: selectedApplication.fundingType,
-                      provider: '',
-                      amount: selectedApplication.amount,
-                      deadline: selectedApplication.deadline,
-                      match: 0,
-                      url: '',
-                      location: '',
-                    } satisfies FundingProgramRecord),
-                  )
-                }
+              <button
+                type="button"
+                onClick={() => continueApplication(selectedApplication)}
               >
-                Continue application
-              </Link>
+                {selectedApplication.generatedPackage
+                  ? 'Open workspace'
+                  : 'Continue application'}
+              </button>
             </div>
           </section>
         </div>
@@ -2554,11 +2628,46 @@ function GrantsLoansPage() {
 
   function toggleSavedProgram(programId: string) {
     setSavedEntries((current) => {
-      const next = current.some((entry) => entry.programId === programId)
-        ? current.filter((entry) => entry.programId !== programId)
-        : addSavedProgram(current, programId)
-      saveSavedProgramEntries(next)
-      return next
+      const existingEntry = current.find((entry) => entry.programId === programId)
+      if (existingEntry) {
+        const next = current.filter((entry) => entry.programId !== programId)
+        saveSavedProgramEntries(next)
+        return next
+      }
+
+      const next = addSavedProgram(current, programId)
+      const program = programs.find((item) => item.id === programId)
+      const newEntry = next.find((entry) => entry.programId === programId)
+      const { company, owner } = resolveDefaultApplicationCompany()
+
+      if (!program || !newEntry || !company) {
+        saveSavedProgramEntries(next)
+        return next
+      }
+
+      const result = materializeSavedProgramApplication(loadApplications(), {
+        applicationId: newEntry.applicationId,
+        programName: program.name,
+        programUrl: program.url,
+        company: company.name,
+        fundingType: program.type,
+        amount: program.amount,
+        deadline: program.deadline,
+        owner,
+        stage: newEntry.stage,
+        note: newEntry.note,
+      })
+
+      saveApplications(result.applications)
+
+      const nextWithApplication = next.map((entry) =>
+        entry.programId === programId
+          ? { ...entry, applicationId: result.applicationId }
+          : entry,
+      )
+
+      saveSavedProgramEntries(nextWithApplication)
+      return nextWithApplication
     })
   }
 
@@ -4436,8 +4545,14 @@ type LegacyUserSettings = Partial<UserSettings> & {
   billingTransactions?: BillingTransaction[]
 }
 
+type QuickGeneratePreferences = {
+  usePlatformStructureByDefault: boolean
+}
+
 const userSettingsStorageKey = 'bconomics-user-settings-v1'
 const billingTransactionsStorageKey = 'bconomics-billing-transactions-v1'
+const quickGeneratePreferencesStorageKey =
+  'bconomics-quick-generate-preferences-v1'
 const pendingStripeCheckoutStorageKey = 'bconomics-pending-stripe-checkout-v1'
 const pendingStripeCheckoutPriceItemStorageKey =
   'bconomics-pending-stripe-price-item-v1'
@@ -4463,6 +4578,10 @@ const defaultUserSettings: UserSettings = {
   activePriceItemId: '',
 }
 
+const defaultQuickGeneratePreferences: QuickGeneratePreferences = {
+  usePlatformStructureByDefault: true,
+}
+
 function loadUserSettings() {
   try {
     const saved = window.localStorage.getItem(userSettingsStorageKey)
@@ -4471,6 +4590,34 @@ function loadUserSettings() {
       : defaultUserSettings
   } catch {
     return defaultUserSettings
+  }
+}
+
+function loadQuickGeneratePreferences() {
+  try {
+    const saved = window.localStorage.getItem(quickGeneratePreferencesStorageKey)
+    return saved
+      ? {
+          ...defaultQuickGeneratePreferences,
+          ...(JSON.parse(saved) as Partial<QuickGeneratePreferences>),
+        }
+      : defaultQuickGeneratePreferences
+  } catch {
+    return defaultQuickGeneratePreferences
+  }
+}
+
+function resolveDefaultApplicationCompany() {
+  const settings = loadUserSettings()
+  const companies = loadCompanyRecords()
+  const defaultCompany =
+    companies.find((company) => company.id === settings.defaultCompanyId) ??
+    companies[0] ??
+    null
+
+  return {
+    company: defaultCompany,
+    owner: defaultCompany?.owner?.trim() || settings.fullName.trim() || 'Workspace Admin',
   }
 }
 
@@ -4970,6 +5117,11 @@ function SettingsPage() {
 
   function saveSettings() {
     setPersistentItem(userSettingsStorageKey, JSON.stringify(settings))
+    updateCurrentAuthUserProfile({
+      fullName: settings.fullName,
+      email: settings.email,
+      role: settings.role,
+    })
     setNotice('Your settings have been saved.')
   }
 
@@ -5185,7 +5337,7 @@ function SettingsPage() {
                 <p>Used for workspace activity, applications, and support.</p>
               </header>
               <div className="settings-profile-hero">
-                <span>AM</span>
+                <span>{getUserInitials(settings.fullName || 'Workspace User')}</span>
                 <div><strong>{settings.fullName}</strong><small>{settings.role}</small></div>
                 <button type="button" onClick={() => setNotice('Profile photo upload is ready for backend storage.')}>
                   Change photo
@@ -5540,47 +5692,6 @@ function hydrateWorkspaceSections(packageRecord: GeneratedPackage): WorkspaceSec
   }))
 }
 
-function normalizeStoredGeneratedPackage(rawValue: unknown): GeneratedPackage | null {
-  if (!rawValue || typeof rawValue !== 'object') {
-    return null
-  }
-
-  if ('documents' in rawValue && 'sections' in rawValue) {
-    const candidate = rawValue as GeneratedPackage
-    if (Array.isArray(candidate.documents) && Array.isArray(candidate.sections)) {
-      return candidate
-    }
-  }
-
-  if ('title' in rawValue && 'sections' in rawValue) {
-    const legacyDocument = rawValue as GeneratedDocument
-    if (!Array.isArray(legacyDocument.sections)) {
-      return null
-    }
-
-    return {
-      title: legacyDocument.title,
-      programName: 'Restored opportunity',
-      businessName: legacyDocument.title.replace(/ Business Plan$/u, ''),
-      fundingRequest: legacyDocument.metrics[0]?.value ?? 'Unknown',
-      sourceMaterial: 'Restored workspace package',
-      completedAt: new Date().toISOString(),
-      readinessScore: legacyDocument.readinessScore,
-      thoughts: ['This package was restored from a previous local build.'],
-      documents: [legacyDocument],
-      sections: legacyDocument.sections.map((section, index) => ({
-        id: `legacy-section-${index + 1}`,
-        title: section.title,
-        body: section.body,
-        agent: index === legacyDocument.sections.length - 1 ? 'Reviewer' : 'Grant Writer',
-        documentLabel: 'Business Plan',
-      })),
-    }
-  }
-
-  return null
-}
-
 function createSectionVariant(
   section: WorkspaceSectionState,
   programName: string,
@@ -5690,7 +5801,12 @@ function createGeneratedPackageFromBackend(
   }
 }
 
-function QuickGeneratePage() {
+function QuickGeneratePage({
+  initialView = 'form',
+}: {
+  initialView?: 'form' | 'workspace'
+}) {
+  const location = useLocation()
   const draftStorageKey = 'bconomics-quick-generate-draft-v1'
   const generatedDocumentsStorageKey = 'bconomics-generated-documents-v1'
   const { config } = usePlatformConfig()
@@ -5698,7 +5814,9 @@ function QuickGeneratePage() {
   const [programName, setProgramName] = useState('')
   const [programUrl, setProgramUrl] = useState('')
   const [amount, setAmount] = useState('')
-  const [useWinningTemplate, setUseWinningTemplate] = useState(false)
+  const [useWinningTemplate, setUseWinningTemplate] = useState(
+    () => loadQuickGeneratePreferences().usePlatformStructureByDefault,
+  )
   const [fileName, setFileName] = useState('')
   const [businessName, setBusinessName] = useState('')
   const [fullName, setFullName] = useState('')
@@ -5706,6 +5824,7 @@ function QuickGeneratePage() {
   const [teamIntro, setTeamIntro] = useState('')
   const [formMessage, setFormMessage] = useState('')
   const [activeStep, setActiveStep] = useState<QuickGenerateStep>(1)
+  const [currentApplicationId, setCurrentApplicationId] = useState<string | null>(null)
   const [generatedPackage, setGeneratedPackage] = useState<GeneratedPackage | null>(null)
   const [workspacePhase, setWorkspacePhase] = useState<WorkspacePhase>('idle')
   const [workspaceSections, setWorkspaceSections] = useState<WorkspaceSectionState[]>([])
@@ -5723,6 +5842,8 @@ function QuickGeneratePage() {
   const [programQuery, setProgramQuery] = useState('')
   const [programType, setProgramType] = useState<'All' | 'Grant' | 'Loan'>('All')
   const generationRun = useRef(0)
+  const applicationIdFromQuery =
+    new URLSearchParams(location.search).get('applicationId')?.trim() ?? ''
   const fundingProgramCatalog = useMemo(
     () =>
       loadFundingPrograms(
@@ -5732,6 +5853,8 @@ function QuickGeneratePage() {
   )
 
   useEffect(() => {
+    if (applicationIdFromQuery) return
+
     const savedDraft = window.localStorage.getItem(draftStorageKey)
     if (!savedDraft) return
 
@@ -5740,7 +5863,9 @@ function QuickGeneratePage() {
       setProgramName(String(draft.programName ?? ''))
       setProgramUrl(String(draft.programUrl ?? ''))
       setAmount(String(draft.amount ?? ''))
-      setUseWinningTemplate(Boolean(draft.useWinningTemplate))
+      if (typeof draft.useWinningTemplate === 'boolean') {
+        setUseWinningTemplate(draft.useWinningTemplate)
+      }
       setFileName(String(draft.fileName ?? ''))
       setBusinessName(String(draft.businessName ?? ''))
       setFullName(String(draft.fullName ?? ''))
@@ -5750,50 +5875,62 @@ function QuickGeneratePage() {
     } catch {
       removePersistentItem(draftStorageKey)
     }
-  }, [])
+  }, [applicationIdFromQuery])
 
   useEffect(() => {
-    const savedDocument = window.localStorage.getItem(generatedDocumentsStorageKey)
-    if (!savedDocument) return
-
-    try {
-      const parsedValue = JSON.parse(savedDocument) as unknown
-      const storedPackage = normalizeStoredGeneratedPackage(parsedValue)
-      if (!storedPackage) {
-        throw new Error('Invalid generated package shape.')
-      }
-
-      setGeneratedPackage(storedPackage)
-      setWorkspaceSections(hydrateWorkspaceSections(storedPackage))
-      setWorkspaceThoughts(storedPackage.thoughts)
-      setSelectedSectionId(storedPackage.sections[0]?.id ?? null)
-      setWorkspacePhase('complete')
-      setEditorMode(false)
-      setFormMessage('Last generated package restored. Review your inputs or resume the workspace when ready.')
-    } catch {
-      removePersistentItem(generatedDocumentsStorageKey)
+    if (
+      window.localStorage.getItem(quickGeneratePreferencesStorageKey) !== null
+    ) {
+      return
     }
+
+    setPersistentItem(
+      quickGeneratePreferencesStorageKey,
+      JSON.stringify(defaultQuickGeneratePreferences),
+    )
   }, [])
 
   useEffect(() => {
+    if (!applicationIdFromQuery) return
+
+    const matchingApplication = findApplicationRecord(
+      loadApplications(),
+      applicationIdFromQuery,
+    )
+
+    if (!matchingApplication) {
+      setFormMessage('This application could not be found in My Applications.')
+      return
+    }
+
+    restoreApplicationWorkspace(
+      matchingApplication,
+      `${matchingApplication.title} restored from My Applications.`,
+    )
+  }, [applicationIdFromQuery])
+
+  useEffect(() => {
+    if (applicationIdFromQuery) return
+
     const selectedProgram = window.localStorage.getItem(selectedFundingProgramStorageKey)
     if (!selectedProgram) return
 
     try {
       const program = JSON.parse(selectedProgram) as FundingProgramRecord
-      setProgramName(program.name)
-      setProgramUrl(program.url)
-      setAmount(program.amount.toLocaleString('en-CA'))
-      setSelectedFundingProgram(program)
-      setFormMessage(`${program.name} imported from Grants & Loans.`)
+      stageFundingProgramSelection(
+        program,
+        `${program.name} selected for this funding package.`,
+      )
     } catch {
       // Ignore stale selections from older local builds.
     } finally {
       removePersistentItem(selectedFundingProgramStorageKey)
     }
-  }, [])
+  }, [applicationIdFromQuery])
 
   useEffect(() => {
+    if (applicationIdFromQuery) return
+
     const selectedTemplate = window.localStorage.getItem(selectedTemplateStorageKey)
     if (!selectedTemplate) return
 
@@ -5807,7 +5944,33 @@ function QuickGeneratePage() {
     } finally {
       removePersistentItem(selectedTemplateStorageKey)
     }
-  }, [])
+  }, [applicationIdFromQuery])
+
+  useEffect(() => {
+    if (initialView === 'workspace') {
+      if (generatedPackage) {
+        resumeGeneratedWorkspace()
+        return
+      }
+
+      const latestGeneratedApplication = getLatestGeneratedApplication(loadApplications())
+      if (latestGeneratedApplication?.generatedPackage) {
+        restoreApplicationWorkspace(
+          latestGeneratedApplication,
+          `${latestGeneratedApplication.title} reopened in AI Workspace.`,
+        )
+        return
+      }
+
+      setActiveStep(1)
+      setFormMessage(
+        'Generate a funding package in Quick Generate first, then reopen it from AI Workspace.',
+      )
+      return
+    }
+
+    setActiveStep(generatedPackage ? 3 : 1)
+  }, [initialView])
 
   useEffect(
     () => () => {
@@ -6082,6 +6245,15 @@ function QuickGeneratePage() {
             'Confirm the business narrative and team details are accurate.',
             'Generate only after both steps reflect the final brief.',
           ]
+  const stageSupportCards = stageSupportPoints.map((point, index) => ({
+    point,
+    icon:
+      activeStep === 1
+        ? (['file', 'currency', 'search'][index] as DashboardGlyph)
+        : activeStep === 2
+          ? (['grid', 'user', 'spark'][index] as DashboardGlyph)
+          : (['search', 'user', 'spark'][index] as DashboardGlyph),
+  }))
   const workspaceStagePills = workspaceLifecycle.map((label, index) => {
     const status =
       workspacePhase === 'complete'
@@ -6139,16 +6311,104 @@ function QuickGeneratePage() {
     },
   ] as const
 
-  function persistGeneratedPackage(nextPackage: GeneratedPackage) {
+  function persistGeneratedPackage(
+    nextPackage: GeneratedPackage,
+    applicationId = currentApplicationId,
+    syncApplication = true,
+  ) {
     setGeneratedPackage(nextPackage)
-    setPersistentItem(generatedDocumentsStorageKey, JSON.stringify(nextPackage))
+    if (syncApplication && applicationId) {
+      const savedApplications = loadApplications()
+      const currentApplication = findApplicationRecord(savedApplications, applicationId)
+      if (currentApplication) {
+        saveApplications(
+          upsertGeneratedApplication(savedApplications, {
+            id: currentApplication.id,
+            title: currentApplication.title,
+            programName: currentApplication.programName,
+            company: currentApplication.company,
+            fundingType: currentApplication.fundingType,
+            amount: currentApplication.amount,
+            deadline: currentApplication.deadline,
+            owner: currentApplication.owner,
+            readinessScore: nextPackage.readinessScore,
+            documentCount: nextPackage.documents.length,
+            generatedAt: new Date(nextPackage.completedAt),
+            generatedPackage: nextPackage,
+          }),
+        )
+      }
+    }
+    removePersistentItem(generatedDocumentsStorageKey)
+  }
+
+  function stageFundingProgramSelection(program: FundingProgramRecord, message: string) {
+    setCurrentApplicationId(null)
+    setGeneratedPackage(null)
+    setWorkspacePhase('idle')
+    setWorkspaceSections([])
+    setWorkspaceThoughts([])
+    setSelectedSectionId(null)
+    setEditorMode(false)
+    setActiveStep(1)
+    setProgramName(program.name)
+    setProgramUrl(program.url)
+    setAmount(program.amount.toLocaleString('en-CA'))
+    setSelectedFundingProgram(program)
+    setFormMessage(message)
+  }
+
+  function updateUseWinningTemplatePreference(nextValue: boolean) {
+    setUseWinningTemplate(nextValue)
+    setPersistentItem(
+      quickGeneratePreferencesStorageKey,
+      JSON.stringify({
+        usePlatformStructureByDefault: nextValue,
+      } satisfies QuickGeneratePreferences),
+    )
+  }
+
+  function restoreApplicationWorkspace(application: ApplicationRecord, message?: string) {
+    const matchedProgram = findFundingProgramByName(application.programName)
+    setCurrentApplicationId(application.id)
+    setProgramName(application.programName)
+    setProgramUrl(application.programUrl || matchedProgram?.url || '')
+    setAmount(application.amount.toLocaleString('en-CA'))
+    setBusinessName(application.company)
+    setFullName(application.owner)
+    setSelectedFundingProgram({
+      id: application.id,
+      name: application.programName,
+      type: application.fundingType,
+      provider: matchedProgram?.provider ?? '',
+      amount: application.amount,
+      deadline: application.deadline,
+      match: matchedProgram?.match ?? application.progress,
+      url: application.programUrl || matchedProgram?.url || '',
+      location: matchedProgram?.location ?? '',
+      sourceName: matchedProgram?.sourceName,
+    })
+    if (application.generatedPackage) {
+      setGeneratedPackage(application.generatedPackage)
+      setWorkspaceSections(hydrateWorkspaceSections(application.generatedPackage))
+      setWorkspaceThoughts(application.generatedPackage.thoughts)
+      setSelectedSectionId(application.generatedPackage.sections[0]?.id ?? null)
+      setWorkspacePhase('complete')
+      setEditorMode(false)
+      setActiveStep('workspace')
+    }
+    if (message) {
+      setFormMessage(message)
+    }
   }
 
   function resetProgram() {
     setProgramName('')
     setProgramUrl('')
     setAmount('')
-    setUseWinningTemplate(false)
+    setUseWinningTemplate(
+      loadQuickGeneratePreferences().usePlatformStructureByDefault,
+    )
     setFileName('')
     setSelectedFundingProgram(null)
     setFormMessage('')
@@ -6166,6 +6426,7 @@ function QuickGeneratePage() {
     setSelectedSectionId(null)
     setEditorMode(false)
     setSelectedCompanyRecord(null)
+    setCurrentApplicationId(null)
     setGeneratedPackage(null)
     removePersistentItem(generatedDocumentsStorageKey)
     setFormMessage('')
@@ -6192,7 +6453,13 @@ function QuickGeneratePage() {
     setFormMessage(`${program.name} imported from Grants & Loans.`)
   }
 
-  function importCompany(company: CompanyRecord) {
+  function importCompany(
+    company: CompanyRecord,
+    options?: {
+      closePicker?: boolean
+      message?: string
+    },
+  ) {
     setBusinessName(company.name)
     setFullName(company.owner)
     setBusinessIdea(company.description)
@@ -6202,8 +6469,29 @@ function QuickGeneratePage() {
       } team in ${company.location || 'Canada'}.`,
     )
     setSelectedCompanyRecord(company)
-    setCompanyPickerOpen(false)
-    setFormMessage(`${company.name} imported from My Companies.`)
+    if (options?.closePicker !== false) {
+      setCompanyPickerOpen(false)
+    }
+    setFormMessage(options?.message ?? `${company.name} imported from My Companies.`)
+  }
+
+  function importDefaultCompanyForBusinessStep() {
+    const defaultCompanyId = loadUserSettings().defaultCompanyId
+    if (!defaultCompanyId) {
+      return
+    }
+
+    const defaultCompany = loadCompanyRecords().find(
+      (company) => company.id === defaultCompanyId,
+    )
+    if (!defaultCompany) {
+      return
+    }
+
+    importCompany(defaultCompany, {
+      closePicker: false,
+      message: `${defaultCompany.name} imported from Default company.`,
+    })
   }
 
   async function fetchGeneratedPackageFromBackend(
@@ -6315,8 +6603,8 @@ function QuickGeneratePage() {
       setFormMessage('Add the program name, official URL, and funding amount.')
       return
     }
-    setFormMessage('')
     setActiveStep(2)
+    importDefaultCompanyForBusinessStep()
   }
 
   function continueToReview() {
@@ -6506,7 +6794,41 @@ function QuickGeneratePage() {
     }
 
     setWorkspacePhase('complete')
-    persistGeneratedPackage(nextPackage)
+    const savedApplications = loadApplications()
+    const currentApplication = currentApplicationId
+      ? findApplicationRecord(savedApplications, currentApplicationId)
+      : null
+    const reusableApplicationId =
+      currentApplication &&
+      currentApplication.programName === programName &&
+      currentApplication.company === businessName
+        ? currentApplication.id
+        : undefined
+
+    const nextApplications = upsertGeneratedApplication(savedApplications, {
+      id: reusableApplicationId,
+      title: `${programName} application`,
+      programName,
+      programUrl,
+      company: businessName,
+      fundingType: selectedFundingProgram?.type ?? 'Grant',
+      amount: Number.isFinite(fundingNeed) ? fundingNeed : 0,
+      deadline: selectedFundingProgram?.deadline ?? 'Open',
+      owner: fullName || selectedCompanyRecord?.owner || 'Workspace Admin',
+      readinessScore: nextPackage.readinessScore,
+      documentCount: nextPackage.documents.length,
+      generatedAt: new Date(nextPackage.completedAt),
+      generatedPackage: nextPackage,
+    })
+    saveApplications(nextApplications)
+    setCurrentApplicationId(
+      reusableApplicationId ?? buildGeneratedApplicationId(businessName, programName),
+    )
+    persistGeneratedPackage(
+      nextPackage,
+      reusableApplicationId ?? buildGeneratedApplicationId(businessName, programName),
+      false,
+    )
     setWorkspaceThoughts((previous) => [...previous, 'Funding package ready for editing, export, and sharing.'])
     setSelectedSectionId(nextPackage.sections[0]?.id ?? null)
     removePersistentItem(draftStorageKey)
@@ -6724,10 +7046,12 @@ function QuickGeneratePage() {
               </div>
 
               <div className="generator-stage-ribbon">
-                {stageSupportPoints.map((point) => (
-                  <article key={point}>
-                    <i />
-                    <span>{point}</span>
+                {stageSupportCards.map((item) => (
+                  <article key={item.point}>
+                    <span className="generator-stage-ribbon-icon">
+                      <Glyph type={item.icon} />
+                    </span>
+                    <span>{item.point}</span>
                   </article>
                 ))}
               </div>
@@ -6796,7 +7120,11 @@ function QuickGeneratePage() {
                       <input
                         type="checkbox"
                         checked={useWinningTemplate}
-                        onChange={(event) => setUseWinningTemplate(event.target.checked)}
+                        onChange={(event) =>
+                          updateUseWinningTemplatePreference(
+                            event.target.checked,
+                          )
+                        }
                       />
                       <span />
                       <div>
@@ -6838,10 +7166,12 @@ function QuickGeneratePage() {
               </div>
 
               <div className="generator-stage-ribbon">
-                {stageSupportPoints.map((point) => (
-                  <article key={point}>
-                    <i />
-                    <span>{point}</span>
+                {stageSupportCards.map((item) => (
+                  <article key={item.point}>
+                    <span className="generator-stage-ribbon-icon">
+                      <Glyph type={item.icon} />
+                    </span>
+                    <span>{item.point}</span>
                   </article>
                 ))}
               </div>
@@ -6923,10 +7253,12 @@ function QuickGeneratePage() {
               </div>
 
               <div className="generator-stage-ribbon">
-                {stageSupportPoints.map((point) => (
-                  <article key={point}>
-                    <i />
-                    <span>{point}</span>
+                {stageSupportCards.map((item) => (
+                  <article key={item.point}>
+                    <span className="generator-stage-ribbon-icon">
+                      <Glyph type={item.icon} />
+                    </span>
+                    <span>{item.point}</span>
                   </article>
                 ))}
               </div>
@@ -7966,7 +8298,7 @@ export function DashboardPage() {
   const activeWorkspace =
     workspaces.find((workspace) => workspace.id === activeWorkspaceId) ??
     workspaces[0]
-  const currentAuthUser = getCurrentAuthUser()
+  const [currentAuthUser, setCurrentAuthUser] = useState(() => getCurrentAuthUser())
 
   const currentItem = useMemo(() => findDashboardItem(sectionId), [sectionId])
   const visibleGroups = dashboardGroups
@@ -7998,6 +8330,19 @@ export function DashboardPage() {
       scrollArea.scrollBy({ top: itemRect.bottom - scrollRect.bottom + 8 })
     }
   }, [currentItem, openGroups, partnerOpen])
+
+  useEffect(() => {
+    const refreshCurrentAuthUser = () => {
+      setCurrentAuthUser(getCurrentAuthUser())
+    }
+
+    window.addEventListener(authUserUpdatedEvent, refreshCurrentAuthUser)
+    window.addEventListener('storage', refreshCurrentAuthUser)
+    return () => {
+      window.removeEventListener(authUserUpdatedEvent, refreshCurrentAuthUser)
+      window.removeEventListener('storage', refreshCurrentAuthUser)
+    }
+  }, [])
 
   useEffect(() => {
     if (!workspaceMenuOpen) return
@@ -8047,6 +8392,7 @@ export function DashboardPage() {
 
   const isOverview = !sectionId || sectionId === 'dashboard'
   const isQuickGenerate = currentItem?.id === 'quick-generate'
+  const isAiWorkspace = currentItem?.id === 'ai-workspace'
   const isFundingReadiness = currentItem?.id === 'funding-readiness'
   const isMyCompany = currentItem?.id === 'my-company'
   const isGrantsLoans = currentItem?.id === 'grants-loans'
@@ -8461,7 +8807,9 @@ export function DashboardPage() {
           ) : isFundingReadiness ? (
             <FundingReadinessPage />
           ) : isQuickGenerate ? (
-            <QuickGeneratePage />
+            <QuickGeneratePage initialView="form" />
+          ) : isAiWorkspace ? (
+            <QuickGeneratePage initialView="workspace" />
           ) : isMyCompany ? (
             <MyCompanyPage />
           ) : isSavedPrograms ? (

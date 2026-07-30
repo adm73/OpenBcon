@@ -1,4 +1,4 @@
-export type AuthRole = 'Workspace Admin' | 'Founder'
+export type AuthRole = string
 
 export type AuthUser = {
   id: string
@@ -26,6 +26,7 @@ const authSessionStorageKey = 'bconomics-session'
 const authUserStorageKey = 'bconomics-auth-user'
 const passwordResetStorageKey = 'bconomics-password-resets-v1'
 const defaultResetLifetimeMs = 30 * 60 * 1000
+export const authUserUpdatedEvent = 'bconomics-auth-user-updated'
 
 const seededUsers: AuthUser[] = [
   {
@@ -106,6 +107,49 @@ export function getCurrentAuthUser() {
   }
 
   return loadAuthUsers().find((user) => user.id === session.userId) ?? null
+}
+
+export function updateCurrentAuthUserProfile(input: {
+  fullName: string
+  email: string
+  role: string
+}) {
+  const session = getCurrentSession()
+  if (!session || !canUseStorage()) {
+    return null
+  }
+
+  const users = loadAuthUsers()
+  const currentUser = users.find((user) => user.id === session.userId)
+  if (!currentUser) {
+    return null
+  }
+
+  const normalizedEmail = normalizeEmail(input.email)
+  const nextUser: AuthUser = {
+    ...currentUser,
+    fullName: input.fullName.trim() || currentUser.fullName,
+    email: normalizedEmail || currentUser.email,
+    role: input.role.trim() || currentUser.role,
+  }
+
+  saveAuthUsers(
+    users.map((user) => (user.id === currentUser.id ? nextUser : user)),
+  )
+
+  writeStoredJson(authSessionStorageKey, {
+    ...session,
+    email: nextUser.email,
+  } satisfies AuthSession)
+  writeStoredJson(authUserStorageKey, {
+    id: nextUser.id,
+    fullName: nextUser.fullName,
+    email: nextUser.email,
+    companyName: nextUser.companyName,
+    role: nextUser.role,
+  })
+  window.dispatchEvent(new Event(authUserUpdatedEvent))
+  return nextUser
 }
 
 function persistSession(user: AuthUser) {

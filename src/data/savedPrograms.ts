@@ -6,6 +6,7 @@ export type SavedProgramPriority = 'High' | 'Medium' | 'Low'
 
 export type SavedProgramEntry = {
   programId: string
+  applicationId?: string
   stage: SavedProgramStage
   priority: SavedProgramPriority
   note: string

@@ -9,6 +9,9 @@ describe('state scope routing', () => {
   it('keeps personal preferences at user scope', () => {
     expect(getStateScope('bconomics-user-settings-v1')).toBe('user')
     expect(getStateScope('bconomics-billing-transactions-v1')).toBe('user')
+    expect(getStateScope('bconomics-quick-generate-preferences-v1')).toBe(
+      'user',
+    )
     expect(getStateScope('bconomics-active-workspace-v2')).toBe('user')
   })
 
@@ -28,5 +31,8 @@ describe('state scope routing', () => {
     expect(isPersistentStateKey('bconomics-billing-transactions-v1')).toBe(
       false,
     )
+    expect(
+      isPersistentStateKey('bconomics-quick-generate-preferences-v1'),
+    ).toBe(true)
   })
 })

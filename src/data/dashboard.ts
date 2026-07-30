@@ -3,6 +3,7 @@ export type DashboardGlyph =
   | 'grid'
   | 'search'
   | 'bolt'
+  | 'currency'
   | 'file'
   | 'user'
   | 'settings'
@@ -93,6 +94,16 @@ export const dashboardGroups: DashboardGroup[] = [
         intro:
           'This listing page gathers all generated output entries so users can reopen or rerun them.',
         entries: makeEntries('Quick Generate', 'generated document'),
+      },
+      {
+        id: 'ai-workspace',
+        label: 'AI Workspace',
+        icon: 'grid',
+        badgeIcon: 'spark',
+        description: 'Open the live AI generation workspace, section progress, and editable package output.',
+        intro:
+          'This page reopens the latest funding package workspace so users can review, edit, export, or continue the AI-generated result.',
+        entries: makeEntries('AI Workspace', 'workspace output'),
       },
     ],
   },

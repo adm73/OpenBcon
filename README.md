@@ -151,9 +151,14 @@ The current repository snapshot includes the landing experience, dashboard works
 - Mobile drawer navigation and collapsible sidebar groups
 - Configurable branding, logo, and public messaging
 - Admin-managed landing page header, content, footer navigation, and legal-link configuration
+- Admin-managed pricing catalog with free, monthly, annual, and one-time offers
+- Billing settings surface with current subscription, pricing options, and transaction history
 - Module and Partner Portal feature flags
 - Searchable and filterable listing views with record details
-- Three-step Quick Generate workflow with validation, draft recovery, company import, and generated previews
+- Three-step Quick Generate workflow with validation, company import, application restore, and generated previews
+- Dedicated AI Workspace route for reopening the latest generated package outside the form flow
+- Saved Programs materialized as applications with funding-program step data prefilled
+- My Applications and Quick Generate linked by numeric `applicationId` route parameters
 - Google Sheets and Airtable funding data-source integrations
 - Admin data-source search, create, edit, delete, enable, and manual sync controls
 - Dynamic Grants & Loans directory with source attribution and Quick Generate import
@@ -252,12 +257,27 @@ continue to use the API-backed persistence layer. The server validates a strict
 state-key allowlist so session tokens and local-only settings cannot be written
 to the state database.
 
+Workspace settings such as the profile, billing selections, default company,
+and Quick Generate preferences are persisted locally for the active browser
+session profile. Payment gateway secrets are never written back to the remote
+state store in plaintext.
+
 The landing page can be managed directly from `/admin#landing-page`, including:
 
 - header navigation items and signed-in or signed-out CTA labels
 - grouped content sections for hero, CTA copy, features, workflow, and open-source messaging
 - dynamic proof points shown on the public homepage
 - footer sitemap links, platform links, and legal link destinations
+
+## Application flow
+
+Saved opportunities now bridge directly into the application workflow:
+
+- saving a program can materialize a corresponding application record
+- each application stores the Quick Generate step-one funding context
+- `/quick-generate?applicationId=...` restores an existing application instead of starting a new one
+- the Step 2 business profile can automatically import the configured default company
+- generated packages can be reopened later from the dedicated `/ai-workspace` route
 
 Payment settings under `/admin#payments` now focus on gateway configuration:
 
