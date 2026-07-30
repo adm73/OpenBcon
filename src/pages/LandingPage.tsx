@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { hasActiveSession } from '../auth/session'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import { dashboardMetrics, landingHighlights } from '../data/demo'
+import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
 import {
   OPEN_BCON_REPO_URL,
   shouldShowOpenBconAttribution,
@@ -10,32 +11,79 @@ import {
 
 const TTE_WEBSITE_URL = 'https://www.tritrient.com'
 
+function renderLandingLink(
+  href: string,
+  label: string,
+  key: string,
+  className?: string,
+) {
+  const isExternal = /^https?:\/\//i.test(href) || href.startsWith('mailto:')
+
+  if (isExternal) {
+    return (
+      <a
+        className={className}
+        href={href}
+        key={key}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {label}
+      </a>
+    )
+  }
+
+  if (href.startsWith('/')) {
+    return (
+      <Link className={className} to={href} key={key}>
+        {label}
+      </Link>
+    )
+  }
+
+  return (
+    <a className={className} href={href} key={key}>
+      {label}
+    </a>
+  )
+}
+
 export function LandingPage() {
   const { config } = usePlatformConfig()
   const isSignedIn = hasActiveSession()
   const showOpenBconAttribution = shouldShowOpenBconAttribution(config)
   const currentYear = new Date().getFullYear()
+  const { header, content, footer } = config.landingPage
+  const platformName = getPlatformDisplayName(config)
+  const platformInitial = getPlatformInitial(config)
 
   useEffect(() => {
-    document.title = `${config.productName}${config.productSuffix} | Funding-ready business documents`
-  }, [config.productName, config.productSuffix])
+    document.title = `${platformName} | Funding-ready business documents`
+  }, [platformName])
 
   return (
     <div className="landing-v2">
       <header className="landing-v2-header">
         <Link className="landing-v2-brand" to="/">
-          <span>{config.productName.charAt(0)}</span>
-          <strong>{config.productName}{config.productSuffix}</strong>
+          <span>
+            {config.platformLogo ? (
+              <img src={config.platformLogo} alt={`${platformName} logo`} />
+            ) : (
+              platformInitial
+            )}
+          </span>
+          <strong>{platformName}</strong>
         </Link>
         <nav>
-          <a href="#">Homepage</a>
-          <a href="#features">Features</a>
-          <a href="#workflow">How it works</a>
-          <a href="#opensource">Open source</a>
+          {header.navItems.map((item) => (
+            <a href={item.href} key={item.id}>
+              {item.label}
+            </a>
+          ))}
         </nav>
         <div className="landing-v2-header-actions">
           <Link to={isSignedIn ? '/dashboard' : '/login'}>
-            {isSignedIn ? 'Go to dashboard' : 'Sign in'}
+            {isSignedIn ? header.dashboardLabel : header.signInLabel}
           </Link>
         </div>
       </header>
@@ -43,17 +91,19 @@ export function LandingPage() {
       <main>
         <section className="landing-v2-hero">
           <div className="landing-v2-copy">
-            <p><span /> Funding infrastructure for ambitious businesses</p>
-            <h1>{config.landingHeadline}</h1>
-            <p>{config.landingSubheadline}</p>
+            <p><span /> {content.heroEyebrow}</p>
+            <h1>{content.headline}</h1>
+            <p>{content.subheadline}</p>
             <div className="landing-v2-actions">
-              <Link to="/dashboard">Explore the live workspace <b>→</b></Link>
-              <Link to="/signup">Create a founder account</Link>
+              <Link to="/dashboard">{content.primaryCtaLabel} <b>→</b></Link>
+              <Link to="/signup">{content.secondaryCtaLabel}</Link>
             </div>
             <div className="landing-v2-proof">
-              <span><b>75+</b> funding programs tracked</span>
-              <span><b>96%</b> document readiness</span>
-              <span><b>30 sec</b> first draft generation</span>
+              {content.proofItems.map((item) => (
+                <span key={`${item.value}-${item.label}`}>
+                  <b>{item.value}</b> {item.label}
+                </span>
+              ))}
             </div>
           </div>
 
@@ -65,7 +115,7 @@ export function LandingPage() {
             </div>
             <div className="landing-v2-preview">
               <aside>
-                <strong><span>B</span> conomics.ai</strong>
+                <strong><span>{platformInitial}</span> {platformName}</strong>
                 <i className="is-active">Overview</i>
                 <i>Funding readiness</i>
                 <i>Applications</i>
@@ -98,12 +148,9 @@ export function LandingPage() {
 
         <section className="landing-v2-features" id="features">
           <div className="landing-v2-section-copy">
-            <p>One connected platform</p>
-            <h2>From “where do I start?” to a submission-ready package.</h2>
-            <span>
-              Bconomics keeps program discovery, business context, financial
-              readiness, and document generation in one accountable workspace.
-            </span>
+            <p>{content.featuresEyebrow}</p>
+            <h2>{content.featuresHeading}</h2>
+            <span>{content.featuresBody}</span>
           </div>
           <div className="landing-v2-feature-grid">
             {landingHighlights.map((item, index) => (
@@ -119,8 +166,8 @@ export function LandingPage() {
 
         <section className="landing-v2-workflow" id="workflow">
           <div>
-            <p>Guided from day one</p>
-            <h2>Funding work without fragmented documents or guesswork.</h2>
+            <p>{content.workflowEyebrow}</p>
+            <h2>{content.workflowHeading}</h2>
           </div>
           <ol>
             <li>
@@ -140,17 +187,14 @@ export function LandingPage() {
 
         <section className="landing-v2-open" id="opensource">
           <div className="landing-v2-open-copy">
-            <p>Open core. Commercially sustainable.</p>
-            <h2>Own the platform. Extend the workflow. Choose your license.</h2>
-            <span>
-              Run the AGPL community edition, contribute on GitHub, or purchase a
-              commercial license for proprietary deployments and OEM distribution.
-            </span>
+            <p>{content.openSourceEyebrow}</p>
+            <h2>{content.openSourceHeading}</h2>
+            <span>{content.openSourceBody}</span>
             <div className="landing-v2-actions">
               <a href={config.commercialLicenseUrl}>
                 Commercial license · {config.commercialLicensePrice}
               </a>
-              <Link to="/login?next=/admin">Request admin access</Link>
+              <Link to="/login?next=/admin">{content.adminCtaLabel}</Link>
             </div>
           </div>
           <div className="landing-v2-license-card">
@@ -169,26 +213,29 @@ export function LandingPage() {
         <div className="landing-v2-footer-top">
           <div className="landing-v2-footer-brand-block">
             <Link className="landing-v2-brand" to="/">
-              <span>{config.productName.charAt(0)}</span>
-              <strong>{config.productName}{config.productSuffix}</strong>
+              <span>
+                {config.platformLogo ? (
+                  <img src={config.platformLogo} alt={`${platformName} logo`} />
+                ) : (
+                  platformInitial
+                )}
+              </span>
+              <strong>{platformName}</strong>
             </Link>
-            <p className="landing-v2-footer-description">
-              Open funding infrastructure for the next generation of businesses.
-            </p>
+            <p className="landing-v2-footer-description">{footer.description}</p>
           </div>
           <div className="landing-v2-footer-navs">
             <div className="landing-v2-footer-column">
-              <span>Sitemap</span>
-              <a href="#">Homepage</a>
-              <a href="#features">Features</a>
-              <a href="#workflow">How it works</a>
-              <a href="#opensource">Open source</a>
+              <span>{footer.sitemapLabel}</span>
+              {footer.sitemapItems.map((item) =>
+                renderLandingLink(item.href, item.label, `footer-${item.id}`),
+              )}
             </div>
             <div className="landing-v2-footer-column">
-              <span>Platform</span>
-              <Link to={isSignedIn ? '/dashboard' : '/login'}>
-                {isSignedIn ? 'Go to dashboard' : 'Sign in'}
-              </Link>
+              <span>{footer.platformLabel}</span>
+              {footer.platformItems.map((item) =>
+                renderLandingLink(item.href, item.label, `platform-${item.id}`),
+              )}
             </div>
           </div>
         </div>
@@ -203,8 +250,16 @@ export function LandingPage() {
             </span>
           </div>
           <div className="landing-v2-footer-links">
-            <Link to="/privacy-policy">Privacy Policy</Link>
-            <Link to="/terms-of-service">Terms of Service</Link>
+            {renderLandingLink(
+              footer.privacyPolicy.href,
+              footer.privacyPolicy.label,
+              'privacy-policy-link',
+            )}
+            {renderLandingLink(
+              footer.termsOfService.href,
+              footer.termsOfService.label,
+              'terms-of-service-link',
+            )}
           </div>
           {showOpenBconAttribution ? (
             <div className="landing-v2-footer-powered">

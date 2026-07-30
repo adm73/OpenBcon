@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { usePlatformConfig } from '../config/usePlatformConfig'
+import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
 
 type AuthShellProps = {
   badge: string
@@ -18,17 +19,22 @@ export function AuthShell({
   footer,
 }: AuthShellProps) {
   const { config } = usePlatformConfig()
+  const platformName = getPlatformDisplayName(config)
+  const platformInitial = getPlatformInitial(config)
 
   return (
     <main className="auth-shell">
       <section className="auth-card">
         <div className="auth-card-copy">
           <Link className="auth-brand" to="/">
-            <span>{config.productName.charAt(0)}</span>
-            <strong>
-              {config.productName}
-              {config.productSuffix}
-            </strong>
+            <span>
+              {config.platformLogo ? (
+                <img src={config.platformLogo} alt={`${platformName} logo`} />
+              ) : (
+                platformInitial
+              )}
+            </span>
+            <strong>{platformName}</strong>
           </Link>
           <span className="auth-badge">{badge}</span>
           <h1>{title}</h1>

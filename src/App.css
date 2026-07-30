@@ -1493,6 +1493,13 @@
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
 }
 
+.clone-brand-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
 .clone-brand-text {
   font-size: 0.96rem;
   font-weight: 800;
@@ -5736,6 +5743,13 @@
   font-family: var(--display);
 }
 
+.auth-brand > span img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
 .auth-badge {
   width: fit-content;
   padding: 6px 10px;
@@ -6113,6 +6127,13 @@
   font-size: 1.35rem;
 }
 
+.admin-brand > span img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
 .admin-brand strong {
   font-size: 0.92rem;
 }
@@ -6271,6 +6292,164 @@
 
 .admin-field-wide {
   grid-column: 1 / -1;
+}
+
+.admin-brand-upload {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-brand-upload-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #e1e5eb;
+  border-radius: 16px;
+  background: #fbfcfe;
+}
+
+.admin-brand-upload-preview {
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #1a2238, #4e5ed1);
+  color: #ffffff;
+  font-size: 1.6rem;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.admin-brand-upload-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-brand-upload-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-brand-upload-actions strong {
+  color: #202842;
+  font-size: 0.84rem;
+}
+
+.admin-brand-upload-actions small {
+  color: #7b8396;
+  font-size: 0.7rem;
+  line-height: 1.6;
+}
+
+.admin-brand-upload-button {
+  width: fit-content;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  border: 1px solid #d5daeb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #22304d;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.admin-brand-upload-button input {
+  display: none;
+}
+
+.admin-landing-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-landing-panel {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid #e1e5eb;
+  border-radius: 16px;
+  background: #fbfcfe;
+}
+
+.admin-landing-panel-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-landing-panel-copy strong {
+  color: #1b2134;
+  font-size: 0.95rem;
+}
+
+.admin-landing-panel-copy p {
+  margin: 0;
+  color: #7d8598;
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.admin-landing-section-title {
+  display: block;
+  margin-bottom: 12px;
+  color: #1b2134;
+  font-size: 0.95rem;
+}
+
+.admin-landing-proof-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-landing-nav-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.admin-landing-nav-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #e6e9f1;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.admin-landing-nav-card strong {
+  color: #202842;
+  font-size: 0.8rem;
+}
+
+.admin-landing-proof-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #e6e9f1;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.admin-landing-proof-card strong {
+  color: #202842;
+  font-size: 0.8rem;
+}
+
+.admin-landing-note {
+  padding: 14px 16px;
+  border: 1px dashed #d9dce5;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #6e768a;
+  font-size: 0.72rem;
+  line-height: 1.6;
 }
 
 .admin-module-list {
@@ -7092,6 +7271,13 @@
   font-weight: 800;
 }
 
+.landing-v2-brand > span img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
 .landing-v2-brand strong {
   font-size: 0.88rem;
 }
@@ -7900,6 +8086,10 @@
   .admin-card {
     grid-template-columns: 1fr;
   }
+
+  .admin-landing-proof-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -8032,6 +8222,11 @@
   }
 
   .admin-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-fields,
+  .admin-landing-proof-card .admin-fields {
     grid-template-columns: 1fr;
   }
 

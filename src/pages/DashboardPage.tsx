@@ -66,6 +66,7 @@ import {
   type ToolType,
 } from '../data/tools'
 import { buildDocument } from '../lib/generator'
+import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
 import {
   generateBusinessPlanViaApi,
   type BusinessPlanGenerateResponse,
@@ -2451,6 +2452,7 @@ const selectedFundingProgramStorageKey = 'bconomics-selected-funding-program-v1'
 
 function GrantsLoansPage() {
   const { config } = usePlatformConfig()
+  const platformName = getPlatformDisplayName(config)
   const [query, setQuery] = useState('')
   const [type, setType] = useState<'All' | 'Grant' | 'Loan'>('All')
   const [filtersOpen, setFiltersOpen] = useState(true)
@@ -2475,7 +2477,7 @@ function GrantsLoansPage() {
   const locations = [...new Set(programs.map((program) => program.location))].sort()
   const sources = [
     ...new Set(
-      programs.map((program) => program.sourceName ?? 'Bconomics catalog'),
+      programs.map((program) => program.sourceName ?? `${platformName} catalog`),
     ),
   ].sort()
   const visiblePrograms = programs.filter((program) => {
@@ -2487,7 +2489,7 @@ function GrantsLoansPage() {
     const matchesLocation = location === 'All' || program.location === location
     const matchesSource =
       sourceName === 'All' ||
-      (program.sourceName ?? 'Bconomics catalog') === sourceName
+      (program.sourceName ?? `${platformName} catalog`) === sourceName
     const matchesAmount =
       amountRange === 'All' ||
       (amountRange === 'under-50' && program.amount < 50000) ||
@@ -2555,7 +2557,7 @@ function GrantsLoansPage() {
           <p className="workspace-eyebrow">Opportunity directory</p>
           <h1>Grants &amp; Loans</h1>
           <p>
-            Search the Bconomics catalog and every external source enabled by your
+            Search the {platformName} catalog and every external source enabled by your
             workspace administrator.
           </p>
         </div>
@@ -2797,7 +2799,7 @@ function GrantsLoansPage() {
               <footer>
                 <span title={program.sourceName}>
                   <i className={program.sourceId ? 'is-external' : ''} />
-                  {program.sourceName ?? 'Bconomics catalog'}
+                  {program.sourceName ?? `${platformName} catalog`}
                 </span>
                 <button type="button" onClick={() => setSelectedProgram(program)}>
                   View details
@@ -4438,6 +4440,7 @@ function loadUserSettings() {
 
 function SettingsPage() {
   const { config } = usePlatformConfig()
+  const platformName = getPlatformDisplayName(config)
   const location = useLocation()
   const navigate = useNavigate()
   const companies = loadCompanyRecords()
@@ -4656,7 +4659,7 @@ function SettingsPage() {
                   { key: 'deadlineReminders' as const, title: 'Deadline reminders', copy: 'Upcoming application deadlines and overdue tasks.' },
                   { key: 'weeklyDigest' as const, title: 'Weekly workspace digest', copy: 'Funding matches, score changes, and application progress.' },
                   { key: 'securityAlerts' as const, title: 'Security alerts', copy: 'New sessions, password changes, and sensitive account activity.' },
-                  { key: 'productUpdates' as const, title: 'Product updates', copy: 'New Bconomics features, templates, and platform announcements.' },
+                  { key: 'productUpdates' as const, title: 'Product updates', copy: `New ${platformName} features, templates, and platform announcements.` },
                 ].map((preference) => (
                   <label key={preference.key}>
                     <span><strong>{preference.title}</strong><small>{preference.copy}</small></span>
@@ -5009,6 +5012,7 @@ function QuickGeneratePage() {
   const draftStorageKey = 'bconomics-quick-generate-draft-v1'
   const generatedDocumentsStorageKey = 'bconomics-generated-documents-v1'
   const { config } = usePlatformConfig()
+  const platformName = getPlatformDisplayName(config)
   const [programName, setProgramName] = useState('')
   const [programUrl, setProgramUrl] = useState('')
   const [amount, setAmount] = useState('')
@@ -5714,7 +5718,7 @@ function QuickGeneratePage() {
       fundingNeed,
       differentiation: businessIdea,
     }
-    const sourceMaterial = fileName || (useWinningTemplate ? 'Bconomics structure' : 'Official URL')
+    const sourceMaterial = fileName || (useWinningTemplate ? `${platformName} structure` : 'Official URL')
     const usingMockGeneration = config.ai.mockModeEnabled
 
     setActiveStep('workspace')
@@ -6114,7 +6118,7 @@ function QuickGeneratePage() {
                       />
                       <span />
                       <div>
-                        <strong>Use the Bconomics structure</strong>
+                        <strong>Use the {platformName} structure</strong>
                         <small>Recommended when no official template exists.</small>
                       </div>
                     </label>
@@ -6275,7 +6279,7 @@ function QuickGeneratePage() {
                     </div>
                     <div>
                       <dt>Structure</dt>
-                      <dd>{useWinningTemplate ? 'Bconomics structure enabled' : 'Official source only'}</dd>
+                      <dd>{useWinningTemplate ? `${platformName} structure enabled` : 'Official source only'}</dd>
                     </div>
                   </dl>
                 </article>
@@ -6936,7 +6940,7 @@ function QuickGeneratePage() {
                     <small>{program.provider} · {program.location}</small>
                     <em>
                       {program.type} · Deadline: {program.deadline} ·{' '}
-                      {program.sourceName ?? 'Bconomics catalog'}
+                      {program.sourceName ?? `${platformName} catalog`}
                     </em>
                   </span>
                   <span className="funding-program-amount">
@@ -7276,6 +7280,7 @@ export function DashboardPage() {
     Object.fromEntries(dashboardGroups.map((group) => [group.title, true])),
   )
   const { config } = usePlatformConfig()
+  const platformName = getPlatformDisplayName(config)
   const activeWorkspace =
     workspaces.find((workspace) => workspace.id === activeWorkspaceId) ??
     workspaces[0]
@@ -7295,8 +7300,8 @@ export function DashboardPage() {
 
   useEffect(() => {
     const pageName = currentItem?.label ?? 'Dashboard'
-    document.title = `${pageName} | ${config.productName}${config.productSuffix}`
-  }, [config.productName, config.productSuffix, currentItem])
+    document.title = `${pageName} | ${platformName}`
+  }, [currentItem, platformName])
 
   useEffect(() => {
     const scrollArea = sidebarScrollRef.current
@@ -7416,11 +7421,17 @@ export function DashboardPage() {
     <div className="dashboard-clone">
       <header className="clone-mobile-header">
         <Link className="clone-brand" to="/">
-          <span className="clone-brand-badge">{config.productName.charAt(0)}</span>
-          <span className="clone-brand-text">
-            {config.productName.slice(1)}
-            {config.productSuffix}
+          <span className="clone-brand-badge">
+            {config.platformLogo ? (
+              <img
+                src={config.platformLogo}
+                alt={`${getPlatformDisplayName(config)} logo`}
+              />
+            ) : (
+              getPlatformInitial(config)
+            )}
           </span>
+          <span className="clone-brand-text">{getPlatformDisplayName(config)}</span>
         </Link>
         <button
           type="button"
@@ -7450,11 +7461,17 @@ export function DashboardPage() {
           <Glyph type="close" />
         </button>
         <Link className="clone-brand" to="/">
-          <span className="clone-brand-badge">{config.productName.charAt(0)}</span>
-          <span className="clone-brand-text">
-            {config.productName.slice(1)}
-            {config.productSuffix}
+          <span className="clone-brand-badge">
+            {config.platformLogo ? (
+              <img
+                src={config.platformLogo}
+                alt={`${getPlatformDisplayName(config)} logo`}
+              />
+            ) : (
+              getPlatformInitial(config)
+            )}
           </span>
+          <span className="clone-brand-text">{getPlatformDisplayName(config)}</span>
         </Link>
 
         <div className="clone-sidebar-context">

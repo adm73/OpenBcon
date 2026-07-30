@@ -5,6 +5,7 @@ import {
   validatePasswordResetToken,
 } from '../auth/session'
 import { usePlatformConfig } from '../config/usePlatformConfig'
+import { getPlatformDisplayName } from '../lib/platformBrand'
 import { AuthShell } from './AuthShell'
 
 export function ResetPasswordPage() {
@@ -19,10 +20,11 @@ export function ResetPasswordPage() {
     () => (token ? validatePasswordResetToken(token) : null),
     [token],
   )
+  const platformName = getPlatformDisplayName(config)
 
   useEffect(() => {
-    document.title = `Reset password | ${config.productName}${config.productSuffix}`
-  }, [config.productName, config.productSuffix])
+    document.title = `Reset password | ${platformName}`
+  }, [platformName])
 
   function submitReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

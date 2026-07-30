@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import { renderLegalContent } from '../lib/legalContent'
+import { getPlatformDisplayName } from '../lib/platformBrand'
 
 type LegalDocumentPageProps = {
   documentType: 'privacyPolicy' | 'termsOfService'
@@ -29,10 +30,11 @@ export function LegalDocumentPage({
   const meta = legalDocumentMeta[documentType]
   const documentConfig = config[documentType]
   const content = renderLegalContent(documentConfig)
+  const platformName = getPlatformDisplayName(config)
 
   useEffect(() => {
-    document.title = `${meta.title} | ${config.productName}${config.productSuffix}`
-  }, [config.productName, config.productSuffix, meta.title])
+    document.title = `${meta.title} | ${platformName}`
+  }, [meta.title, platformName])
 
   return (
     <main className="legal-page">

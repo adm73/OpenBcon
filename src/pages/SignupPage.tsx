@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { registerUser } from '../auth/session'
 import { usePlatformConfig } from '../config/usePlatformConfig'
+import { getPlatformDisplayName } from '../lib/platformBrand'
 import { AuthShell } from './AuthShell'
 
 export function SignupPage() {
@@ -13,10 +14,11 @@ export function SignupPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [notice, setNotice] = useState('')
+  const platformName = getPlatformDisplayName(config)
 
   useEffect(() => {
-    document.title = `Create account | ${config.productName}${config.productSuffix}`
-  }, [config.productName, config.productSuffix])
+    document.title = `Create account | ${platformName}`
+  }, [platformName])
 
   function submitSignup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -47,7 +49,7 @@ export function SignupPage() {
   return (
     <AuthShell
       badge="Create account"
-      title="Start your Bconomics workspace."
+      title={`Start your ${platformName} workspace.`}
       description="Create a founder account to save companies, track opportunities, and generate funding-ready materials."
       footer={
         <span>

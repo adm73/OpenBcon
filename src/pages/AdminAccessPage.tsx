@@ -5,9 +5,11 @@ import {
   grantAdminAccess,
 } from '../auth/adminAccess'
 import { usePlatformConfig } from '../config/usePlatformConfig'
+import { getPlatformDisplayName } from '../lib/platformBrand'
 
 export function AdminAccessPage() {
   const { config } = usePlatformConfig()
+  const platformName = getPlatformDisplayName(config)
   const location = useLocation()
   const [accessCode, setAccessCode] = useState('')
   const [notice, setNotice] = useState('')
@@ -91,8 +93,7 @@ export function AdminAccessPage() {
             deployment.
           </p>
           <p>
-            Product: {config.productName}
-            {config.productSuffix}
+            Product: {platformName}
           </p>
         </div>
       </section>

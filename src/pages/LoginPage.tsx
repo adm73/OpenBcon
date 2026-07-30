@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { loginUser } from '../auth/session'
 import { usePlatformConfig } from '../config/usePlatformConfig'
+import { getPlatformDisplayName } from '../lib/platformBrand'
 import { AuthShell } from './AuthShell'
 
 function getNextPath(search: string) {
@@ -18,10 +19,11 @@ export function LoginPage() {
   const [password, setPassword] = useState('REDACTED')
   const [notice, setNotice] = useState('')
   const nextPath = getNextPath(location.search)
+  const platformName = getPlatformDisplayName(config)
 
   useEffect(() => {
-    document.title = `Log in | ${config.productName}${config.productSuffix}`
-  }, [config.productName, config.productSuffix])
+    document.title = `Log in | ${platformName}`
+  }, [platformName])
 
   function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

@@ -1,13 +1,15 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { usePlatformConfig } from '../config/usePlatformConfig'
+import { getPlatformDisplayName } from '../lib/platformBrand'
 
 export function NotFoundPage() {
   const { config } = usePlatformConfig()
+  const platformName = getPlatformDisplayName(config)
 
   useEffect(() => {
-    document.title = `Page not found | ${config.productName}${config.productSuffix}`
-  }, [config.productName, config.productSuffix])
+    document.title = `Page not found | ${platformName}`
+  }, [platformName])
 
   return (
     <main className="not-found-page">

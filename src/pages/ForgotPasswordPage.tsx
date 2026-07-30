@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { requestPasswordReset } from '../auth/session'
 import { usePlatformConfig } from '../config/usePlatformConfig'
+import { getPlatformDisplayName } from '../lib/platformBrand'
 import { AuthShell } from './AuthShell'
 
 export function ForgotPasswordPage() {
@@ -10,10 +11,11 @@ export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [notice, setNotice] = useState('')
   const [resetLink, setResetLink] = useState('')
+  const platformName = getPlatformDisplayName(config)
 
   useEffect(() => {
-    document.title = `Forgot password | ${config.productName}${config.productSuffix}`
-  }, [config.productName, config.productSuffix])
+    document.title = `Forgot password | ${platformName}`
+  }, [platformName])
 
   function submitForgotPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
