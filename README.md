@@ -41,6 +41,7 @@ OpenBcon is designed for teams that help businesses secure funding:
 ## Core Capabilities
 
 - **AI business plan generation**: turn company and funding-program context into a structured funding-ready package
+- **Configurable Advisory Hub**: run section-by-section generation with admin-managed sections, document types, agents, roles, prompts, and ordering
 - **Funding readiness workflows**: assess strengths, risks, and missing inputs before submission
 - **Client and company management**: organize founder profiles, business details, and working records
 - **Funding program database**: manage grants, loans, and opportunity sources in one directory
@@ -55,9 +56,9 @@ The repository currently includes three product surfaces:
 
 - `/` - public landing page
 - `/dashboard` - user workspace
-- `/admin` - platform configuration console
+- `/admin` - platform configuration console, including Advisory Hub setup
 
-Every workspace module uses a flat route such as `/funding-readiness`, `/quick-generate`, and `/grants-loans`.
+Every workspace module uses a flat route such as `/funding-readiness`, `/quick-generate`, `/ai-workspace` (Advisory Hub), and `/grants-loans`.
 
 Built-in auth entry flows are also included for `/login`, `/signup`, `/forgot-password`, and `/reset-password`.
 
@@ -156,7 +157,8 @@ The current repository snapshot includes the landing experience, dashboard works
 - Module and Partner Portal feature flags
 - Searchable and filterable listing views with record details
 - Three-step Quick Generate workflow with validation, company import, application restore, and generated previews
-- Dedicated AI Workspace route for reopening the latest generated package outside the form flow
+- Dedicated Advisory Hub route (`/ai-workspace`) for reopening the latest generated package outside the form flow
+- Advisory Hub generation driven by configurable sections, document types, agents, roles, prompts, and workflow ordering
 - Saved Programs materialized as applications with funding-program step data prefilled
 - My Applications and Quick Generate linked by numeric `applicationId` route parameters
 - Google Sheets and Airtable funding data-source integrations
@@ -261,6 +263,17 @@ Workspace settings such as the profile, billing selections, default company,
 and Quick Generate preferences are persisted locally for the active browser
 session profile. Payment gateway secrets are never written back to the remote
 state store in plaintext.
+
+Advisory Hub settings are also managed from the Admin Console and persisted with
+the platform configuration. Administrators can:
+
+- enable, rename, and reorder the sections shown during package generation
+- define the document types available to those sections
+- add, remove, and edit Advisory Hub agents, including their names, roles, and prompts
+- assign a document type and agent to each section
+
+At least one section, one document type, and one agent remain available so the
+generation workflow always has a valid configuration.
 
 The landing page can be managed directly from `/admin#landing-page`, including:
 

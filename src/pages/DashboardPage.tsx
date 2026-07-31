@@ -29,6 +29,9 @@ import {
 import { OpenBconAttribution } from '../components/OpenBconAttribution'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import {
+  type AdvisoryHubAgentConfig,
+  type AdvisoryHubDocumentTypeConfig,
+  type AdvisoryHubSectionConfig,
   sanitizePlatformConfigForPersistence,
   platformConfigStorageKey,
   type PaymentCatalogItem,
@@ -5608,60 +5611,66 @@ function waitForWorkspace(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
+function createConfiguredAdvisoryHubSections(
+  configuredSections: AdvisoryHubSectionConfig[],
+  configuredAgents: AdvisoryHubAgentConfig[],
+  configuredDocumentTypes: AdvisoryHubDocumentTypeConfig[],
+  bodyById: Record<AdvisoryHubSectionConfig['id'], string>,
+) {
+  return configuredSections
+    .filter((section) => section.enabled)
+    .map((section) => ({
+      id: section.id,
+      title: section.title,
+      body:
+        bodyById[section.id]?.trim() ||
+        `${section.title} is being prepared for reviewer-ready delivery.`,
+      agent:
+        configuredAgents.find((agent) => agent.id === section.agentId)?.name ||
+        configuredAgents[0]?.name ||
+        'Advisory agent',
+      documentLabel:
+        configuredDocumentTypes.find(
+          (documentType) => documentType.id === section.documentTypeId,
+        )?.name ||
+        configuredDocumentTypes[0]?.name ||
+        'Document',
+    })) satisfies GeneratedPackageSection[]
+}
+
 function createGeneratedPackage(
   profile: typeof defaultProfile,
   programName: string,
   fundingRequest: string,
   sourceMaterial: string,
+  configuredSections: AdvisoryHubSectionConfig[],
+  configuredAgents: AdvisoryHubAgentConfig[],
+  configuredDocumentTypes: AdvisoryHubDocumentTypeConfig[],
 ) {
   const documents = documentTypes.map((documentType) =>
     buildDocument(profile, fundingTracks[0], documentType),
   )
   const [plan, forecast, memo] = documents
-  const sections: GeneratedPackageSection[] = [
+  const sections = createConfiguredAdvisoryHubSections(
+    configuredSections,
+    configuredAgents,
+    configuredDocumentTypes,
     {
-      id: 'executive-summary',
-      title: 'Executive Summary',
-      body: plan.sections[0]?.body ?? plan.summary,
-      agent: 'Grant Writer',
-      documentLabel: 'Business Plan',
+      'executive-summary': plan.sections[0]?.body ?? plan.summary,
+      'company-overview':
+        plan.sections[3]?.body ?? plan.sections[1]?.body ?? plan.summary,
+      'market-analysis': `${plan.sections[1]?.body ?? ''} ${
+        plan.sections[2]?.body ?? ''
+      }`.trim(),
+      'financial-model': `${forecast.sections[0]?.body ?? ''} ${
+        forecast.sections[2]?.body ?? ''
+      }`.trim(),
+      'funding-narrative': `${memo.sections[0]?.body ?? ''} ${
+        memo.sections[2]?.body ?? ''
+      }`.trim(),
+      'ai-review': `The package is being tuned around reviewer confidence, measurable milestones, and stronger evidence language for ${programName}.`,
     },
-    {
-      id: 'company-overview',
-      title: 'Company Overview',
-      body: plan.sections[3]?.body ?? plan.sections[1]?.body ?? plan.summary,
-      agent: 'Business Consultant',
-      documentLabel: 'Business Plan',
-    },
-    {
-      id: 'market-analysis',
-      title: 'Market Analysis',
-      body: `${plan.sections[1]?.body ?? ''} ${plan.sections[2]?.body ?? ''}`.trim(),
-      agent: 'Business Consultant',
-      documentLabel: 'Business Plan',
-    },
-    {
-      id: 'financial-model',
-      title: 'Financial Model',
-      body: `${forecast.sections[0]?.body ?? ''} ${forecast.sections[2]?.body ?? ''}`.trim(),
-      agent: 'Financial Analyst',
-      documentLabel: 'Cash Flow Forecast',
-    },
-    {
-      id: 'funding-narrative',
-      title: 'Funding Narrative',
-      body: `${memo.sections[0]?.body ?? ''} ${memo.sections[2]?.body ?? ''}`.trim(),
-      agent: 'Grant Writer',
-      documentLabel: 'Funding Narrative',
-    },
-    {
-      id: 'ai-review',
-      title: 'AI Review & Improve',
-      body: `The package is being tuned around reviewer confidence, measurable milestones, and stronger evidence language for ${programName}.`,
-      agent: 'Reviewer',
-      documentLabel: 'AI Review',
-    },
-  ]
+  )
 
   return {
     title: `${profile.companyName} Funding Package`,
@@ -5713,53 +5722,64 @@ function buildPackageExport(packageRecord: GeneratedPackage, sections: Workspace
   ].join('\n')
 }
 
-function classifyBackendSection(
-  section: BusinessPlanSectionResponse,
-): Pick<GeneratedPackageSection, 'agent' | 'documentLabel'> {
-  if (
-    /financial|forecast|cash-flow|cash_flow|use-of-funds|use_of_funds/iu.test(
-      section.section_key,
-    )
-  ) {
-    return {
-      agent: 'Financial Analyst',
-      documentLabel: 'Cash Flow Forecast',
-    }
-  }
-  if (/risk|review/iu.test(section.section_key)) {
-    return {
-      agent: 'Reviewer',
-      documentLabel: 'AI Review',
-    }
-  }
-  if (/narrative|funding|implementation/iu.test(section.section_key)) {
-    return {
-      agent: 'Grant Writer',
-      documentLabel: 'Funding Narrative',
-    }
-  }
-  return {
-    agent: 'Business Consultant',
-    documentLabel: 'Business Plan',
-  }
+function findBackendSectionBody(
+  sections: BusinessPlanSectionResponse[],
+  matcher: RegExp,
+) {
+  return (
+    sections.find(
+      (section) =>
+        matcher.test(section.section_key) || matcher.test(section.title),
+    )?.content ?? ''
+  ).trim()
 }
 
 function createGeneratedPackageFromBackend(
   response: BusinessPlanGenerateResponse,
   fundingRequest: string,
   sourceMaterial: string,
+  configuredSections: AdvisoryHubSectionConfig[],
+  configuredAgents: AdvisoryHubAgentConfig[],
+  configuredDocumentTypes: AdvisoryHubDocumentTypeConfig[],
 ): GeneratedPackage {
   const document = response.document
   if (!document) {
     throw new Error('The generation backend did not return a document.')
   }
 
-  const sections: GeneratedPackageSection[] = document.sections.map((section) => ({
-    id: section.section_key.replace(/_/gu, '-'),
-    title: section.title,
-    body: section.content,
-    ...classifyBackendSection(section),
-  }))
+  const sections = createConfiguredAdvisoryHubSections(
+    configuredSections,
+    configuredAgents,
+    configuredDocumentTypes,
+    {
+      'executive-summary':
+        document.executive_summary.trim() ||
+        findBackendSectionBody(document.sections, /executive|summary/iu),
+      'company-overview':
+        findBackendSectionBody(
+          document.sections,
+          /company|overview|business[-_\s]?overview/iu,
+        ) || document.sections[0]?.content,
+      'market-analysis':
+        findBackendSectionBody(
+          document.sections,
+          /market|customer|competition|traction|demand/iu,
+        ),
+      'financial-model':
+        findBackendSectionBody(
+          document.sections,
+          /financial|forecast|cash[-_\s]?flow|use[-_\s]?of[-_\s]?funds/iu,
+        ),
+      'funding-narrative':
+        findBackendSectionBody(
+          document.sections,
+          /narrative|funding|implementation|milestone|project/iu,
+        ),
+      'ai-review':
+        findBackendSectionBody(document.sections, /risk|review/iu) ||
+        `The package is being refined for ${document.program_name} with stronger measurable outcomes, reviewer confidence language, and clearer next-step logic.`,
+    },
+  )
 
   const readinessScore = Math.min(
     96,
@@ -5851,6 +5871,16 @@ function QuickGeneratePage({
       ),
     [config.dataSources],
   )
+  const advisoryHubSections = useMemo(() => {
+    const enabledSections = config.advisoryHub.sections.filter(
+      (section) => section.enabled,
+    )
+    return enabledSections.length > 0
+      ? enabledSections
+      : config.advisoryHub.sections.slice(0, 1)
+  }, [config.advisoryHub.sections])
+  const advisoryHubAgents = config.advisoryHub.agents
+  const advisoryHubDocumentTypes = config.advisoryHub.documentTypes
 
   useEffect(() => {
     if (applicationIdFromQuery) return
@@ -5957,14 +5987,14 @@ function QuickGeneratePage({
       if (latestGeneratedApplication?.generatedPackage) {
         restoreApplicationWorkspace(
           latestGeneratedApplication,
-          `${latestGeneratedApplication.title} reopened in AI Workspace.`,
+          `${latestGeneratedApplication.title} reopened in Advisory Hub.`,
         )
         return
       }
 
       setActiveStep(1)
       setFormMessage(
-        'Generate a funding package in Quick Generate first, then reopen it from AI Workspace.',
+        'Generate a funding package in Quick Generate first, then reopen it from Advisory Hub.',
       )
       return
     }
@@ -6058,14 +6088,25 @@ function QuickGeneratePage({
     'Evaluation criteria and reviewer preferences',
     'Preferred writing tone and commercialization signals',
   ]
-  const planningChecklist = [
-    'Business Plan',
-    'Cash Flow',
-    'Market Research',
-    'Risk Analysis',
-    'Financial Assumptions',
-    'Funding Narrative',
-  ]
+  const planningChecklist = advisoryHubSections.map((section) => section.title)
+  const advisoryHubSectionSummary = advisoryHubSections
+    .map((section) => section.title)
+    .join(', ')
+  const workflowGenerationGroups = Array.from(
+    new Set(
+      advisoryHubSections
+        .filter((section) => section.documentTypeId !== 'ai-review')
+        .map((section) =>
+          advisoryHubDocumentTypes.find(
+            (documentType) => documentType.id === section.documentTypeId,
+          )?.name,
+        )
+        .filter((label): label is string => Boolean(label)),
+    ),
+  )
+  const hasAiReviewSection = advisoryHubSections.some(
+    (section) => section.documentTypeId === 'ai-review',
+  )
   const workflowItems = [
     {
       label: 'Understand program',
@@ -6094,127 +6135,72 @@ function QuickGeneratePage({
             ? 'complete'
             : 'waiting',
     },
-    {
-      label: 'Generate business plan',
-      status:
-        workspaceSections
-          .filter((section) => section.documentLabel === 'Business Plan')
-          .every((section) => section.status === 'complete')
-          ? 'complete'
-          : workspaceSections.some(
-                (section) =>
-                  section.documentLabel === 'Business Plan' && section.status === 'working',
-              )
-            ? 'working'
-            : 'waiting',
-    },
-    {
-      label: 'Generate cash flow',
-      status:
-        workspaceSections
-          .filter((section) => section.documentLabel === 'Cash Flow Forecast')
-          .every((section) => section.status === 'complete')
-          ? 'complete'
-          : workspaceSections.some(
-                (section) =>
-                  section.documentLabel === 'Cash Flow Forecast' && section.status === 'working',
-              )
-            ? 'working'
-            : 'waiting',
-    },
-    {
-      label: 'Generate funding narrative',
-      status:
-        workspaceSections
-          .filter((section) => section.documentLabel === 'Funding Narrative')
-          .every((section) => section.status === 'complete')
-          ? 'complete'
-          : workspaceSections.some(
-                (section) =>
-                  section.documentLabel === 'Funding Narrative' && section.status === 'working',
-              )
-            ? 'working'
-            : 'waiting',
-    },
-    {
-      label: 'AI review & improve',
-      status:
-        workspacePhase === 'reviewing'
-          ? 'working'
-          : workspacePhase === 'complete'
-            ? 'complete'
-            : 'waiting',
-    },
+    ...workflowGenerationGroups.map((documentLabel) => {
+      const matchingSections = workspaceSections.filter(
+        (section) => section.documentLabel === documentLabel,
+      )
+
+      return {
+        label: `Generate ${documentLabel.toLowerCase()}`,
+        status:
+          matchingSections.length > 0 &&
+          matchingSections.every((section) => section.status === 'complete')
+            ? ('complete' as const)
+            : matchingSections.some((section) => section.status === 'working')
+              ? ('working' as const)
+              : ('waiting' as const),
+      }
+    }),
+    ...(hasAiReviewSection
+      ? [
+          {
+            label: 'AI review & improve',
+            status:
+              workspacePhase === 'reviewing'
+                ? ('working' as const)
+                : workspacePhase === 'complete'
+                  ? ('complete' as const)
+                  : ('waiting' as const),
+          },
+        ]
+      : []),
   ] as const
+  const analysisAgent = advisoryHubAgents.find((agent) =>
+    /analyst|opportunity|requirement/iu.test(`${agent.name} ${agent.role}`),
+  )
+  const planningAgent = advisoryHubAgents.find((agent) =>
+    /consult|strategy|business/iu.test(`${agent.name} ${agent.role}`),
+  )
+  const reviewAgent = advisoryHubAgents.find((agent) =>
+    /review|quality|compliance/iu.test(`${agent.name} ${agent.role}`),
+  )
   const activeAgent =
     workspacePhase === 'analyzing'
-      ? 'Program Analyst'
+      ? analysisAgent?.name
       : workspacePhase === 'planning'
-        ? 'Business Consultant'
+        ? planningAgent?.name
         : workspacePhase === 'reviewing'
-          ? 'Reviewer'
+          ? reviewAgent?.name
           : previewSection?.status === 'working'
             ? previewSection.agent
             : null
-  const agentCards = [
-    {
-      name: 'Program Analyst',
-      helper: 'Understands the funding opportunity and extracts requirements.',
-      status:
-        activeAgent === 'Program Analyst'
-          ? 'working'
-          : quickGeneratePhaseRank[workspacePhase] > quickGeneratePhaseRank.analyzing
-            ? 'completed'
-            : 'waiting',
-    },
-    {
-      name: 'Business Consultant',
-      helper: 'Frames the company story, positioning, and execution case.',
-      status:
-        activeAgent === 'Business Consultant'
-          ? 'working'
-          : workspaceSections.some(
-                (section) =>
-                  section.agent === 'Business Consultant' && section.status === 'complete',
-              ) || quickGeneratePhaseRank[workspacePhase] > quickGeneratePhaseRank.planning
-            ? 'completed'
-            : 'waiting',
-    },
-    {
-      name: 'Financial Analyst',
-      helper: 'Builds the forecast logic, runway, and financial assumptions.',
-      status:
-        activeAgent === 'Financial Analyst'
-          ? 'working'
-          : workspaceSections.some(
-                (section) => section.agent === 'Financial Analyst' && section.status === 'complete',
-              )
-            ? 'completed'
-            : 'waiting',
-    },
-    {
-      name: 'Grant Writer',
-      helper: 'Turns evidence into reviewer-ready narrative language.',
-      status:
-        activeAgent === 'Grant Writer'
-          ? 'working'
-          : workspaceSections.some(
-                (section) => section.agent === 'Grant Writer' && section.status === 'complete',
-              )
-            ? 'completed'
-            : 'waiting',
-    },
-    {
-      name: 'Reviewer',
-      helper: 'Runs a final AI review to strengthen clarity and measurable outcomes.',
-      status:
-        activeAgent === 'Reviewer'
-          ? 'working'
-          : workspacePhase === 'complete'
-            ? 'completed'
-            : 'waiting',
-    },
-  ] as const
+  const agentCards = advisoryHubAgents.map((agent) => ({
+    name: agent.name,
+    helper: `${agent.role}. ${agent.prompt}`,
+    status:
+      activeAgent === agent.name
+        ? ('working' as const)
+        : workspaceSections.some(
+              (section) =>
+                section.agent === agent.name && section.status === 'complete',
+            ) ||
+            (workspacePhase === 'complete' &&
+              (agent.name === reviewAgent?.name ||
+                quickGeneratePhaseRank[workspacePhase] >
+                  quickGeneratePhaseRank.planning))
+          ? ('completed' as const)
+          : ('waiting' as const),
+  }))
   const completedSections = workspaceSections.filter(
     (section) => section.status === 'complete',
   ).length
@@ -6293,7 +6279,7 @@ function QuickGeneratePage({
     },
     {
       label: 'Sections ready',
-      value: `${completedSections}/${workspaceSections.length || 6}`,
+      value: `${completedSections}/${workspaceSections.length || advisoryHubSections.length}`,
       helper: 'Completed in the live room',
     },
     {
@@ -6563,7 +6549,14 @@ function QuickGeneratePage({
       },
     })
 
-    return createGeneratedPackageFromBackend(response, `$${amount} CAD`, sourceMaterial)
+    return createGeneratedPackageFromBackend(
+      response,
+      `$${amount} CAD`,
+      sourceMaterial,
+      advisoryHubSections,
+      advisoryHubAgents,
+      advisoryHubDocumentTypes,
+    )
   }
 
   function saveDraft() {
@@ -6667,13 +6660,13 @@ function QuickGeneratePage({
 
     const fundingNeed = Number(amount.replace(/[^0-9.]/g, ''))
     if (programComplete < 3 || !Number.isFinite(fundingNeed)) {
-      setFormMessage('Complete the funding program details before launching the AI workspace.')
+      setFormMessage('Complete the funding program details before launching Advisory Hub.')
       setActiveStep(1)
       return
     }
 
     if (businessComplete < 4) {
-      setFormMessage('Complete the business profile before launching the AI workspace.')
+      setFormMessage('Complete the business profile before launching Advisory Hub.')
       setActiveStep(2)
       return
     }
@@ -6701,8 +6694,8 @@ function QuickGeneratePage({
     setSelectedSectionId(null)
     setFormMessage(
       usingMockGeneration
-        ? `AI workspace launched in mock mode with ${config.ai.defaultModel}.`
-        : `AI workspace launched with ${config.ai.defaultModel}.`,
+        ? `Advisory Hub launched in mock mode with ${config.ai.defaultModel}.`
+        : `Advisory Hub launched with ${config.ai.defaultModel}.`,
     )
 
     const backendPromise = fetchGeneratedPackageFromBackend(
@@ -6729,7 +6722,7 @@ function QuickGeneratePage({
     setWorkspacePhase('planning')
     setWorkspaceThoughts((previous) => [
       ...previous,
-      `Building the outline for business plan, cash flow, market analysis, and funding narrative.`,
+      `Building the outline for ${advisoryHubSectionSummary.toLowerCase()}.`,
       `Thinking through what reviewers will need to believe before approving ${businessName}.`,
     ])
     await waitForWorkspace(900)
@@ -6752,6 +6745,9 @@ function QuickGeneratePage({
         programName,
         `$${amount} CAD`,
         sourceMaterial,
+        advisoryHubSections,
+        advisoryHubAgents,
+        advisoryHubDocumentTypes,
       )
     }
 
@@ -7378,7 +7374,7 @@ function QuickGeneratePage({
             <section className="generator-stage generator-ai-stage">
               <div className="generator-ai-hero">
                 <div className="generator-ai-hero-copy">
-                  <span>AI Workspace</span>
+                  <span>Advisory Hub</span>
                   <h2>Building your funding package in public, step by step.</h2>
                   <p>
                     The platform behaves like an AI funding team: it analyzes the
@@ -7653,7 +7649,7 @@ function QuickGeneratePage({
                       )
                     ) : (
                       <div className="generator-ai-preview-body is-empty">
-                        <p>Launch the AI workspace to begin streaming the funding package.</p>
+                        <p>Launch Advisory Hub to begin streaming the funding package.</p>
                       </div>
                     )}
 
@@ -7667,15 +7663,10 @@ function QuickGeneratePage({
                           <b>{generatedPackage.readinessScore}% ready</b>
                         </div>
                         <div className="generator-ai-ready-grid">
-                          {[
-                            'Business Plan',
-                            'Cash Flow Forecast',
-                            'Market Analysis',
-                            'Funding Narrative',
-                          ].map((item) => (
-                            <div key={item}>
+                          {advisoryHubSections.map((section) => (
+                            <div key={section.id}>
                               <i>✓</i>
-                              <span>{item}</span>
+                              <span>{section.title}</span>
                             </div>
                           ))}
                         </div>
@@ -7764,7 +7755,7 @@ function QuickGeneratePage({
               <div className="generator-assurance">
                 <Glyph type="spark" />
                 <div>
-                  <strong>AI consulting team mode</strong>
+                  <strong>Advisory Hub mode</strong>
                   <p>Users can see the analysts, writers, and reviewer work section by section.</p>
                 </div>
               </div>

@@ -9736,6 +9736,25 @@
   line-height: 1.55;
 }
 
+.admin-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.admin-inline-actions .admin-button-secondary {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.68rem;
+}
+
+.advisory-hub-agents-header {
+  margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid #e1e5ec;
+}
+
 .admin-switch-row {
   min-height: 64px;
   display: flex !important;

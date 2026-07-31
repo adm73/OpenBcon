@@ -57,6 +57,41 @@ export type AIConfig = {
   mockModeEnabled: boolean
 }
 
+export type AdvisoryHubSectionId =
+  | 'executive-summary'
+  | 'company-overview'
+  | 'market-analysis'
+  | 'financial-model'
+  | 'funding-narrative'
+  | 'ai-review'
+
+export type AdvisoryHubAgentConfig = {
+  id: string
+  name: string
+  role: string
+  prompt: string
+}
+
+export type AdvisoryHubDocumentTypeConfig = {
+  id: string
+  name: string
+}
+
+export type AdvisoryHubSectionConfig = {
+  id: AdvisoryHubSectionId
+  title: string
+  documentTypeId: string
+  prompt: string
+  agentId: string
+  enabled: boolean
+}
+
+export type AdvisoryHubConfig = {
+  agents: AdvisoryHubAgentConfig[]
+  documentTypes: AdvisoryHubDocumentTypeConfig[]
+  sections: AdvisoryHubSectionConfig[]
+}
+
 export type LegalDocumentFormat = 'markdown' | 'html'
 
 export type LegalDocumentConfig = {
@@ -140,6 +175,7 @@ export type PlatformConfig = {
   termsOfService: LegalDocumentConfig
   payments: PaymentConfig
   ai: AIConfig
+  advisoryHub: AdvisoryHubConfig
   dataSources: FundingDataSource[]
   modules: Record<PlatformModuleId, boolean>
 }
@@ -336,6 +372,221 @@ const defaultPaymentCatalog: PaymentCatalogItem[] = ensureDefaultPriceCatalog([
   },
 ])
 
+const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
+  {
+    id: 'executive-summary',
+    title: 'Executive Summary',
+    documentTypeId: 'business-plan',
+    prompt: 'Summarize the opportunity, business, funding ask, and reviewer case clearly.',
+    agentId: 'grant-writer',
+    enabled: true,
+  },
+  {
+    id: 'company-overview',
+    title: 'Company Overview',
+    documentTypeId: 'business-plan',
+    prompt: 'Explain the company, operating model, team, and execution capability.',
+    agentId: 'business-consultant',
+    enabled: true,
+  },
+  {
+    id: 'market-analysis',
+    title: 'Market Analysis',
+    documentTypeId: 'business-plan',
+    prompt: 'Describe the market, customers, competition, traction, and growth opportunity.',
+    agentId: 'business-consultant',
+    enabled: true,
+  },
+  {
+    id: 'financial-model',
+    title: 'Financial Model',
+    documentTypeId: 'cash-flow-forecast',
+    prompt: 'Build a credible forecast, use-of-funds logic, runway, and measurable financial assumptions.',
+    agentId: 'financial-analyst',
+    enabled: true,
+  },
+  {
+    id: 'funding-narrative',
+    title: 'Funding Narrative',
+    documentTypeId: 'funding-narrative',
+    prompt: 'Turn the evidence into a focused funding narrative with milestones and reviewer-ready outcomes.',
+    agentId: 'grant-writer',
+    enabled: true,
+  },
+  {
+    id: 'ai-review',
+    title: 'AI Review & Improve',
+    documentTypeId: 'ai-review',
+    prompt: 'Review the package for clarity, evidence, compliance, measurable outcomes, and approval confidence.',
+    agentId: 'reviewer',
+    enabled: true,
+  },
+]
+
+const defaultAdvisoryHubDocumentTypes: AdvisoryHubDocumentTypeConfig[] = [
+  { id: 'business-plan', name: 'Business Plan' },
+  { id: 'cash-flow-forecast', name: 'Cash Flow Forecast' },
+  { id: 'funding-narrative', name: 'Funding Narrative' },
+  { id: 'ai-review', name: 'AI Review' },
+]
+
+const defaultAdvisoryHubAgents: AdvisoryHubAgentConfig[] = [
+  {
+    id: 'program-analyst',
+    name: 'Program Analyst',
+    role: 'Funding opportunity analyst',
+    prompt:
+      'Understand the funding opportunity and extract requirements, reviewer criteria, and evidence needs.',
+  },
+  {
+    id: 'business-consultant',
+    name: 'Business Consultant',
+    role: 'Business strategy consultant',
+    prompt:
+      'Frame the company story, positioning, operating model, and execution case for the reviewer.',
+  },
+  {
+    id: 'financial-analyst',
+    name: 'Financial Analyst',
+    role: 'Financial planning analyst',
+    prompt:
+      'Build the forecast logic, runway, financial assumptions, and measurable use-of-funds plan.',
+  },
+  {
+    id: 'grant-writer',
+    name: 'Grant Writer',
+    role: 'Funding narrative writer',
+    prompt:
+      'Turn business evidence into clear, reviewer-ready narrative language with measurable outcomes.',
+  },
+  {
+    id: 'reviewer',
+    name: 'Reviewer',
+    role: 'Quality and compliance reviewer',
+    prompt:
+      'Run a final review to strengthen clarity, evidence, measurable milestones, and approval confidence.',
+  },
+]
+
+function normalizeAdvisoryHubAgents(
+  agents: Partial<AdvisoryHubAgentConfig>[] | undefined,
+): AdvisoryHubAgentConfig[] {
+  if (!agents || agents.length === 0) {
+    return defaultAdvisoryHubAgents.map((agent) => ({ ...agent }))
+  }
+
+  const normalized = agents
+    .map((agent, index) => {
+      const fallback = defaultAdvisoryHubAgents[index]
+      const id = agent.id?.trim() || fallback?.id || `advisory-agent-${index + 1}`
+      const name = agent.name?.trim() || fallback?.name || 'Advisory agent'
+      return {
+        id,
+        name,
+        role: agent.role?.trim() || fallback?.role || 'Funding workflow agent',
+        prompt:
+          agent.prompt?.trim() ||
+          fallback?.prompt ||
+          `Support the ${name.toLowerCase()} stage of the funding workflow.`,
+      } satisfies AdvisoryHubAgentConfig
+    })
+    .filter((agent, index, all) => all.findIndex((item) => item.id === agent.id) === index)
+
+  return normalized.length > 0
+    ? normalized
+    : defaultAdvisoryHubAgents.map((agent) => ({ ...agent }))
+}
+
+function normalizeAdvisoryHubDocumentTypes(
+  documentTypes: Partial<AdvisoryHubDocumentTypeConfig>[] | undefined,
+): AdvisoryHubDocumentTypeConfig[] {
+  if (!documentTypes || documentTypes.length === 0) {
+    return defaultAdvisoryHubDocumentTypes.map((documentType) => ({ ...documentType }))
+  }
+
+  const normalized = documentTypes
+    .map((documentType, index) => ({
+      id:
+        documentType.id?.trim() ||
+        defaultAdvisoryHubDocumentTypes[index]?.id ||
+        `document-type-${index + 1}`,
+      name:
+        documentType.name?.trim() ||
+        defaultAdvisoryHubDocumentTypes[index]?.name ||
+        'Document type',
+    }))
+    .filter(
+      (documentType, index, all) =>
+        all.findIndex((item) => item.id === documentType.id) === index,
+    )
+
+  return normalized.length > 0
+    ? normalized
+    : defaultAdvisoryHubDocumentTypes.map((documentType) => ({ ...documentType }))
+}
+
+function normalizeAdvisoryHubSections(
+  sections:
+    | (Partial<AdvisoryHubSectionConfig> & {
+        agent?: string
+        documentLabel?: string
+      })[]
+    | undefined,
+  agents: AdvisoryHubAgentConfig[],
+  documentTypes: AdvisoryHubDocumentTypeConfig[],
+): AdvisoryHubSectionConfig[] {
+  if (!sections || sections.length === 0) {
+    return defaultAdvisoryHubSections.map((section) => ({ ...section }))
+  }
+
+  const defaultsById = new Map(
+    defaultAdvisoryHubSections.map((section) => [section.id, section]),
+  )
+  const normalized = sections
+    .map((section, index) => {
+      const fallback =
+        (section.id ? defaultsById.get(section.id) : undefined) ??
+        defaultAdvisoryHubSections[index] ??
+        null
+      if (!fallback) return null
+
+      return {
+        id: fallback.id,
+        title: section.title?.trim() || fallback.title,
+        documentTypeId:
+          section.documentTypeId?.trim() ||
+          documentTypes.find(
+            (documentType) => documentType.name === section.documentLabel,
+          )?.id ||
+          fallback.documentTypeId,
+        prompt: section.prompt?.trim() || fallback.prompt,
+        agentId:
+          section.agentId?.trim() ||
+          agents.find(
+            (agent) => agent.id === section.agent || agent.name === section.agent,
+          )?.id ||
+          fallback.agentId,
+        enabled: section.enabled ?? fallback.enabled,
+      } satisfies AdvisoryHubSectionConfig
+    })
+    .filter((section): section is AdvisoryHubSectionConfig => section !== null)
+
+  for (const fallback of defaultAdvisoryHubSections) {
+    if (!normalized.some((section) => section.id === fallback.id)) {
+      normalized.push({ ...fallback })
+    }
+  }
+
+  if (!normalized.some((section) => section.enabled)) {
+    normalized[0] = {
+      ...normalized[0],
+      enabled: true,
+    }
+  }
+
+  return normalized
+}
+
 export const defaultPlatformConfig: PlatformConfig = {
   platformName: 'Bconomics.ai',
   platformLogo: '',
@@ -424,6 +675,11 @@ export const defaultPlatformConfig: PlatformConfig = {
     enabledModels: ['gpt-5-mini', 'gpt-5.2', 'claude-sonnet-4-5'],
     mockModeEnabled: true,
   },
+  advisoryHub: {
+    agents: defaultAdvisoryHubAgents,
+    documentTypes: defaultAdvisoryHubDocumentTypes,
+    sections: defaultAdvisoryHubSections,
+  },
   dataSources: defaultFundingDataSources,
   modules: {
     'funding-readiness': true,
@@ -466,6 +722,15 @@ type LegacyPaymentConfig = Partial<PaymentConfig> & {
   secretKeyReference?: string
 }
 
+type LegacyAdvisoryHubConfig = Partial<AdvisoryHubConfig> & {
+  agents?: Partial<AdvisoryHubAgentConfig>[]
+  documentTypes?: Partial<AdvisoryHubDocumentTypeConfig>[]
+  sections?: (Partial<AdvisoryHubSectionConfig> & {
+    agent?: string
+    documentLabel?: string
+  })[]
+}
+
 export function loadPlatformConfig(): PlatformConfig {
   if (typeof window === 'undefined') {
     return defaultPlatformConfig
@@ -488,6 +753,11 @@ export function loadPlatformConfig(): PlatformConfig {
     const parsedLandingContent: Partial<LandingContentConfig> =
       parsedLandingPage.content ?? {}
     const parsedPayments = (parsedConfig.payments ?? {}) as LegacyPaymentConfig
+    const parsedAdvisoryHub = (parsedConfig.advisoryHub ?? {}) as LegacyAdvisoryHubConfig
+    const parsedAdvisoryHubAgents = normalizeAdvisoryHubAgents(parsedAdvisoryHub.agents)
+    const parsedAdvisoryHubDocumentTypes = normalizeAdvisoryHubDocumentTypes(
+      parsedAdvisoryHub.documentTypes,
+    )
     const parsedProofItems = parsedLandingContent.proofItems ?? []
     const parsedPriceCatalog = parsedPayments.priceCatalog ?? []
     const legacyPlatformName = `${parsedConfig.productName ?? ''}${
@@ -681,6 +951,17 @@ export function loadPlatformConfig(): PlatformConfig {
       ai: {
         ...defaultPlatformConfig.ai,
         ...parsedConfig.ai,
+      },
+      advisoryHub: {
+        ...defaultPlatformConfig.advisoryHub,
+        ...parsedAdvisoryHub,
+        agents: parsedAdvisoryHubAgents,
+        documentTypes: parsedAdvisoryHubDocumentTypes,
+        sections: normalizeAdvisoryHubSections(
+          parsedAdvisoryHub.sections,
+          parsedAdvisoryHubAgents,
+          parsedAdvisoryHubDocumentTypes,
+        ),
       },
       dataSources: [
         ...(parsedConfig.dataSources ?? []),

@@ -97,13 +97,13 @@ export const dashboardGroups: DashboardGroup[] = [
       },
       {
         id: 'ai-workspace',
-        label: 'AI Workspace',
+        label: 'Advisory Hub',
         icon: 'grid',
         badgeIcon: 'spark',
-        description: 'Open the live AI generation workspace, section progress, and editable package output.',
+        description: 'Open the live advisory workspace, section progress, and editable package output.',
         intro:
-          'This page reopens the latest funding package workspace so users can review, edit, export, or continue the AI-generated result.',
-        entries: makeEntries('AI Workspace', 'workspace output'),
+          'This page reopens the latest funding package workspace so users can review, edit, export, or continue the advisory output.',
+        entries: makeEntries('Advisory Hub', 'workspace output'),
       },
     ],
   },

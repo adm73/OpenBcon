@@ -2,6 +2,10 @@ import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import {
+  type AdvisoryHubAgentConfig,
+  type AdvisoryHubConfig,
+  type AdvisoryHubDocumentTypeConfig,
+  type AdvisoryHubSectionConfig,
   type AIConfig,
   type LandingContentConfig,
   type LandingFooterConfig,
@@ -349,6 +353,139 @@ export function AdminPage() {
     }))
     setSaved(false)
     setAiTestStatus('idle')
+  }
+
+  function updateAdvisoryHubField<Key extends keyof AdvisoryHubConfig>(
+    field: Key,
+    value: AdvisoryHubConfig[Key],
+  ) {
+    setDraft((current) => ({
+      ...current,
+      advisoryHub: { ...current.advisoryHub, [field]: value },
+    }))
+    setSaved(false)
+  }
+
+  function updateAdvisoryHubSection<Key extends keyof AdvisoryHubSectionConfig>(
+    sectionId: AdvisoryHubSectionConfig['id'],
+    field: Key,
+    value: AdvisoryHubSectionConfig[Key],
+  ) {
+    const nextSections = draft.advisoryHub.sections.map((section) =>
+      section.id === sectionId ? { ...section, [field]: value } : section,
+    )
+    if (
+      field === 'enabled' &&
+      value === false &&
+      !nextSections.some((section) => section.enabled)
+    ) {
+      return
+    }
+    updateAdvisoryHubField('sections', nextSections)
+  }
+
+  function moveAdvisoryHubSection(
+    sectionId: AdvisoryHubSectionConfig['id'],
+    direction: 'up' | 'down',
+  ) {
+    const currentIndex = draft.advisoryHub.sections.findIndex(
+      (section) => section.id === sectionId,
+    )
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+    if (
+      currentIndex < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= draft.advisoryHub.sections.length
+    ) {
+      return
+    }
+    const nextSections = [...draft.advisoryHub.sections]
+    const [section] = nextSections.splice(currentIndex, 1)
+    nextSections.splice(targetIndex, 0, section)
+    updateAdvisoryHubField('sections', nextSections)
+  }
+
+  function updateAdvisoryHubAgent<Key extends keyof AdvisoryHubAgentConfig>(
+    agentId: string,
+    field: Key,
+    value: AdvisoryHubAgentConfig[Key],
+  ) {
+    updateAdvisoryHubField(
+      'agents',
+      draft.advisoryHub.agents.map((agent) =>
+        agent.id === agentId ? { ...agent, [field]: value } : agent,
+      ),
+    )
+  }
+
+  function addAdvisoryHubAgent() {
+    updateAdvisoryHubField('agents', [
+      ...draft.advisoryHub.agents,
+      {
+        id: `custom-agent-${Date.now()}`,
+        name: 'New agent',
+        role: 'Funding workflow agent',
+        prompt: 'Describe how this agent should support the funding workflow.',
+      },
+    ])
+  }
+
+  function removeAdvisoryHubAgent(agentId: string) {
+    if (draft.advisoryHub.agents.length <= 1) return
+    const remainingAgents = draft.advisoryHub.agents.filter(
+      (agent) => agent.id !== agentId,
+    )
+    const replacementAgent = remainingAgents[0]
+    if (!replacementAgent) return
+    updateAdvisoryHubField('agents', remainingAgents)
+    updateAdvisoryHubField(
+      'sections',
+      draft.advisoryHub.sections.map((section) =>
+        section.agentId === agentId
+          ? { ...section, agentId: replacementAgent.id }
+          : section,
+      ),
+    )
+  }
+
+  function updateAdvisoryHubDocumentType<Key extends keyof AdvisoryHubDocumentTypeConfig>(
+    documentTypeId: string,
+    field: Key,
+    value: AdvisoryHubDocumentTypeConfig[Key],
+  ) {
+    updateAdvisoryHubField(
+      'documentTypes',
+      draft.advisoryHub.documentTypes.map((documentType) =>
+        documentType.id === documentTypeId
+          ? { ...documentType, [field]: value }
+          : documentType,
+      ),
+    )
+  }
+
+  function addAdvisoryHubDocumentType() {
+    updateAdvisoryHubField('documentTypes', [
+      ...draft.advisoryHub.documentTypes,
+      { id: `custom-document-type-${Date.now()}`, name: 'New document type' },
+    ])
+  }
+
+  function removeAdvisoryHubDocumentType(documentTypeId: string) {
+    if (draft.advisoryHub.documentTypes.length <= 1) return
+    const remainingDocumentTypes = draft.advisoryHub.documentTypes.filter(
+      (documentType) => documentType.id !== documentTypeId,
+    )
+    const replacementDocumentType = remainingDocumentTypes[0]
+    if (!replacementDocumentType) return
+    updateAdvisoryHubField('documentTypes', remainingDocumentTypes)
+    updateAdvisoryHubField(
+      'sections',
+      draft.advisoryHub.sections.map((section) =>
+        section.documentTypeId === documentTypeId
+          ? { ...section, documentTypeId: replacementDocumentType.id }
+          : section,
+      ),
+    )
   }
 
   function updateLegalField<Key extends keyof LegalDocumentConfig>(
@@ -801,6 +938,9 @@ export function AdminPage() {
           <a href="#payments">Payments</a>
           <a href="#pricing">Pricing</a>
           <a href="#revenue">Revenue</a>
+          <a href="#advisory-hub">Advisory Hub</a>
+          <a href="#advisory-hub-document-types">Advisory Hub - Document Types</a>
+          <a href="#advisory-hub-agents">Advisory Hub - Agents</a>
           <a href="#ai-models">AI Models</a>
           <a href="#legal">Legal</a>
           <a href="#licensing">Licensing</a>
@@ -2203,9 +2343,294 @@ export function AdminPage() {
             </div>
           </section>
 
-          <section className="admin-card admin-management-card" id="ai-models">
+          <section className="admin-card admin-management-card" id="advisory-hub">
             <div className="admin-section-copy">
               <p className="admin-section-number">09</p>
+              <h2>Advisory Hub</h2>
+              <p>
+                Configure the sections shown in the planning view and live
+                section generation stream.
+              </p>
+            </div>
+            <div className="admin-management-content">
+              <div className="admin-price-management">
+                <div className="admin-price-management-header">
+                  <div>
+                    <strong>Section generation</strong>
+                    <p>
+                      Toggle, rename, assign, and reorder sections. At least one
+                      section must stay enabled.
+                    </p>
+                  </div>
+                </div>
+                <div className="admin-price-management-list">
+                  {draft.advisoryHub.sections.map((section, index) => (
+                    <article className="admin-price-card" key={section.id}>
+                      <div className="admin-price-card-header">
+                        <div>
+                          <span>Section {index + 1}</span>
+                          <strong>{section.title.trim() || 'Untitled section'}</strong>
+                        </div>
+                        <label className="admin-price-card-toggle">
+                          <input
+                            type="checkbox"
+                            checked={section.enabled}
+                            onChange={(event) =>
+                              updateAdvisoryHubSection(
+                                section.id,
+                                'enabled',
+                                event.target.checked,
+                              )
+                            }
+                          />
+                          <span>Enabled</span>
+                        </label>
+                      </div>
+                      <div className="admin-fields">
+                        <label>
+                          <span>Section title</span>
+                          <input
+                            value={section.title}
+                            onChange={(event) =>
+                              updateAdvisoryHubSection(
+                                section.id,
+                                'title',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>Document Type</span>
+                          <select
+                            value={section.documentTypeId}
+                            onChange={(event) =>
+                              updateAdvisoryHubSection(
+                                section.id,
+                                'documentTypeId',
+                                event.target.value,
+                              )
+                            }
+                          >
+                            {draft.advisoryHub.documentTypes.map((documentType) => (
+                              <option key={documentType.id} value={documentType.id}>
+                                {documentType.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span>Assigned agent</span>
+                          <select
+                            value={section.agentId}
+                            onChange={(event) =>
+                              updateAdvisoryHubSection(
+                                section.id,
+                                'agentId',
+                                event.target.value,
+                              )
+                            }
+                          >
+                            {draft.advisoryHub.agents.map((agent) => (
+                              <option key={agent.id} value={agent.id}>
+                                {agent.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="admin-field-wide">
+                          <span>Section prompt</span>
+                          <textarea
+                            value={section.prompt}
+                            onChange={(event) =>
+                              updateAdvisoryHubSection(
+                                section.id,
+                                'prompt',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="admin-price-card-footer">
+                        <small>
+                          This controls the planning checklist and section cards
+                          inside Advisory Hub.
+                        </small>
+                        <div className="admin-inline-actions">
+                          <button
+                            className="admin-button-secondary"
+                            type="button"
+                            onClick={() => moveAdvisoryHubSection(section.id, 'up')}
+                            disabled={index === 0}
+                          >
+                            Move up
+                          </button>
+                          <button
+                            className="admin-button-secondary"
+                            type="button"
+                            onClick={() => moveAdvisoryHubSection(section.id, 'down')}
+                            disabled={index === draft.advisoryHub.sections.length - 1}
+                          >
+                            Move down
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section
+            className="admin-card admin-management-card"
+            id="advisory-hub-document-types"
+          >
+            <div className="admin-section-copy">
+              <p className="admin-section-number">10</p>
+              <h2>Advisory Hub - Document Types</h2>
+              <p>Configure the document types available to sections.</p>
+            </div>
+            <div className="admin-management-content">
+              <div className="admin-price-management">
+                <div className="admin-price-management-header">
+                  <div>
+                    <strong>Document Types</strong>
+                    <p>At least one document type must remain available.</p>
+                  </div>
+                  <button
+                    className="admin-button-secondary"
+                    type="button"
+                    onClick={addAdvisoryHubDocumentType}
+                  >
+                    Add Document Type
+                  </button>
+                </div>
+                <div className="admin-price-management-list">
+                  {draft.advisoryHub.documentTypes.map((documentType, index) => (
+                    <article className="admin-price-card" key={documentType.id}>
+                      <div className="admin-price-card-header">
+                        <div>
+                          <span>Document Type {index + 1}</span>
+                          <strong>{documentType.name.trim() || 'Untitled document type'}</strong>
+                        </div>
+                      </div>
+                      <div className="admin-fields">
+                        <label className="admin-field-wide">
+                          <span>Name</span>
+                          <input
+                            value={documentType.name}
+                            onChange={(event) =>
+                              updateAdvisoryHubDocumentType(
+                                documentType.id,
+                                'name',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="admin-price-card-footer">
+                        <small>
+                          Sections assigned to this type use its current name.
+                        </small>
+                        <button
+                          className="admin-button-secondary"
+                          type="button"
+                          onClick={() => removeAdvisoryHubDocumentType(documentType.id)}
+                          disabled={draft.advisoryHub.documentTypes.length <= 1}
+                        >
+                          Remove Document Type
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-card admin-management-card" id="advisory-hub-agents">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">11</p>
+              <h2>Advisory Hub - Agents</h2>
+              <p>Configure the agents available to section generation.</p>
+            </div>
+            <div className="admin-management-content">
+              <div className="admin-price-management">
+                <div className="admin-price-management-header">
+                  <div>
+                    <strong>Agents</strong>
+                    <p>Configure each agent&apos;s name, role, and prompt.</p>
+                  </div>
+                  <button
+                    className="admin-button-secondary"
+                    type="button"
+                    onClick={addAdvisoryHubAgent}
+                  >
+                    Add agent
+                  </button>
+                </div>
+                <div className="admin-price-management-list">
+                  {draft.advisoryHub.agents.map((agent, index) => (
+                    <article className="admin-price-card" key={agent.id}>
+                      <div className="admin-price-card-header">
+                        <div>
+                          <span>Agent {index + 1}</span>
+                          <strong>{agent.name.trim() || 'Untitled agent'}</strong>
+                        </div>
+                      </div>
+                      <div className="admin-fields">
+                        <label>
+                          <span>Name</span>
+                          <input
+                            value={agent.name}
+                            onChange={(event) =>
+                              updateAdvisoryHubAgent(agent.id, 'name', event.target.value)
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>Role</span>
+                          <input
+                            value={agent.role}
+                            onChange={(event) =>
+                              updateAdvisoryHubAgent(agent.id, 'role', event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className="admin-field-wide">
+                          <span>Prompt</span>
+                          <textarea
+                            value={agent.prompt}
+                            onChange={(event) =>
+                              updateAdvisoryHubAgent(agent.id, 'prompt', event.target.value)
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="admin-price-card-footer">
+                        <small>Sections assigned to this agent use its current name and role.</small>
+                        <button
+                          className="admin-button-secondary"
+                          type="button"
+                          onClick={() => removeAdvisoryHubAgent(agent.id)}
+                          disabled={draft.advisoryHub.agents.length <= 1}
+                        >
+                          Remove agent
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-card admin-management-card" id="ai-models">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">12</p>
               <h2>AI model management</h2>
               <p>
                 Choose providers and models used by document generation workflows.
@@ -2360,7 +2785,7 @@ export function AdminPage() {
 
           <section className="admin-card" id="legal">
             <div className="admin-section-copy">
-              <p className="admin-section-number">10</p>
+              <p className="admin-section-number">13</p>
               <h2>Legal pages</h2>
               <p>
                 Edit the public Privacy Policy and Terms of Service shown in the
@@ -2456,7 +2881,7 @@ export function AdminPage() {
 
           <section className="admin-card" id="licensing">
             <div className="admin-section-copy">
-              <p className="admin-section-number">11</p>
+              <p className="admin-section-number">14</p>
               <h2>Commercial licensing</h2>
               <p>
                 Configure the paid alternative for organizations that cannot use
