@@ -65,3 +65,9 @@ export type GeneratedPackage = {
   documents: GeneratedDocument[]
   sections: GeneratedPackageSection[]
 }
+
+export type StrategicReviewReport = {
+  id: string
+  applicationId: string
+  generatedPackage: GeneratedPackage
+}

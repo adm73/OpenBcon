@@ -62,8 +62,9 @@ import {
 } from '../lib/stripeBillingApi'
 import {
   buildGeneratedApplicationId,
+  createStrategicReviewReport,
   findApplicationRecord,
-  getLatestGeneratedApplication,
+  getStrategicReviewReports,
   loadApplications,
   materializeSavedProgramApplication,
   saveApplications,
@@ -99,6 +100,7 @@ import type {
   GeneratedDocument,
   GeneratedPackage,
   GeneratedPackageSection,
+  StrategicReviewReport,
 } from '../types'
 import {
   allDashboardItems,
@@ -5846,6 +5848,12 @@ function QuickGeneratePage({
   const [activeStep, setActiveStep] = useState<QuickGenerateStep>(1)
   const [currentApplicationId, setCurrentApplicationId] = useState<string | null>(null)
   const [generatedPackage, setGeneratedPackage] = useState<GeneratedPackage | null>(null)
+  const [strategicReviewReports, setStrategicReviewReports] = useState<StrategicReviewReport[]>(
+    () => getStrategicReviewReports(loadApplications()),
+  )
+  const [selectedStrategicReviewReportId, setSelectedStrategicReviewReportId] = useState<
+    string | null
+  >(null)
   const [workspacePhase, setWorkspacePhase] = useState<WorkspacePhase>('idle')
   const [workspaceSections, setWorkspaceSections] = useState<WorkspaceSectionState[]>([])
   const [workspaceThoughts, setWorkspaceThoughts] = useState<string[]>([])
@@ -5881,6 +5889,13 @@ function QuickGeneratePage({
   }, [config.advisoryHub.sections])
   const advisoryHubAgents = config.advisoryHub.agents
   const advisoryHubDocumentTypes = config.advisoryHub.documentTypes
+  const selectedStrategicReviewReport = strategicReviewReports.find(
+    (report) => report.id === selectedStrategicReviewReportId,
+  )
+  const showsStrategicReviewListing = initialView === 'workspace' && !selectedStrategicReviewReport
+  const strategicReviewApplicationCount = new Set(
+    strategicReviewReports.map((report) => report.applicationId),
+  ).size
 
   useEffect(() => {
     if (applicationIdFromQuery) return
@@ -5978,24 +5993,16 @@ function QuickGeneratePage({
 
   useEffect(() => {
     if (initialView === 'workspace') {
-      if (generatedPackage) {
-        resumeGeneratedWorkspace()
-        return
-      }
-
-      const latestGeneratedApplication = getLatestGeneratedApplication(loadApplications())
-      if (latestGeneratedApplication?.generatedPackage) {
-        restoreApplicationWorkspace(
-          latestGeneratedApplication,
-          `${latestGeneratedApplication.title} reopened in Advisory Hub.`,
-        )
-        return
-      }
-
-      setActiveStep(1)
-      setFormMessage(
-        'Generate a funding package in Quick Generate first, then reopen it from Advisory Hub.',
-      )
+      setStrategicReviewReports(getStrategicReviewReports(loadApplications()))
+      setSelectedStrategicReviewReportId(null)
+      setGeneratedPackage(null)
+      setWorkspacePhase('idle')
+      setWorkspaceSections([])
+      setWorkspaceThoughts([])
+      setSelectedSectionId(null)
+      setEditorMode(false)
+      setActiveStep('workspace')
+      setFormMessage('')
       return
     }
 
@@ -6307,6 +6314,9 @@ function QuickGeneratePage({
       const savedApplications = loadApplications()
       const currentApplication = findApplicationRecord(savedApplications, applicationId)
       if (currentApplication) {
+        const currentReport = currentApplication.strategicReviewReports?.find(
+          (report) => report.id === selectedStrategicReviewReportId,
+        )
         saveApplications(
           upsertGeneratedApplication(savedApplications, {
             id: currentApplication.id,
@@ -6321,8 +6331,15 @@ function QuickGeneratePage({
             documentCount: nextPackage.documents.length,
             generatedAt: new Date(nextPackage.completedAt),
             generatedPackage: nextPackage,
+            strategicReviewReport: currentReport
+              ? {
+                  ...currentReport,
+                  generatedPackage: nextPackage,
+                }
+              : undefined,
           }),
         )
+        setStrategicReviewReports(getStrategicReviewReports(loadApplications()))
       }
     }
     removePersistentItem(generatedDocumentsStorageKey)
@@ -6354,9 +6371,17 @@ function QuickGeneratePage({
     )
   }
 
-  function restoreApplicationWorkspace(application: ApplicationRecord, message?: string) {
+  function restoreApplicationWorkspace(
+    application: ApplicationRecord,
+    message?: string,
+    report?: StrategicReviewReport,
+  ) {
     const matchedProgram = findFundingProgramByName(application.programName)
+    const selectedReport =
+      report ?? application.strategicReviewReports?.at(-1) ?? undefined
+    const packageRecord = selectedReport?.generatedPackage ?? application.generatedPackage
     setCurrentApplicationId(application.id)
+    setSelectedStrategicReviewReportId(selectedReport?.id ?? null)
     setProgramName(application.programName)
     setProgramUrl(application.programUrl || matchedProgram?.url || '')
     setAmount(application.amount.toLocaleString('en-CA'))
@@ -6374,11 +6399,11 @@ function QuickGeneratePage({
       location: matchedProgram?.location ?? '',
       sourceName: matchedProgram?.sourceName,
     })
-    if (application.generatedPackage) {
-      setGeneratedPackage(application.generatedPackage)
-      setWorkspaceSections(hydrateWorkspaceSections(application.generatedPackage))
-      setWorkspaceThoughts(application.generatedPackage.thoughts)
-      setSelectedSectionId(application.generatedPackage.sections[0]?.id ?? null)
+    if (packageRecord) {
+      setGeneratedPackage(packageRecord)
+      setWorkspaceSections(hydrateWorkspaceSections(packageRecord))
+      setWorkspaceThoughts(packageRecord.thoughts)
+      setSelectedSectionId(packageRecord.sections[0]?.id ?? null)
       setWorkspacePhase('complete')
       setEditorMode(false)
       setActiveStep('workspace')
@@ -6386,6 +6411,34 @@ function QuickGeneratePage({
     if (message) {
       setFormMessage(message)
     }
+  }
+
+  function openStrategicReviewReport(report: StrategicReviewReport) {
+    const application = findApplicationRecord(loadApplications(), report.applicationId)
+    if (!application) {
+      setFormMessage('This Strategic Review report is no longer linked to an application.')
+      return
+    }
+
+    restoreApplicationWorkspace(
+      application,
+      `${report.generatedPackage.title} opened from Strategic Review Reports.`,
+      report,
+    )
+  }
+
+  function returnToStrategicReviewReports() {
+    generationRun.current += 1
+    setStrategicReviewReports(getStrategicReviewReports(loadApplications()))
+    setSelectedStrategicReviewReportId(null)
+    setGeneratedPackage(null)
+    setWorkspacePhase('idle')
+    setWorkspaceSections([])
+    setWorkspaceThoughts([])
+    setSelectedSectionId(null)
+    setEditorMode(false)
+    setFormMessage('')
+    setActiveStep('workspace')
   }
 
   function resetProgram() {
@@ -6800,9 +6853,12 @@ function QuickGeneratePage({
       currentApplication.company === businessName
         ? currentApplication.id
         : undefined
+    const nextApplicationId =
+      reusableApplicationId ?? buildGeneratedApplicationId(businessName, programName)
+    const strategicReviewReport = createStrategicReviewReport(nextApplicationId, nextPackage)
 
     const nextApplications = upsertGeneratedApplication(savedApplications, {
-      id: reusableApplicationId,
+      id: nextApplicationId,
       title: `${programName} application`,
       programName,
       programUrl,
@@ -6815,14 +6871,15 @@ function QuickGeneratePage({
       documentCount: nextPackage.documents.length,
       generatedAt: new Date(nextPackage.completedAt),
       generatedPackage: nextPackage,
+      strategicReviewReport,
     })
     saveApplications(nextApplications)
-    setCurrentApplicationId(
-      reusableApplicationId ?? buildGeneratedApplicationId(businessName, programName),
-    )
+    setCurrentApplicationId(nextApplicationId)
+    setSelectedStrategicReviewReportId(strategicReviewReport.id)
+    setStrategicReviewReports(getStrategicReviewReports(nextApplications))
     persistGeneratedPackage(
       nextPackage,
-      reusableApplicationId ?? buildGeneratedApplicationId(businessName, programName),
+      nextApplicationId,
       false,
     )
     setWorkspaceThoughts((previous) => [...previous, 'Funding package ready for editing, export, and sharing.'])
@@ -6996,17 +7053,31 @@ function QuickGeneratePage({
     <section className="generator-page">
       <header className="generator-header">
         <div>
-          <p className="generator-eyebrow">Funding Studio</p>
-          <h1>Build a funding-ready document package</h1>
+          <p className="generator-eyebrow">
+            {showsStrategicReviewListing ? 'Advisory Hub' : 'Funding Studio'}
+          </p>
+          <h1>
+            {showsStrategicReviewListing
+              ? 'Strategic review reports'
+              : 'Build a funding-ready document package'}
+          </h1>
           <p>
-            One guided workspace for your business plan, cash flow forecast, funding
-            narrative, and now a live AI generation room the founder can actually follow.
+            {showsStrategicReviewListing
+              ? 'Open a completed Strategic Review report by application, then review the analysis, generated sections, and funding package preview.'
+              : 'One guided workspace for your business plan, cash flow forecast, funding narrative, and now a live AI generation room the founder can actually follow.'}
           </p>
         </div>
-        <button type="button" className="generator-save-button" onClick={saveDraft}>
-          <Glyph type="file" />
-          Save draft
-        </button>
+        {showsStrategicReviewListing ? (
+          <Link to="/quick-generate" className="generator-save-button">
+            <Glyph type="spark" />
+            Begin Strategic Review
+          </Link>
+        ) : (
+          <button type="button" className="generator-save-button" onClick={saveDraft}>
+            <Glyph type="file" />
+            Save draft
+          </button>
+        )}
       </header>
 
       {formMessage ? (
@@ -7022,8 +7093,86 @@ function QuickGeneratePage({
         </p>
       ) : null}
 
-      <div className={`generator-shell ${activeStep === 'workspace' ? 'is-workspace' : ''}`}>
+      <div
+        className={`generator-shell ${activeStep === 'workspace' ? 'is-workspace' : ''} ${
+          showsStrategicReviewListing ? 'is-report-listing' : ''
+        }`}
+      >
         <div className={`generator-workspace ${activeStep === 'workspace' ? 'is-ai-workspace' : ''}`}>
+          {showsStrategicReviewListing ? (
+            <section className="generator-stage advisory-report-listing-stage">
+              <div className="advisory-report-listing-heading">
+                <div>
+                  <span>Strategic Review Reports</span>
+                  <h2>Choose a report to open the full review.</h2>
+                  <p>
+                    Every report is linked to the application that created it, so the
+                    opportunity, business profile, and generated package stay together.
+                  </p>
+                </div>
+                <div className="advisory-report-listing-stats">
+                  <article>
+                    <small>Reports</small>
+                    <strong>{strategicReviewReports.length}</strong>
+                  </article>
+                  <article>
+                    <small>Applications</small>
+                    <strong>{strategicReviewApplicationCount}</strong>
+                  </article>
+                </div>
+              </div>
+
+              {strategicReviewReports.length > 0 ? (
+                <div className="advisory-report-list">
+                  {strategicReviewReports.map((report) => (
+                    <button
+                      key={report.id}
+                      type="button"
+                      className="advisory-report-row"
+                      onClick={() => openStrategicReviewReport(report)}
+                    >
+                      <span className="advisory-report-symbol">
+                        <Glyph type="spark" />
+                      </span>
+                      <span className="advisory-report-main">
+                        <span className="advisory-report-label">Strategic Review Report</span>
+                        <strong>{report.generatedPackage.programName}</strong>
+                        <small>
+                          {report.generatedPackage.businessName} · Application ID {report.applicationId}
+                        </small>
+                      </span>
+                      <span className="advisory-report-score">
+                        <strong>{report.generatedPackage.readinessScore}%</strong>
+                        <small>readiness</small>
+                      </span>
+                      <span className="advisory-report-date">
+                        <strong>
+                          {new Intl.DateTimeFormat('en-CA', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          }).format(new Date(report.generatedPackage.completedAt))}
+                        </strong>
+                        <small>Completed</small>
+                      </span>
+                      <span className="advisory-report-open">
+                        Open report
+                        <Glyph type="arrow" />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="advisory-report-empty">
+                  <span><Glyph type="spark" /></span>
+                  <strong>No Strategic Review reports yet</strong>
+                  <p>Start a funding package in Quick Generate to create the first report.</p>
+                  <Link to="/quick-generate">Start a new Strategic Review</Link>
+                </div>
+              )}
+            </section>
+          ) : null}
+
           {activeStep === 1 ? (
             <section className="generator-stage">
               <div className="generator-stage-heading generator-stage-heading-row">
@@ -7364,14 +7513,24 @@ function QuickGeneratePage({
                   disabled={isGenerating}
                 >
                   <Glyph type="spark" />
-                  Generate
+                  Begin Strategic Review
                 </button>
               </div>
             </section>
           ) : null}
 
-          {activeStep === 'workspace' ? (
+          {activeStep === 'workspace' && !showsStrategicReviewListing ? (
             <section className="generator-stage generator-ai-stage">
+              {initialView === 'workspace' ? (
+                <button
+                  type="button"
+                  className="advisory-report-back"
+                  onClick={returnToStrategicReviewReports}
+                >
+                  <Glyph type="arrow" />
+                  Back to Strategic Review Reports
+                </button>
+              ) : null}
               <div className="generator-ai-hero">
                 <div className="generator-ai-hero-copy">
                   <span>Advisory Hub</span>
@@ -7693,7 +7852,8 @@ function QuickGeneratePage({
           ) : null}
         </div>
 
-        <aside className="generator-sidebar">
+        {!showsStrategicReviewListing ? (
+          <aside className="generator-sidebar">
           <div className="generator-stepper">
             {(
               [
@@ -7873,7 +8033,8 @@ function QuickGeneratePage({
               </>
             )}
           </div>
-        </aside>
+          </aside>
+        ) : null}
       </div>
 
       {programPickerOpen ? (

@@ -1,4 +1,4 @@
-import type { GeneratedPackage } from '../types'
+import type { GeneratedPackage, StrategicReviewReport } from '../types'
 import { findFundingProgramByName } from './fundingSources'
 import type { SavedProgramStage } from './savedPrograms'
 import { setPersistentItem } from '../persistence/storage'
@@ -29,6 +29,7 @@ export type ApplicationRecord = {
   nextAction: string
   note: string
   generatedPackage?: GeneratedPackage | null
+  strategicReviewReports?: StrategicReviewReport[]
 }
 
 export type GeneratedApplicationInput = {
@@ -45,6 +46,7 @@ export type GeneratedApplicationInput = {
   documentCount: number
   generatedAt?: Date
   generatedPackage?: GeneratedPackage | null
+  strategicReviewReport?: StrategicReviewReport | null
 }
 
 export type SavedProgramApplicationInput = {
@@ -210,13 +212,31 @@ function normalizeApplicationId(
 }
 
 function hydrateApplicationRecord(application: ApplicationRecord): ApplicationRecord {
+  const id = normalizeApplicationId(application)
+  const strategicReviewReports =
+    application.strategicReviewReports?.length
+      ? application.strategicReviewReports.map((report) => ({
+          ...report,
+          applicationId: id,
+        }))
+      : application.generatedPackage
+        ? [
+            {
+              id: `legacy-${id}`,
+              applicationId: id,
+              generatedPackage: application.generatedPackage,
+            },
+          ]
+        : []
+
   return {
     ...application,
-    id: normalizeApplicationId(application),
+    id,
     programUrl:
       application.programUrl?.trim() ||
       findFundingProgramByName(application.programName)?.url ||
       '',
+    strategicReviewReports,
   }
 }
 
@@ -360,6 +380,7 @@ export function materializeSavedProgramApplication(
     nextAction: existing?.nextAction?.trim() || stageState.nextAction,
     note: existing?.note?.trim() || savedNote,
     generatedPackage: existing?.generatedPackage ?? null,
+    strategicReviewReports: existing?.strategicReviewReports ?? [],
   }
 
   if (existing) {
@@ -415,6 +436,17 @@ export function upsertGeneratedApplication(
     day: 'numeric',
     year: 'numeric',
   })}.`
+  const strategicReviewReports = input.strategicReviewReport
+    ? [
+        ...(existing?.strategicReviewReports ?? []).filter(
+          (report) => report.id !== input.strategicReviewReport?.id,
+        ),
+        {
+          ...input.strategicReviewReport,
+          applicationId: id,
+        },
+      ]
+    : existing?.strategicReviewReports ?? []
 
   const generatedRecord: ApplicationRecord = {
     id,
@@ -442,6 +474,7 @@ export function upsertGeneratedApplication(
       existing && !['Draft', 'Ready'].includes(existing.status) ? existing.nextAction : nextAction,
     note: existing?.note?.trim() ? existing.note : generatedNote,
     generatedPackage: input.generatedPackage ?? existing?.generatedPackage ?? null,
+    strategicReviewReports,
   }
 
   if (existing) {
@@ -470,4 +503,42 @@ export function getLatestGeneratedApplication(
       const rightTime = Date.parse(right.generatedPackage?.completedAt ?? '')
       return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime)
     })[0] ?? null
+}
+
+export function createStrategicReviewReport(
+  applicationId: string,
+  generatedPackage: GeneratedPackage,
+) {
+  return {
+    id: `strategic-review-${applicationId}-${Date.now()}`,
+    applicationId,
+    generatedPackage,
+  } satisfies StrategicReviewReport
+}
+
+export function getStrategicReviewReports(applications: ApplicationRecord[]) {
+  return applications
+    .flatMap((application) => {
+      const reports = application.strategicReviewReports?.length
+        ? application.strategicReviewReports
+        : application.generatedPackage
+          ? [
+              {
+                id: `legacy-${application.id}`,
+                applicationId: application.id,
+                generatedPackage: application.generatedPackage,
+              },
+            ]
+          : []
+
+      return reports.map((report) => ({
+        ...report,
+        applicationId: application.id,
+      }))
+    })
+    .sort((left, right) => {
+      const leftTime = Date.parse(left.generatedPackage.completedAt)
+      const rightTime = Date.parse(right.generatedPackage.completedAt)
+      return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime)
+    })
 }
