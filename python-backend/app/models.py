@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 
 class DirectCompanyInfo(BaseModel):
@@ -178,3 +178,16 @@ class FundingPackageRunRecord(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+class AIConnectionTestRequest(BaseModel):
+    model_name: str = Field(min_length=1, max_length=200)
+    provider_id: str = Field(default="custom", max_length=80)
+    api_key: SecretStr = SecretStr("")
+    url: str = Field(min_length=1, max_length=2000)
+    message: str = Field(min_length=1, max_length=12000)
+
+
+class AIConnectionTestResponse(BaseModel):
+    response: str
+    upstream_status: int

@@ -1,4 +1,10 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react'
 import { Link } from 'react-router-dom'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import {
@@ -6,7 +12,8 @@ import {
   type AdvisoryHubConfig,
   type AdvisoryHubDocumentTypeConfig,
   type AdvisoryHubSectionConfig,
-  type AIConfig,
+  type AIModelConfig,
+  type ContentFormat,
   type LandingContentConfig,
   type LandingFooterConfig,
   type LandingFooterLegalLinkConfig,
@@ -48,33 +55,6 @@ const moduleLabels: Array<{ id: PlatformModuleId; label: string; group: string }
   { id: 'social-resources', label: 'Social Resources', group: 'Programs' },
   { id: 'tools', label: 'Tools', group: 'Programs' },
   { id: 'partner-portal', label: 'Partner Portal', group: 'Commercial' },
-]
-
-const modelCatalog = [
-  {
-    id: 'gpt-5-mini',
-    provider: 'OpenAI',
-    context: '400K',
-    use: 'Fast document drafting',
-  },
-  {
-    id: 'gpt-5.2',
-    provider: 'OpenAI',
-    context: '400K',
-    use: 'Complex financial reasoning',
-  },
-  {
-    id: 'claude-sonnet-4-5',
-    provider: 'Anthropic',
-    context: '200K',
-    use: 'Long-form narrative',
-  },
-  {
-    id: 'gemini-3-flash',
-    provider: 'Google',
-    context: '1M',
-    use: 'Large source packages',
-  },
 ]
 
 const recentTransactions = [
@@ -182,6 +162,7 @@ function createPaymentPriceItem(
     id: `price-${suffix}`,
     name: 'New offering',
     description: '',
+    descriptionFormat: 'html',
     offeringType: 'service',
     billingType: 'monthly',
     amount: '0',
@@ -194,8 +175,226 @@ function createPaymentPriceItem(
   }
 }
 
+type PaymentDescriptionEditorProps = {
+  format: ContentFormat
+  value: string
+  onChange: (value: string) => void
+}
+
+const descriptionEditorActions = [
+  { id: 'bold', label: 'B', title: 'Bold', command: 'bold' },
+  { id: 'italic', label: 'I', title: 'Italic', command: 'italic' },
+  {
+    id: 'unordered-list',
+    label: '• List',
+    title: 'Bulleted list',
+    command: 'insertUnorderedList',
+  },
+  {
+    id: 'ordered-list',
+    label: '1. List',
+    title: 'Numbered list',
+    command: 'insertOrderedList',
+  },
+] as const
+
+function PaymentDescriptionEditor({
+  format,
+  value,
+  onChange,
+}: PaymentDescriptionEditorProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
+  const htmlEditingRef = useRef(false)
+
+  useEffect(() => {
+    if (format !== 'html' || htmlEditingRef.current || !editorRef.current) return
+
+    if (editorRef.current.innerHTML !== value) {
+      editorRef.current.innerHTML = value
+    }
+  }, [format, value])
+
+  function insertMarkdown(before: string, after = before, placeholder = 'text') {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selected = value.slice(start, end) || placeholder
+    const nextValue = `${value.slice(0, start)}${before}${selected}${after}${value.slice(end)}`
+    onChange(nextValue)
+
+    requestAnimationFrame(() => {
+      textarea.focus()
+      const nextStart = start + before.length
+      textarea.setSelectionRange(nextStart, nextStart + selected.length)
+    })
+  }
+
+  function insertMarkdownList(ordered: boolean) {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selected = value.slice(start, end) || 'List item'
+    const marker = ordered ? '1. ' : '- '
+    const nextValue = selected
+      .split('\n')
+      .map((line) => `${marker}${line}`)
+      .join('\n')
+    onChange(`${value.slice(0, start)}${nextValue}${value.slice(end)}`)
+
+    requestAnimationFrame(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start, start + nextValue.length)
+    })
+  }
+
+  function insertMarkdownLink() {
+    const url = window.prompt('Link URL', 'https://')
+    if (!url) return
+    insertMarkdown('[', `](${url})`, 'link text')
+  }
+
+  function runHtmlCommand(command: string) {
+    editorRef.current?.focus()
+    document.execCommand(command)
+  }
+
+  function runHtmlLinkCommand() {
+    const url = window.prompt('Link URL', 'https://')
+    if (!url) return
+    editorRef.current?.focus()
+    document.execCommand('createLink', false, url)
+  }
+
+  return (
+    <div className="admin-rich-text-editor">
+      <div
+        className="admin-rich-text-toolbar"
+        role="toolbar"
+        aria-label="Description formatting"
+      >
+        {descriptionEditorActions.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            title={action.title}
+            aria-label={action.title}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() =>
+              format === 'html'
+                ? runHtmlCommand(action.command)
+                : action.id === 'unordered-list'
+                  ? insertMarkdownList(false)
+                  : action.id === 'ordered-list'
+                    ? insertMarkdownList(true)
+                    : insertMarkdown(action.command === 'bold' ? '**' : '*')
+            }
+          >
+            {action.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          title="Add link"
+          aria-label="Add link"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() =>
+            format === 'html' ? runHtmlLinkCommand() : insertMarkdownLink()
+          }
+        >
+          Link
+        </button>
+        <small>{format === 'html' ? 'Rich HTML' : 'Markdown shortcuts'}</small>
+      </div>
+      {format === 'html' ? (
+        <div
+          ref={editorRef}
+          className="admin-rich-text-content"
+          contentEditable
+          role="textbox"
+          aria-label="Description"
+          aria-multiline="true"
+          suppressContentEditableWarning
+          onFocus={() => {
+            htmlEditingRef.current = true
+          }}
+          onBlur={() => {
+            htmlEditingRef.current = false
+            onChange(editorRef.current?.innerHTML ?? '')
+          }}
+        />
+      ) : (
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Use Markdown or the formatting buttons to build the description."
+        />
+      )}
+    </div>
+  )
+}
+
 function isEnvironmentReference(value: string) {
   return /^[A-Z][A-Z0-9_]*$/u.test(value.trim())
+}
+
+type AIChatMessage = {
+  role: 'user' | 'assistant' | 'error'
+  content: string
+}
+
+function getDefaultAIModelURL(providerId: string, modelId: string) {
+  if (providerId === 'anthropic') return 'https://api.anthropic.com/v1/messages'
+  if (providerId === 'google') {
+    return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent`
+  }
+  if (providerId === 'custom') return '/api/ai'
+  return 'https://api.openai.com/v1/chat/completions'
+}
+
+function getAIModelEndpoint(model: AIModelConfig) {
+  return model.url.trim() || getDefaultAIModelURL(model.providerId, model.id)
+}
+
+function formatAIConnectionTime(value: string) {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : `Last tested ${date.toLocaleString()}`
+}
+
+function formatAIChatResponse(value: string) {
+  if (!value.trim()) return '(The model returned an empty response.)'
+
+  try {
+    const parsed = JSON.parse(value) as unknown
+    const extractText = (candidate: unknown): string | null => {
+      if (typeof candidate === 'string' && candidate.trim()) return candidate
+      if (Array.isArray(candidate)) {
+        for (const item of candidate) {
+          const extracted = extractText(item)
+          if (extracted) return extracted
+        }
+        return null
+      }
+      if (!candidate || typeof candidate !== 'object') return null
+
+      const record = candidate as Record<string, unknown>
+      for (const key of ['output_text', 'text', 'content', 'message', 'output', 'choices', 'candidates', 'parts']) {
+        const extracted = extractText(record[key])
+        if (extracted) return extracted
+      }
+      return null
+    }
+
+    return extractText(parsed) ?? JSON.stringify(parsed, null, 2)
+  } catch {
+    return value
+  }
 }
 
 export function AdminPage() {
@@ -203,9 +402,11 @@ export function AdminPage() {
   const [draft, setDraft] = useState<PlatformConfig>(config)
   const [saved, setSaved] = useState(false)
   const [paymentNotice, setPaymentNotice] = useState('')
-  const [aiTestStatus, setAiTestStatus] = useState<
-    'idle' | 'testing' | 'connected'
-  >('idle')
+  const [testingAIModels, setTestingAIModels] = useState<Record<string, boolean>>({})
+  const [aiChatModel, setAIChatModel] = useState<AIModelConfig | null>(null)
+  const [aiChatMessages, setAIChatMessages] = useState<AIChatMessage[]>([])
+  const [aiChatInput, setAIChatInput] = useState('')
+  const [aiChatSending, setAIChatSending] = useState(false)
   const [sourceQuery, setSourceQuery] = useState('')
   const [sourceModuleFilter, setSourceModuleFilter] = useState<
     'all' | DataSourceModule
@@ -214,7 +415,6 @@ export function AdminPage() {
   const [syncingSourceId, setSyncingSourceId] = useState('')
   const [deleteSourceId, setDeleteSourceId] = useState('')
   const [sourceNotice, setSourceNotice] = useState('')
-  const generationModeLabel = draft.ai.mockModeEnabled ? 'Mock mode' : 'Live backend'
   const commercialLicenseUnlocked = hasCommercialLicenseAccess()
   const platformName = getPlatformDisplayName(draft)
   const platformInitial = getPlatformInitial(draft)
@@ -343,16 +543,100 @@ export function AdminPage() {
     setSaved(false)
   }
 
-  function updateAIField<Key extends keyof AIConfig>(
+  function updateAIModel<Key extends keyof AIModelConfig>(
+    modelId: string,
     field: Key,
-    value: AIConfig[Key],
+    value: AIModelConfig[Key],
   ) {
     setDraft((current) => ({
       ...current,
-      ai: { ...current.ai, [field]: value },
+      ai: {
+        ...current.ai,
+        defaultModel:
+          field === 'id' && current.ai.defaultModel === modelId
+            ? String(value)
+            : current.ai.defaultModel,
+        models: current.ai.models.map((model) =>
+          model.id === modelId
+            ? {
+                ...model,
+                [field]: value,
+                ...(field === 'id' && model.name === model.id
+                  ? { name: String(value) }
+                  : {}),
+                connectionStatus: 'untested',
+                connectionError: '',
+                lastTestedAt: '',
+              }
+            : model,
+        ),
+      },
     }))
     setSaved(false)
-    setAiTestStatus('idle')
+    setTestingAIModels({})
+  }
+
+  function addAIModel() {
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const model: AIModelConfig = {
+      id: `model-${suffix}`,
+      name: 'New model',
+      providerId: draft.ai.provider || draft.ai.providers[0]?.id || 'custom',
+      context: 'Context window',
+      description: 'Configurable generation model',
+      apiKey: '',
+      url: getDefaultAIModelURL(
+        draft.ai.provider || draft.ai.providers[0]?.id || 'custom',
+        `model-${suffix}`,
+      ),
+      contentType: 'application/json',
+      authorization: 'Bearer {{apiKey}}',
+      bodyType: 'JSON',
+      bodyParameters: '{}',
+      connectionStatus: 'untested',
+      connectionError: '',
+      lastTestedAt: '',
+      enabled: true,
+    }
+    setDraft((current) => ({
+      ...current,
+      ai: { ...current.ai, models: [...current.ai.models, model] },
+    }))
+    setSaved(false)
+    setTestingAIModels({})
+  }
+
+  function removeAIModel(modelId: string) {
+    if (draft.ai.models.length <= 1) return
+
+    const nextModels = draft.ai.models.filter((model) => model.id !== modelId)
+    const nextDefault =
+      draft.ai.defaultModel === modelId
+        ? nextModels.find((model) => model.enabled)?.id ?? nextModels[0]?.id ?? ''
+        : draft.ai.defaultModel
+    setDraft((current) => ({
+      ...current,
+      ai: { ...current.ai, defaultModel: nextDefault, models: nextModels },
+    }))
+    setSaved(false)
+    setTestingAIModels({})
+  }
+
+  function setDefaultAIModel(modelId: string) {
+    const model = draft.ai.models.find((candidate) => candidate.id === modelId)
+    if (!model) return
+
+    setDraft((current) => ({
+      ...current,
+      ai: {
+        ...current.ai,
+        defaultModel: modelId,
+        models: current.ai.models.map((candidate) =>
+          candidate.id === modelId ? { ...candidate, enabled: true } : candidate,
+        ),
+      },
+    }))
+    setSaved(false)
   }
 
   function updateAdvisoryHubField<Key extends keyof AdvisoryHubConfig>(
@@ -737,16 +1021,19 @@ export function AdminPage() {
     setSaved(false)
   }
 
-  function toggleModel(modelId: string) {
-    const isEnabled = draft.ai.enabledModels.includes(modelId)
-    const nextModels = isEnabled
-      ? draft.ai.enabledModels.filter((id) => id !== modelId)
-      : [...draft.ai.enabledModels, modelId]
+  function toggleAIModel(modelId: string) {
+    const model = draft.ai.models.find((candidate) => candidate.id === modelId)
+    if (!model) return
 
-    updateAIField('enabledModels', nextModels)
-    if (isEnabled && draft.ai.defaultModel === modelId) {
-      updateAIField('defaultModel', nextModels[0] ?? '')
+    if (model.enabled && draft.ai.defaultModel === modelId) {
+      const replacement = draft.ai.models.find(
+        (candidate) => candidate.id !== modelId && candidate.enabled,
+      )
+      if (!replacement) return
+      setDefaultAIModel(replacement.id)
     }
+
+    updateAIModel(modelId, 'enabled', !model.enabled)
   }
 
   function updateDataSource(
@@ -855,10 +1142,128 @@ export function AdminPage() {
     }
   }
 
-  async function testAIConnection() {
-    setAiTestStatus('testing')
-    await new Promise((resolve) => window.setTimeout(resolve, 750))
-    setAiTestStatus('connected')
+  function openAIModelChat(model: AIModelConfig) {
+    setAIChatModel(model)
+    setAIChatInput('')
+    setAIChatMessages([
+      {
+        role: 'assistant',
+        content: `Connection chat ready for ${model.name || model.id}. Send a message to make a real request.`,
+      },
+    ])
+  }
+
+  function persistAIModelConnectionResult(
+    modelId: string,
+    status: AIModelConfig['connectionStatus'],
+    connectionError: string,
+  ) {
+    const lastTestedAt = new Date().toISOString()
+    const nextDraft = {
+      ...draft,
+      ai: {
+        ...draft.ai,
+        models: draft.ai.models.map((candidate) =>
+          candidate.id === modelId
+            ? {
+                ...candidate,
+                connectionStatus: status,
+                connectionError,
+                lastTestedAt,
+              }
+            : candidate,
+        ),
+      },
+    }
+    setDraft(nextDraft)
+    updateConfig(nextDraft)
+    setSaved(true)
+    setAIChatModel((current) =>
+      current?.id === modelId
+        ? { ...current, connectionStatus: status, connectionError, lastTestedAt }
+        : current,
+    )
+  }
+
+  async function sendAIChatMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const model = aiChatModel
+    const message = aiChatInput.trim()
+    if (!model || !message || aiChatSending) return
+
+    setAIChatMessages((current) => [...current, { role: 'user', content: message }])
+    setAIChatInput('')
+    setAIChatSending(true)
+    setTestingAIModels((current) => ({ ...current, [model.id]: true }))
+    let nextStatus: AIModelConfig['connectionStatus'] = 'connected'
+    let connectionError = ''
+
+    try {
+      const pythonBackendBaseUrl =
+        (import.meta.env.VITE_BUSINESS_PLAN_API_URL as string | undefined)?.replace(/\/$/u, '') ||
+        'http://localhost:8010'
+      const controller = new AbortController()
+      const timeout = window.setTimeout(() => controller.abort(), 15000)
+
+      try {
+        const response = await fetch(`${pythonBackendBaseUrl}/api/ai/test-connection`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model_name: model.id,
+            provider_id: model.providerId,
+            api_key: model.apiKey,
+            url: getAIModelEndpoint(model),
+            message,
+          }),
+          signal: controller.signal,
+        })
+        const responseText = await response.text()
+
+        if (!response.ok) {
+          let detail = responseText.replace(/\s+/gu, ' ').trim().slice(0, 180)
+          try {
+            const errorBody = JSON.parse(responseText) as { detail?: string }
+            detail = errorBody.detail || detail
+          } catch {
+            // Keep the raw response when the backend does not return JSON.
+          }
+          throw new Error(
+            `HTTP ${response.status}${detail ? `: ${detail}` : ''}`,
+          )
+        }
+
+        const result = JSON.parse(responseText) as { response?: string }
+        setAIChatMessages((current) => [
+          ...current,
+          { role: 'assistant', content: formatAIChatResponse(result.response || responseText) },
+        ])
+      } finally {
+        window.clearTimeout(timeout)
+      }
+    } catch (error) {
+      nextStatus = 'failed'
+      connectionError =
+        error instanceof DOMException && error.name === 'AbortError'
+          ? 'Request timed out after 15 seconds.'
+          : error instanceof TypeError && error.message === 'Failed to fetch'
+            ? 'Python backend is unavailable at http://localhost:8010. Start it with npm run dev:python.'
+          : error instanceof Error
+            ? error.message
+            : 'Connection request failed.'
+      setAIChatMessages((current) => [
+        ...current,
+        { role: 'error', content: connectionError },
+      ])
+    }
+
+    persistAIModelConnectionResult(model.id, nextStatus, connectionError)
+    setTestingAIModels((current) => {
+      const next = { ...current }
+      delete next[model.id]
+      return next
+    })
+    setAIChatSending(false)
   }
 
   function validatePaymentGatewayConfig() {
@@ -2138,17 +2543,29 @@ export function AdminPage() {
                         </label>
                         <label className="admin-field-wide">
                           <span>Description</span>
-                          <textarea
+                          <PaymentDescriptionEditor
+                            format={item.descriptionFormat}
                             value={item.description}
+                            onChange={(value) =>
+                              updatePaymentCatalogItem(item.id, 'description', value)
+                            }
+                          />
+                        </label>
+                        <label>
+                          <span>Description format</span>
+                          <select
+                            value={item.descriptionFormat}
                             onChange={(event) =>
                               updatePaymentCatalogItem(
                                 item.id,
-                                'description',
-                                event.target.value,
+                                'descriptionFormat',
+                                event.target.value as PaymentCatalogItem['descriptionFormat'],
                               )
                             }
-                            placeholder="Optional internal note or checkout description."
-                          />
+                          >
+                            <option value="markdown">Markdown</option>
+                            <option value="html">HTML</option>
+                          </select>
                         </label>
                         <div className="admin-field-wide admin-payment-provider-group">
                           <span>Linked gateway product</span>
@@ -2633,153 +3050,123 @@ export function AdminPage() {
               <p className="admin-section-number">12</p>
               <h2>AI model management</h2>
               <p>
-                Choose providers and models used by document generation workflows.
+                Configure the model endpoint and request payload used by document generation workflows.
               </p>
             </div>
             <div className="admin-management-content">
-              <div className="admin-management-status admin-ai-status">
-                <span className={aiTestStatus === 'connected' ? 'is-online' : ''}>
-                  <i />
-                  {draft.ai.mockModeEnabled
-                    ? 'Mock mode enabled'
-                    : aiTestStatus === 'testing'
-                      ? 'Testing connection'
-                      : aiTestStatus === 'connected'
-                        ? 'Connection healthy'
-                        : 'Connection not tested'}
-                </span>
-                <button
-                  type="button"
-                  disabled={aiTestStatus === 'testing'}
-                  onClick={testAIConnection}
-                >
-                  {aiTestStatus === 'testing' ? 'Testing…' : 'Test connection'}
-                </button>
-              </div>
-
-              <div className="admin-secret-note">
-                <strong>Current generation mode: {generationModeLabel}</strong>
-                <p>
-                  {draft.ai.mockModeEnabled
-                    ? 'Quick Generate will return deterministic demo output until you switch back to the live backend.'
-                    : 'Quick Generate will send generation requests to the Python backend and use the configured model stack.'}
-                </p>
-              </div>
-
-              <div className="admin-fields">
-                <label>
-                  <span>Primary provider</span>
-                  <select
-                    value={draft.ai.provider}
-                    onChange={(event) =>
-                      updateAIField(
-                        'provider',
-                        event.target.value as AIConfig['provider'],
-                      )
-                    }
-                  >
-                    <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="google">Google</option>
-                    <option value="custom">OpenAI-compatible</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Default generation model</span>
-                  <select
-                    value={draft.ai.defaultModel}
-                    onChange={(event) =>
-                      updateAIField('defaultModel', event.target.value)
-                    }
-                  >
-                    {draft.ai.enabledModels.map((model) => (
-                      <option key={model}>{model}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Generation mode</span>
-                  <select
-                    value={draft.ai.mockModeEnabled ? 'mock' : 'live'}
-                    onChange={(event) =>
-                      updateAIField('mockModeEnabled', event.target.value === 'mock')
-                    }
-                  >
-                    <option value="live">Live backend</option>
-                    <option value="mock">Mock mode</option>
-                  </select>
-                  <small>
-                    Mock mode returns deterministic demo output for Quick Generate
-                    and skips live model usage inside the Python backend.
-                  </small>
-                </label>
-                <label className="admin-field-wide">
-                  <span>Server API endpoint</span>
-                  <input
-                    value={draft.ai.apiBaseUrl}
-                    onChange={(event) =>
-                      updateAIField('apiBaseUrl', event.target.value)
-                    }
-                  />
-                </label>
-                <label>
-                  <span>Server secret reference</span>
-                  <input
-                    value={draft.ai.apiKeyReference}
-                    onChange={(event) =>
-                      updateAIField('apiKeyReference', event.target.value)
-                    }
-                  />
-                  <small>Environment-variable name only. Never store the secret in the browser.</small>
-                </label>
-                <label>
-                  <span>Temperature</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={draft.ai.temperature}
-                    onChange={(event) =>
-                      updateAIField('temperature', event.target.value)
-                    }
-                  />
-                </label>
-              </div>
-
               <div className="admin-model-catalog">
-                <div>
-                  <strong>Available models</strong>
-                  <span>{draft.ai.enabledModels.length} enabled</span>
+                <div className="admin-ai-models-header">
+                  <div>
+                    <strong>Available models</strong>
+                    <span>{draft.ai.models.filter((model) => model.enabled).length} enabled</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="admin-button-secondary"
+                    onClick={addAIModel}
+                  >
+                    Add model
+                  </button>
                 </div>
-                {modelCatalog.map((model) => {
-                  const enabled = draft.ai.enabledModels.includes(model.id)
-                  return (
-                    <label key={model.id}>
-                      <span className="admin-model-provider">{model.provider.charAt(0)}</span>
-                      <span>
-                        <strong>{model.id}</strong>
-                        <small>{model.provider} · {model.context} context · {model.use}</small>
-                      </span>
-                      {draft.ai.defaultModel === model.id ? <b>Default</b> : null}
-                      <input
-                        type="checkbox"
-                        checked={enabled}
-                        onChange={() => toggleModel(model.id)}
-                      />
-                    </label>
-                  )
-                })}
+                {draft.ai.models.map((model) => (
+                  <article className="admin-ai-model-editor" key={model.id}>
+                    <div className="admin-ai-model-editor-header">
+                      <div>
+                        <span className="admin-model-provider">
+                          {model.name.trim().charAt(0).toUpperCase() || 'M'}
+                        </span>
+                        <span>
+                          <strong>{model.name.trim() || 'Untitled model'}</strong>
+                          <small>{model.providerId} · {model.context} context</small>
+                        </span>
+                      </div>
+                      <div className="admin-ai-model-actions">
+                        <label className="admin-ai-model-enabled">
+                          <input
+                            type="checkbox"
+                            checked={model.enabled}
+                            onChange={() => toggleAIModel(model.id)}
+                          />
+                          <span>Enabled</span>
+                        </label>
+                        <button
+                          type="button"
+                          className={draft.ai.defaultModel === model.id ? 'is-model-default' : ''}
+                          onClick={() => setDefaultAIModel(model.id)}
+                        >
+                          {draft.ai.defaultModel === model.id ? 'Default model' : 'Set default'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="admin-ai-model-connection-status">
+                      <div className="admin-ai-model-connection-copy">
+                        <span
+                          className={
+                            testingAIModels[model.id]
+                              ? ''
+                              : model.connectionStatus === 'connected'
+                                ? 'is-online'
+                                : model.connectionStatus === 'failed'
+                                  ? 'is-failed'
+                                  : ''
+                          }
+                        >
+                          <i />
+                          {testingAIModels[model.id]
+                            ? 'Testing connection'
+                            : model.connectionStatus === 'connected'
+                              ? 'Connection healthy'
+                              : model.connectionStatus === 'failed'
+                                ? 'Connection failed'
+                                : 'Connection not tested'}
+                        </span>
+                        {testingAIModels[model.id] ? null : model.connectionStatus === 'failed' && model.connectionError ? (
+                          <small title={model.connectionError}>{model.connectionError}</small>
+                        ) : model.lastTestedAt ? (
+                          <small>{formatAIConnectionTime(model.lastTestedAt)}</small>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={testingAIModels[model.id]}
+                        onClick={() => openAIModelChat(model)}
+                      >
+                        {testingAIModels[model.id]
+                          ? 'Testing…'
+                          : 'Test connection'}
+                      </button>
+                    </div>
+                    <div className="admin-ai-model-fields">
+                      <label>
+                        <span>Model name</span>
+                        <input
+                          value={model.id}
+                          onChange={(event) => updateAIModel(model.id, 'id', event.target.value)}
+                          placeholder="gpt-5-mini"
+                        />
+                      </label>
+                      <label>
+                        <span>API key</span>
+                        <input
+                          type="password"
+                          value={model.apiKey}
+                          onChange={(event) => updateAIModel(model.id, 'apiKey', event.target.value)}
+                          placeholder="Paste provider API key"
+                        />
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      className="admin-button-secondary admin-ai-model-remove"
+                      onClick={() => removeAIModel(model.id)}
+                      disabled={draft.ai.models.length <= 1}
+                    >
+                      Remove model
+                    </button>
+                  </article>
+                ))}
               </div>
 
-              <div className="admin-secret-note">
-                <strong>Server-side credentials required</strong>
-                <p>
-                  {draft.ai.mockModeEnabled
-                    ? 'Mock mode is currently active, so live provider credentials are not required for local demos.'
-                    : 'The open-source frontend stores only configuration references. Connect `/api/ai` to a secured backend before enabling production generation.'}
-                </p>
-              </div>
             </div>
           </section>
 
@@ -3190,6 +3577,100 @@ export function AdminPage() {
                   Save data source
                 </button>
               </footer>
+            </section>
+          </div>
+        ) : null}
+
+        {aiChatModel ? (
+          <div
+            className="admin-ai-chat-backdrop"
+            role="presentation"
+            onMouseDown={() => {
+              if (!aiChatSending) setAIChatModel(null)
+            }}
+          >
+            <section
+              className="admin-ai-chat-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="ai-chat-title"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <header className="admin-ai-chat-header">
+                <div>
+                  <p>Model connection test</p>
+                  <h2 id="ai-chat-title">{aiChatModel.name || aiChatModel.id}</h2>
+                  <small>Provider endpoint configured internally</small>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close model chat"
+                  onClick={() => setAIChatModel(null)}
+                  disabled={aiChatSending}
+                >
+                  ×
+                </button>
+              </header>
+
+              <div className="admin-ai-chat-meta">
+                <span
+                  className={
+                    aiChatSending
+                      ? 'is-testing'
+                      : aiChatModel.connectionStatus === 'connected'
+                        ? 'is-online'
+                        : aiChatModel.connectionStatus === 'failed'
+                          ? 'is-failed'
+                          : ''
+                  }
+                >
+                  <i />
+                  {aiChatSending
+                    ? 'Request in progress'
+                    : aiChatModel.connectionStatus === 'connected'
+                      ? 'Connection healthy'
+                      : aiChatModel.connectionStatus === 'failed'
+                        ? 'Connection failed'
+                        : 'Not tested yet'}
+                </span>
+                <span>Live request</span>
+              </div>
+
+              <div className="admin-ai-chat-messages" aria-live="polite">
+                {aiChatMessages.map((message, index) => (
+                  <div className={`admin-ai-chat-message is-${message.role}`} key={`${message.role}-${index}`}>
+                    <span>{message.role === 'user' ? 'You' : message.role === 'error' ? 'Error' : 'Model'}</span>
+                    <p>{message.content}</p>
+                  </div>
+                ))}
+                {aiChatSending ? (
+                  <div className="admin-ai-chat-message is-assistant is-pending">
+                    <span>Model</span>
+                    <p>Waiting for response…</p>
+                  </div>
+                ) : null}
+              </div>
+
+              <form className="admin-ai-chat-form" onSubmit={sendAIChatMessage}>
+                <textarea
+                  autoFocus
+                  value={aiChatInput}
+                  onChange={(event) => setAIChatInput(event.target.value)}
+                  placeholder="Send a message to test this model..."
+                  disabled={aiChatSending}
+                  rows={3}
+                />
+                <div>
+                  <small>Messages are sent through the Python backend.</small>
+                  <button
+                    type="submit"
+                    className="admin-button-primary"
+                    disabled={aiChatSending || !aiChatInput.trim()}
+                  >
+                    {aiChatSending ? 'Sending…' : 'Send message'}
+                  </button>
+                </div>
+              </form>
             </section>
           </div>
         ) : null}

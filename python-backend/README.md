@@ -82,6 +82,8 @@ OPENBCON_OPENAI_API_KEY=your-key
 OPENBCON_USE_MOCK_LLM=false
 OPENBCON_API_HOST=0.0.0.0
 OPENBCON_API_PORT=8010
+OPENBCON_ALLOWED_AI_ENDPOINT_HOSTS=api.openai.com,api.anthropic.com,generativelanguage.googleapis.com
+OPENBCON_ALLOW_PRIVATE_AI_ENDPOINTS=false
 ```
 
 If you want to test without a model key, set:
@@ -99,6 +101,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8010
 ```
+
+The admin model connection chat uses `POST /api/ai/test-connection`. The
+browser sends the test message to this Python service, and this service sends
+the real provider request server-side.
+
+For custom OpenAI-compatible providers, add the provider hostname to
+`OPENBCON_ALLOWED_AI_ENDPOINT_HOSTS`. Private or local endpoints remain blocked
+unless `OPENBCON_ALLOW_PRIVATE_AI_ENDPOINTS=true` is explicitly enabled for
+local development.
 
 ## How the LangGraph flow works
 

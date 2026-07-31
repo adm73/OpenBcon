@@ -15,8 +15,8 @@ export function LoginPage() {
   const { config } = usePlatformConfig()
   const navigate = useNavigate()
   const location = useLocation()
-  const [email, setEmail] = useState('admin@bconomics.ai')
-  const [password, setPassword] = useState('REDACTED')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [notice, setNotice] = useState('')
   const nextPath = getNextPath(location.search)
   const platformName = getPlatformDisplayName(config)
@@ -92,15 +92,6 @@ export function LoginPage() {
         </p>
       ) : null}
 
-      <div className="auth-demo-note">
-        <strong>Demo admin account</strong>
-        <p>
-          Email: <code>admin@bconomics.ai</code>
-        </p>
-        <p>
-          Password: <code>REDACTED</code>
-        </p>
-      </div>
     </AuthShell>
   )
 }

@@ -28,17 +28,7 @@ const passwordResetStorageKey = 'bconomics-password-resets-v1'
 const defaultResetLifetimeMs = 30 * 60 * 1000
 export const authUserUpdatedEvent = 'bconomics-auth-user-updated'
 
-const seededUsers: AuthUser[] = [
-  {
-    id: 'user-admin-1',
-    fullName: 'Alex Morgan',
-    email: 'admin@bconomics.ai',
-    password: 'REDACTED',
-    companyName: 'Bconomics',
-    role: 'Workspace Admin',
-    createdAt: '2026-07-01T09:00:00.000Z',
-  },
-]
+const seededUsers: AuthUser[] = []
 
 function canUseStorage() {
   return typeof window !== 'undefined'

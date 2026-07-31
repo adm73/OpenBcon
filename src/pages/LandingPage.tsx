@@ -4,6 +4,7 @@ import { hasActiveSession } from '../auth/session'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import { dashboardMetrics, landingHighlights } from '../data/demo'
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
+import { renderFormattedContent } from '../lib/legalContent'
 import {
   OPEN_BCON_REPO_URL,
   shouldShowOpenBconAttribution,
@@ -221,7 +222,15 @@ export function LandingPage() {
                   }
                 >
                   <h3>{item.name}</h3>
-                  <p>{item.description || `${platformName} ${item.offeringType} offering.`}</p>
+                  <div
+                    className="landing-v2-pricing-description"
+                    dangerouslySetInnerHTML={{
+                      __html: renderFormattedContent(
+                        item.description || `${platformName} ${item.offeringType} offering.`,
+                        item.descriptionFormat,
+                      ),
+                    }}
+                  />
                   <strong>{formatLandingPrice(item.amount, item.currency)}</strong>
                   <small>
                     {item.billingType === 'one-time'

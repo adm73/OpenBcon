@@ -32,10 +32,13 @@ export type PaymentConfig = {
   priceCatalog: PaymentCatalogItem[]
 }
 
+export type ContentFormat = 'markdown' | 'html'
+
 export type PaymentCatalogItem = {
   id: string
   name: string
   description: string
+  descriptionFormat: ContentFormat
   offeringType: 'product' | 'service'
   billingType: 'one-time' | 'monthly' | 'annual'
   amount: string
@@ -48,13 +51,37 @@ export type PaymentCatalogItem = {
 }
 
 export type AIConfig = {
-  provider: 'openai' | 'anthropic' | 'google' | 'custom'
+  provider: string
   defaultModel: string
+  providers: AIProviderConfig[]
+  models: AIModelConfig[]
   apiBaseUrl: string
   apiKeyReference: string
   temperature: string
-  enabledModels: string[]
   mockModeEnabled: boolean
+}
+
+export type AIProviderConfig = {
+  id: string
+  name: string
+}
+
+export type AIModelConfig = {
+  id: string
+  name: string
+  providerId: string
+  context: string
+  description: string
+  apiKey: string
+  url: string
+  contentType: string
+  authorization: string
+  bodyType: string
+  bodyParameters: string
+  connectionStatus: 'untested' | 'connected' | 'failed'
+  connectionError: string
+  lastTestedAt: string
+  enabled: boolean
 }
 
 export type AdvisoryHubSectionId =
@@ -92,7 +119,7 @@ export type AdvisoryHubConfig = {
   sections: AdvisoryHubSectionConfig[]
 }
 
-export type LegalDocumentFormat = 'markdown' | 'html'
+export type LegalDocumentFormat = ContentFormat
 
 export type LegalDocumentConfig = {
   format: LegalDocumentFormat
@@ -199,6 +226,16 @@ function sanitizeSecretLikeValue(value: string) {
 export function sanitizePlatformConfigForPersistence(config: PlatformConfig) {
   return {
     ...config,
+    ai: {
+      ...config.ai,
+      models: config.ai.models.map((model) => ({
+        ...model,
+        apiKey: '',
+        authorization: model.authorization.includes('{{apiKey}}')
+          ? model.authorization
+          : '',
+      })),
+    },
     payments: {
       ...config.payments,
       testSecretKeyReference: sanitizeSecretLikeValue(
@@ -294,6 +331,7 @@ function createDefaultFreePaymentCatalogItem(): PaymentCatalogItem {
     id: 'free-offer',
     name: 'Free',
     description: 'Default free workspace option.',
+    descriptionFormat: 'html',
     offeringType: 'service',
     billingType: 'monthly',
     amount: '0',
@@ -309,7 +347,13 @@ function createDefaultFreePaymentCatalogItem(): PaymentCatalogItem {
 function ensureDefaultPriceCatalog(
   items: PaymentCatalogItem[],
 ): PaymentCatalogItem[] {
-  const normalizedItems = items.map((item) => ({ ...item, isDefault: !!item.isDefault }))
+  const normalizedItems = items.map((item) => ({
+    ...item,
+    descriptionFormat: (item.descriptionFormat === 'markdown'
+      ? 'markdown'
+      : 'html') as ContentFormat,
+    isDefault: !!item.isDefault,
+  }))
   const freeIndex = normalizedItems.findIndex(
     (item) => item.id === 'free-offer' || item.name.trim().toLowerCase() === 'free',
   )
@@ -332,6 +376,7 @@ const defaultPaymentCatalog: PaymentCatalogItem[] = ensureDefaultPriceCatalog([
     id: 'partner-pro-monthly',
     name: 'Partner Pro Monthly',
     description: 'Recurring monthly workspace subscription for active partners.',
+    descriptionFormat: 'html',
     offeringType: 'service',
     billingType: 'monthly',
     amount: '79',
@@ -346,6 +391,7 @@ const defaultPaymentCatalog: PaymentCatalogItem[] = ensureDefaultPriceCatalog([
     id: 'partner-pro-annual',
     name: 'Partner Pro Annual',
     description: 'Annual subscription plan with lower effective monthly pricing.',
+    descriptionFormat: 'html',
     offeringType: 'service',
     billingType: 'annual',
     amount: '790',
@@ -360,6 +406,7 @@ const defaultPaymentCatalog: PaymentCatalogItem[] = ensureDefaultPriceCatalog([
     id: 'onboarding-setup',
     name: 'Onboarding Setup',
     description: 'One-time implementation and onboarding support package.',
+    descriptionFormat: 'html',
     offeringType: 'service',
     billingType: 'one-time',
     amount: '2500',
@@ -465,6 +512,84 @@ const defaultAdvisoryHubAgents: AdvisoryHubAgentConfig[] = [
     role: 'Quality and compliance reviewer',
     prompt:
       'Run a final review to strengthen clarity, evidence, measurable milestones, and approval confidence.',
+  },
+]
+
+const defaultAIProviders: AIProviderConfig[] = [
+  { id: 'openai', name: 'OpenAI' },
+  { id: 'anthropic', name: 'Anthropic' },
+  { id: 'google', name: 'Google' },
+  { id: 'custom', name: 'OpenAI-compatible' },
+]
+
+const defaultAIModels: AIModelConfig[] = [
+  {
+    id: 'gpt-5-mini',
+    name: 'gpt-5-mini',
+    providerId: 'openai',
+    context: '400K',
+    description: 'Fast document drafting',
+    apiKey: '',
+    url: 'https://api.openai.com/v1/chat/completions',
+    contentType: 'application/json',
+    authorization: 'Bearer {{apiKey}}',
+    bodyType: 'JSON',
+    bodyParameters: '{}',
+    connectionStatus: 'untested',
+    connectionError: '',
+    lastTestedAt: '',
+    enabled: true,
+  },
+  {
+    id: 'gpt-5.2',
+    name: 'gpt-5.2',
+    providerId: 'openai',
+    context: '400K',
+    description: 'Complex financial reasoning',
+    apiKey: '',
+    url: 'https://api.openai.com/v1/chat/completions',
+    contentType: 'application/json',
+    authorization: 'Bearer {{apiKey}}',
+    bodyType: 'JSON',
+    bodyParameters: '{}',
+    connectionStatus: 'untested',
+    connectionError: '',
+    lastTestedAt: '',
+    enabled: true,
+  },
+  {
+    id: 'claude-sonnet-4-5',
+    name: 'claude-sonnet-4-5',
+    providerId: 'anthropic',
+    context: '200K',
+    description: 'Long-form narrative',
+    apiKey: '',
+    url: 'https://api.anthropic.com/v1/messages',
+    contentType: 'application/json',
+    authorization: 'x-api-key {{apiKey}}',
+    bodyType: 'JSON',
+    bodyParameters: '{}',
+    connectionStatus: 'untested',
+    connectionError: '',
+    lastTestedAt: '',
+    enabled: true,
+  },
+  {
+    id: 'gemini-3-flash',
+    name: 'gemini-3-flash',
+    providerId: 'google',
+    context: '1M',
+    description: 'Large source packages',
+    apiKey: '',
+    url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent',
+    contentType: 'application/json',
+    authorization: 'Bearer {{apiKey}}',
+    bodyType: 'JSON',
+    bodyParameters: '{}',
+    connectionStatus: 'untested',
+    connectionError: '',
+    lastTestedAt: '',
+    enabled: false,
   },
 ]
 
@@ -669,10 +794,11 @@ export const defaultPlatformConfig: PlatformConfig = {
   ai: {
     provider: 'openai',
     defaultModel: 'gpt-5-mini',
+    providers: defaultAIProviders,
+    models: defaultAIModels,
     apiBaseUrl: '/api/ai',
     apiKeyReference: 'OPENAI_API_KEY',
     temperature: '0.3',
-    enabledModels: ['gpt-5-mini', 'gpt-5.2', 'claude-sonnet-4-5'],
     mockModeEnabled: true,
   },
   advisoryHub: {
@@ -722,6 +848,10 @@ type LegacyPaymentConfig = Partial<PaymentConfig> & {
   secretKeyReference?: string
 }
 
+type LegacyAIConfig = Partial<AIConfig> & {
+  enabledModels?: string[]
+}
+
 type LegacyAdvisoryHubConfig = Partial<AdvisoryHubConfig> & {
   agents?: Partial<AdvisoryHubAgentConfig>[]
   documentTypes?: Partial<AdvisoryHubDocumentTypeConfig>[]
@@ -729,6 +859,91 @@ type LegacyAdvisoryHubConfig = Partial<AdvisoryHubConfig> & {
     agent?: string
     documentLabel?: string
   })[]
+}
+
+function normalizeAIProviders(
+  providers: Partial<AIProviderConfig>[] | undefined,
+): AIProviderConfig[] {
+  if (!providers || providers.length === 0) {
+    return defaultAIProviders.map((provider) => ({ ...provider }))
+  }
+
+  const normalized = providers
+    .map((provider, index) => ({
+      id:
+        provider.id?.trim() ||
+        defaultAIProviders[index]?.id ||
+        `ai-provider-${index + 1}`,
+      name:
+        provider.name?.trim() ||
+        defaultAIProviders[index]?.name ||
+        'AI provider',
+    }))
+    .filter(
+      (provider, index, all) =>
+        all.findIndex((item) => item.id === provider.id) === index,
+    )
+
+  return normalized.length > 0
+    ? normalized
+    : defaultAIProviders.map((provider) => ({ ...provider }))
+}
+
+function normalizeAIModels(
+  models: Partial<AIModelConfig>[] | undefined,
+  providers: AIProviderConfig[],
+  legacyEnabledModels: string[] | undefined,
+): AIModelConfig[] {
+  const sourceModels = models?.length ? models : defaultAIModels
+  const providerIds = new Set(providers.map((provider) => provider.id))
+
+  const normalized = sourceModels
+    .map((model, index) => {
+      const fallback =
+        defaultAIModels.find((defaultModel) => defaultModel.id === model.id) ??
+        defaultAIModels[index]
+      const id =
+        model.id?.trim() || fallback?.id || `ai-model-${index + 1}`
+      const providerId = providerIds.has(model.providerId ?? '')
+        ? model.providerId!
+        : fallback?.providerId && providerIds.has(fallback.providerId)
+          ? fallback.providerId
+          : providers[0]?.id ?? 'custom'
+      const legacyAuthorization = model.authorization?.trim() ?? ''
+      const legacyApiKey =
+        legacyAuthorization.match(/^(?:Bearer|x-api-key)\s+(.+)$/iu)?.[1] ?? ''
+
+      return {
+        id,
+        name: model.name?.trim() || fallback?.name || id,
+        providerId,
+        context: model.context?.trim() || fallback?.context || 'Context window',
+        description:
+          model.description?.trim() || fallback?.description || 'General-purpose generation model',
+        apiKey: model.apiKey?.trim() || legacyApiKey || fallback?.apiKey || '',
+        url: model.url?.trim() || fallback?.url || '',
+        contentType: model.contentType?.trim() || fallback?.contentType || 'application/json',
+        authorization: model.authorization?.trim() || fallback?.authorization || '',
+        bodyType: model.bodyType?.trim() || fallback?.bodyType || 'JSON',
+        bodyParameters: model.bodyParameters ?? fallback?.bodyParameters ?? '{}',
+        connectionStatus:
+          model.connectionStatus === 'connected' || model.connectionStatus === 'failed'
+            ? model.connectionStatus
+            : fallback?.connectionStatus ?? 'untested',
+        connectionError: model.connectionError?.trim() || '',
+        lastTestedAt: model.lastTestedAt?.trim() || '',
+        enabled:
+          model.enabled ??
+          legacyEnabledModels?.includes(id) ??
+          fallback?.enabled ??
+          true,
+      } satisfies AIModelConfig
+    })
+    .filter((model, index, all) => all.findIndex((item) => item.id === model.id) === index)
+
+  return normalized.length > 0
+    ? normalized
+    : defaultAIModels.map((model) => ({ ...model }))
 }
 
 export function loadPlatformConfig(): PlatformConfig {
@@ -753,7 +968,26 @@ export function loadPlatformConfig(): PlatformConfig {
     const parsedLandingContent: Partial<LandingContentConfig> =
       parsedLandingPage.content ?? {}
     const parsedPayments = (parsedConfig.payments ?? {}) as LegacyPaymentConfig
+    const parsedAI = (parsedConfig.ai ?? {}) as LegacyAIConfig
     const parsedAdvisoryHub = (parsedConfig.advisoryHub ?? {}) as LegacyAdvisoryHubConfig
+    const parsedAIProviders = normalizeAIProviders(parsedAI.providers)
+    const parsedAIModels = normalizeAIModels(
+      parsedAI.models,
+      parsedAIProviders,
+      parsedAI.enabledModels,
+    )
+    const resolvedPrimaryProvider = parsedAIProviders.some(
+      (provider) => provider.id === parsedAI.provider,
+    )
+      ? parsedAI.provider!
+      : parsedAIProviders[0]?.id ?? 'custom'
+    const resolvedDefaultModel = parsedAIModels.some(
+      (model) => model.id === parsedAI.defaultModel && model.enabled,
+    )
+      ? parsedAI.defaultModel!
+      : parsedAIModels.find((model) => model.enabled)?.id ??
+        parsedAIModels[0]?.id ??
+        ''
     const parsedAdvisoryHubAgents = normalizeAdvisoryHubAgents(parsedAdvisoryHub.agents)
     const parsedAdvisoryHubDocumentTypes = normalizeAdvisoryHubDocumentTypes(
       parsedAdvisoryHub.documentTypes,
@@ -927,6 +1161,8 @@ export function loadPlatformConfig(): PlatformConfig {
                 id: item.id?.trim() || `price-item-${index + 1}`,
                 name: item.name?.trim() || `Offering ${index + 1}`,
                 description: item.description?.trim() || '',
+                descriptionFormat:
+                  item.descriptionFormat === 'markdown' ? 'markdown' : 'html',
                 offeringType:
                   item.offeringType === 'product' ? 'product' : 'service',
                 billingType:
@@ -950,7 +1186,11 @@ export function loadPlatformConfig(): PlatformConfig {
       },
       ai: {
         ...defaultPlatformConfig.ai,
-        ...parsedConfig.ai,
+        ...parsedAI,
+        provider: resolvedPrimaryProvider,
+        defaultModel: resolvedDefaultModel,
+        providers: parsedAIProviders,
+        models: parsedAIModels,
       },
       advisoryHub: {
         ...defaultPlatformConfig.advisoryHub,

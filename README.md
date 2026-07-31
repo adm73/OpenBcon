@@ -193,6 +193,9 @@ Open [http://localhost:5173](http://localhost:5173).
 
 Copy `.env.example` to `.env` before changing database credentials or ports.
 `npm run dev` starts both the API on port `8787` and Vite on port `5173`.
+For the Python AI backend used by the model connection chat, create the
+Python environment described in `python-backend/README.md`, then run
+`npm run dev:python` in a second terminal. It listens on port `8010`.
 
 ### Stripe setup
 

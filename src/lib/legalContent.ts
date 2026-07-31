@@ -1,17 +1,19 @@
 import DOMPurify from 'dompurify'
 import { marked } from 'marked'
-import type { LegalDocumentConfig } from '../config/platform'
+import type { ContentFormat, LegalDocumentConfig } from '../config/platform'
 
 marked.setOptions({
   breaks: true,
   gfm: true,
 })
 
-export function renderLegalContent(document: LegalDocumentConfig) {
+export function renderFormattedContent(content: string, format: ContentFormat) {
   const html =
-    document.format === 'html'
-      ? document.content
-      : String(marked.parse(document.content))
+    format === 'html' ? content : String(marked.parse(content))
 
   return DOMPurify.sanitize(html)
+}
+
+export function renderLegalContent(document: LegalDocumentConfig) {
+  return renderFormattedContent(document.content, document.format)
 }

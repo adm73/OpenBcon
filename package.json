@@ -8,6 +8,7 @@
     "dev": "concurrently -k -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:web": "vite",
     "dev:api": "tsx watch server/index.ts",
+    "dev:python": "if [ -x python-backend/.venv/bin/uvicorn ]; then python-backend/.venv/bin/uvicorn app.main:app --reload --reload-dir python-backend/app --host 0.0.0.0 --port 8010 --app-dir python-backend; else python3 -m uvicorn app.main:app --reload --reload-dir python-backend/app --host 0.0.0.0 --port 8010 --app-dir python-backend; fi",
     "build": "npm run typecheck:server && tsc -b && vite build",
     "typecheck:server": "tsc -p tsconfig.server.json",
     "lint": "node scripts/run-oxlint.mjs",

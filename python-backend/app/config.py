@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-5"
     use_mock_llm: bool = False
+    allowed_ai_endpoint_hosts: str = (
+        "api.openai.com,api.anthropic.com,generativelanguage.googleapis.com"
+    )
+    allow_private_ai_endpoints: bool = False
 
 
 @lru_cache(maxsize=1)

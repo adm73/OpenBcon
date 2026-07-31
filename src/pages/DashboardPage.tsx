@@ -60,6 +60,7 @@ import {
   createStripeCheckoutSession,
   lookupStripeCheckoutSession,
 } from '../lib/stripeBillingApi'
+import { renderFormattedContent } from '../lib/legalContent'
 import {
   buildGeneratedApplicationId,
   createStrategicReviewReport,
@@ -5454,7 +5455,16 @@ function SettingsPage() {
                     </b>
                   </div>
                   <strong>{currentPlanItem?.name ?? currentPlanLabel}</strong>
-                  <p>{currentPlanItem?.description || 'Configured in the admin pricing catalogue.'}</p>
+                  <div
+                    className="settings-pricing-description"
+                    dangerouslySetInnerHTML={{
+                      __html: renderFormattedContent(
+                        currentPlanItem?.description ||
+                          'Configured in the admin pricing catalogue.',
+                        currentPlanItem?.descriptionFormat ?? 'markdown',
+                      ),
+                    }}
+                  />
                   <div className="settings-pricing-price">
                     <div className="settings-pricing-amount-line">
                       <span>
@@ -5506,7 +5516,16 @@ function SettingsPage() {
                         <b>{item.billingType === 'one-time' ? 'One-time' : item.billingType}</b>
                       </div>
                       <strong>{item.name}</strong>
-                      <p>{item.description || 'Configured in the admin pricing catalogue.'}</p>
+                      <div
+                        className="settings-pricing-description"
+                        dangerouslySetInnerHTML={{
+                          __html: renderFormattedContent(
+                            item.description ||
+                              'Configured in the admin pricing catalogue.',
+                            item.descriptionFormat,
+                          ),
+                        }}
+                      />
                       <div className="settings-pricing-price">
                         <div className="settings-pricing-amount-line">
                           <span>{formatSettingsBillingAmount(item.amount, item.currency)}</span>
