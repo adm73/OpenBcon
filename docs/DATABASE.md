@@ -1,10 +1,11 @@
-# PostgreSQL Architecture
+# Database Architecture
 
 ## Purpose
 
 The database layer persists every editable state currently exposed by the React
 application while preserving the existing frontend behavior. PostgreSQL is the
-cross-session source of truth; `localStorage` remains a cache and offline fallback.
+source of truth for relational domain records, MongoDB stores dynamic JSON
+configuration, and `localStorage` remains a cache and offline fallback.
 
 ## Schema
 
@@ -22,20 +23,39 @@ Stores the tenant boundary. A workspace has a type of `founder`, `partner`, or
 
 Maps users to workspaces with `owner`, `admin`, `member`, or `viewer` roles.
 
-### `app_state`
+### MongoDB `dynamic_state`
 
-Stores the currently implemented frontend modules as scoped JSONB records:
+Stores editable dynamic configuration as scoped documents:
 
 ```text
 scope       platform | workspace | user
-owner_id    platform sentinel, workspace ID, or user ID
+ownerId     platform sentinel, workspace ID, or user ID
 key         allowlisted Bconomics state key
-value       JSONB document
-version     incremented on each update
-updated_by  user responsible for the mutation
+value       JSON document
+updatedAt   last mutation time
 ```
 
-The composite primary key is `(scope, owner_id, key)`.
+The unique MongoDB index is `(scope, ownerId, key)`.
+
+### `applications`
+
+Stores the canonical application records linked to `companies`,
+`funding_programs`, and `app_users`. Quick Build, Saved Programs, My
+Applications, and Strategic Review Reports use the numeric `applications.id`.
+The `app_id` column is a unique 16-character SHA-256-derived identifier for
+external API calls; it is intentionally separate from the numeric primary key.
+
+The `strategic_review_reports` JSONB column stores the single application-facing
+Strategic Report snapshot used by the workspace UI; the old `generated_package`
+column has been removed.
+
+The `strategic_reports` table stores one LangGraph generation run per application.
+Its unique `application_id` relationship ensures that regenerating an application
+updates its existing Strategic Report instead of creating a second one. It records
+the application and owner, model, request and context snapshots, per-node
+`graph_trace`, final `result`, status, and errors. It replaces the legacy
+`funding_packages`, `funding_package_runs`, `funding_package_sections`, and
+`funding_package_artifacts` tables.
 
 ### `audit_logs`
 
@@ -44,11 +64,12 @@ scope. Audit entries are append-only through the application API.
 
 ## State ownership
 
-Platform state includes branding, feature flags, payment/AI configuration, data
-sources, and synchronized catalog records.
+Platform state includes branding, landing-page content, feature flags, payment/AI
+configuration, data sources, and synchronized catalog records in MongoDB.
 
-Workspace state includes companies, applications, saved programs, Quick Generate
-drafts, selected records, and generated document packages.
+Workspace state includes saved-program preferences and Quick Build drafts in
+MongoDB. Companies, applications, and report records are relational PostgreSQL
+tables.
 
 User state includes profile settings, notification preferences, pinned resources,
 saved tools, workspace list, and active workspace selection.
@@ -66,7 +87,8 @@ PUT    /api/state/:key
 DELETE /api/state/:key?scope=workspace
 ```
 
-`/api/bootstrap` loads platform, active workspace, and user state in one request.
+`/api/bootstrap` loads MongoDB dynamic state and relational application records in
+one request.
 The frontend uploads supported local-only records on its first successful
 connection.
 
@@ -83,11 +105,19 @@ npm run db:setup
 npm run dev
 ```
 
+`db:setup` copies legacy PostgreSQL `app_state` rows to MongoDB before applying
+the migration that removes that table. Running `npm run db:migrate-state-to-mongo`
+manually is only needed when upgrading an existing deployment outside the setup
+script.
+
 Inspect the database:
 
 ```bash
 docker exec -it bconomics-postgres \
   psql -U bconomics -d bconomics
+
+docker exec -it bconomics-mongodb \
+  mongosh bconomics
 ```
 
 Stop the local database:
@@ -96,7 +126,7 @@ Stop the local database:
 npm run db:down
 ```
 
-The named Docker volume preserves data between restarts. Use
+The named PostgreSQL and MongoDB volumes preserve data between restarts. Use
 `docker compose down --volumes` only when intentionally deleting local data.
 
 ## Migrations

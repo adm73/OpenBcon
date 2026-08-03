@@ -27,7 +27,7 @@ const platformStateKeys = new Set([
 const userStateKeys = new Set([
   'bconomics-user-settings-v1',
   'bconomics-billing-transactions-v1',
-  'bconomics-quick-generate-preferences-v1',
+  'bconomics-quick-build-preferences-v1',
   'bconomics-pinned-social-resources-v1',
   'bconomics-saved-tools-v1',
   'bconomics-workspaces-v2',
@@ -40,7 +40,7 @@ const workspaceStateKeys = new Set([
   'bconomics-saved-programs-v1',
   'bconomics-selected-funding-program-v1',
   'bconomics-selected-template-v1',
-  'bconomics-quick-generate-draft-v1',
+  'bconomics-quick-build-draft-v1',
 ])
 
 const persistentStateKeys = new Set([
@@ -50,7 +50,6 @@ const persistentStateKeys = new Set([
 ])
 
 const localOnlyStateKeys = new Set([
-  'bconomics-platform-config-v1',
   'bconomics-user-settings-v1',
   'bconomics-billing-transactions-v1',
 ])

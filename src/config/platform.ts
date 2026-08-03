@@ -5,7 +5,7 @@ import {
 
 export type PlatformModuleId =
   | 'funding-readiness'
-  | 'quick-generate'
+  | 'quick-build'
   | 'my-company'
   | 'saved-programs'
   | 'my-applications'
@@ -809,7 +809,7 @@ export const defaultPlatformConfig: PlatformConfig = {
   dataSources: defaultFundingDataSources,
   modules: {
     'funding-readiness': true,
-    'quick-generate': true,
+    'quick-build': true,
     'my-company': true,
     'saved-programs': true,
     'my-applications': true,

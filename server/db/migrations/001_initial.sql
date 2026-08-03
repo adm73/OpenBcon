@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE IF NOT EXISTS app_users (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   email text NOT NULL UNIQUE,
   display_name text NOT NULL,
   role text NOT NULL DEFAULT 'member',
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
   slug text NOT NULL UNIQUE,
   kind text NOT NULL DEFAULT 'founder',
   status text NOT NULL DEFAULT 'active',
-  created_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
+  created_by bigint REFERENCES app_users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK (kind IN ('founder', 'partner', 'client')),
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS workspaces (
 
 CREATE TABLE IF NOT EXISTS workspace_members (
   workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  user_id uuid NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+  user_id bigint NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
   role text NOT NULL DEFAULT 'member',
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (workspace_id, user_id),
@@ -36,11 +36,11 @@ CREATE TABLE IF NOT EXISTS workspace_members (
 
 CREATE TABLE IF NOT EXISTS app_state (
   scope text NOT NULL,
-  owner_id uuid NOT NULL,
+  owner_id text NOT NULL,
   key text NOT NULL,
   value jsonb NOT NULL,
   version integer NOT NULL DEFAULT 1,
-  updated_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
+  updated_by bigint REFERENCES app_users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (scope, owner_id, key),
@@ -55,7 +55,7 @@ CREATE INDEX IF NOT EXISTS app_state_owner_updated_idx
 CREATE TABLE IF NOT EXISTS audit_logs (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   workspace_id uuid REFERENCES workspaces(id) ON DELETE SET NULL,
-  actor_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL,
+  actor_user_id bigint REFERENCES app_users(id) ON DELETE SET NULL,
   action text NOT NULL,
   entity_type text NOT NULL,
   entity_key text,

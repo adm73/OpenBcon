@@ -43,6 +43,43 @@ export type GeneratedDocument = {
     value: string
   }>
   milestones: string[]
+  financialForecast?: FinancialForecast
+}
+
+export type FinancialForecastMonth = {
+  key: string
+  label: string
+  year: number
+  month: number
+}
+
+export type FinancialForecastRow = {
+  category: 'revenue' | 'expense'
+  name: string
+  values: number[]
+  total: number
+}
+
+export type FinancialForecastYearSummary = {
+  year: number
+  label: string
+  total_revenue: number
+  total_expenses: number
+  net_cash_flow: number
+}
+
+export type FinancialForecast = {
+  years: number
+  currency: string
+  start_month: string
+  months: FinancialForecastMonth[]
+  rows: FinancialForecastRow[]
+  monthly_revenue_totals: number[]
+  monthly_expense_totals: number[]
+  monthly_net_cash_flow: number[]
+  ending_cash_balance: number[]
+  annual_summaries: FinancialForecastYearSummary[]
+  assumptions: string[]
 }
 
 export type GeneratedPackageSection = {
@@ -55,6 +92,7 @@ export type GeneratedPackageSection = {
 
 export type GeneratedPackage = {
   title: string
+  strategicReportId?: string
   programName: string
   businessName: string
   fundingRequest: string
@@ -64,6 +102,7 @@ export type GeneratedPackage = {
   thoughts: string[]
   documents: GeneratedDocument[]
   sections: GeneratedPackageSection[]
+  financialForecast?: FinancialForecast
 }
 
 export type StrategicReviewReport = {

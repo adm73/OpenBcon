@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from .llm import ModelGateway
-from .models import FinalDocument
+from .forecast import build_financial_forecast
+from .models import DocumentOutline, FinalDocument, OutlineItem
 from .state import PlanGraphState
 
 
@@ -47,12 +48,44 @@ class PlanNodes:
 
     def build_outline(self, state: PlanGraphState) -> PlanGraphState:
         context = state["context"]
-        outline = self.gateway.build_outline(
-            context,
-            state["program_analysis"],
-            state["company_analysis"],
+        if not context.advisory_sections:
+            raise ValueError("No enabled Advisory Hub sections are configured.")
+
+        agents_by_id = {agent.id: agent for agent in context.advisory_agents}
+        missing_agent_ids = sorted(
+            {
+                section.agent_id
+                for section in context.advisory_sections
+                if section.agent_id not in agents_by_id
+            }
         )
-        return {"outline": outline}
+        if missing_agent_ids:
+            raise ValueError(
+                "Missing Advisory Hub agent configuration: "
+                + ", ".join(missing_agent_ids)
+                + "."
+            )
+
+        return {
+            "outline": DocumentOutline(
+                sections=[
+                    OutlineItem(
+                        section_key=section.id,
+                        title=section.title,
+                        objective=section.prompt,
+                        agent_id=section.agent_id,
+                        guidance=(
+                            "Follow the section configuration from the Admin Console. "
+                            f"Document type: {section.document_type_id}. "
+                            f"Assigned agent: {agents_by_id[section.agent_id].name}. "
+                            f"Agent role: {agents_by_id[section.agent_id].role}. "
+                            f"Agent instructions: {agents_by_id[section.agent_id].prompt}"
+                        ),
+                    )
+                    for section in context.advisory_sections
+                ],
+            )
+        }
 
     def generate_sections(self, state: PlanGraphState) -> PlanGraphState:
         context = state["context"]
@@ -60,24 +93,42 @@ class PlanNodes:
         company_analysis = state["company_analysis"]
         outline = state["outline"]
 
-        sections = [
-            self.gateway.generate_section(
+        sections = []
+        for outline_item in outline.sections:
+            generated = self.gateway.generate_section(
                 context,
                 program_analysis,
                 company_analysis,
                 outline_item,
             )
-            for outline_item in outline.sections
-        ]
+            # The model writes content, but the Admin Console owns identity and order.
+            sections.append(
+                generated.model_copy(
+                    update={
+                        "section_key": outline_item.section_key,
+                        "title": outline_item.title,
+                    }
+                )
+            )
         return {"sections": sections}
+
+    def build_financial_forecast(self, state: PlanGraphState) -> PlanGraphState:
+        return {
+            "financial_forecast": build_financial_forecast(state["context"]),
+        }
 
     def compile_output(self, state: PlanGraphState) -> PlanGraphState:
         context = state["context"]
         sections = state["sections"]
         company_analysis = state["company_analysis"]
+        financial_forecast = state["financial_forecast"]
 
         executive_summary = next(
-            (section.content for section in sections if section.section_key == "executive_summary"),
+            (
+                section.content
+                for section in sections
+                if section.section_key in {"executive_summary", "executive-summary"}
+            ),
             sections[0].content if sections else company_analysis.fundability_summary,
         )
 
@@ -95,5 +146,6 @@ class PlanNodes:
                 "Validate claims against source documents and financial inputs.",
                 "Export the final plan into submission-ready formats.",
             ],
+            financial_forecast=financial_forecast,
         )
         return {"final_document": final_document}

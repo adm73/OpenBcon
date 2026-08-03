@@ -17,5 +17,17 @@ services:
       timeout: 3s
       retries: 20
 
+  mongodb:
+    image: mongo:8
+    container_name: bconomics-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: bconomics
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    volumes:
+      - bconomics-mongodb-data:/data/db
+
 volumes:
   bconomics-postgres-data:
+  bconomics-mongodb-data:

@@ -11,6 +11,11 @@ import { z } from 'zod'
 import { environment } from './config'
 import { databasePool } from './db/pool'
 import {
+  createDocumentStore,
+  createInMemoryDocumentStore,
+  type DocumentStore,
+} from './documentStore'
+import {
   applyStateMutation,
   applyStateBatch,
   readBootstrapState,
@@ -52,6 +57,10 @@ const singleStateSchema = z.object({
   scope: scopeSchema,
   value: z.unknown(),
 })
+const loginSchema = z.object({
+  email: z.string().trim().email(),
+  password: z.string().min(1),
+})
 function getRequestContext(): RequestContext {
   return {
     userId: environment.DEMO_USER_ID,
@@ -67,7 +76,13 @@ function sendValidationError(response: Response, error: z.ZodError) {
   })
 }
 
-export function createApp(database: Pool = databasePool) {
+export function createApp(
+  database: Pool = databasePool,
+  documentStore: DocumentStore =
+    environment.NODE_ENV === 'test'
+      ? createInMemoryDocumentStore()
+      : createDocumentStore(),
+) {
   const app = express()
   const allowedOrigins = environment.CORS_ORIGIN.split(',').map((origin) =>
     origin.trim(),
@@ -152,10 +167,61 @@ export function createApp(database: Pool = databasePool) {
     }
   })
 
+  app.post('/api/auth/login', async (request, response, next) => {
+    const parsed = loginSchema.safeParse(request.body)
+    if (!parsed.success) {
+      sendValidationError(response, parsed.error)
+      return
+    }
+
+    try {
+      const result = await database.query<{
+        id: string
+        email: string
+        display_name: string
+        role: string
+        created_at: Date
+      }>(
+        `
+          SELECT id, email, display_name, role, created_at
+          FROM app_users
+          WHERE lower(email) = lower($1)
+            AND status = 'active'
+            AND password_hash IS NOT NULL
+            AND crypt($2, password_hash) = password_hash
+          LIMIT 1
+        `,
+        [parsed.data.email, parsed.data.password],
+      )
+
+      const user = result.rows[0]
+      if (!user) {
+        response.status(401).json({
+          error: 'invalid_credentials',
+          message: 'The email or password is incorrect.',
+        })
+        return
+      }
+
+      response.json({
+        user: {
+          id: user.id,
+          fullName: user.display_name,
+          email: user.email,
+          companyName: '',
+          role: user.role,
+          createdAt: user.created_at.toISOString(),
+        },
+      })
+    } catch (error) {
+      next(error)
+    }
+  })
+
   app.get('/api/bootstrap', async (_request, response, next) => {
     try {
       const context = getRequestContext()
-      const state = await readBootstrapState(database, context)
+      const state = await readBootstrapState(database, documentStore, context)
       response.json({
         ...state,
         context,
@@ -174,7 +240,7 @@ export function createApp(database: Pool = databasePool) {
 
     try {
       const context = getRequestContext()
-      await applyStateBatch(database, context, parsed.data.mutations)
+      await applyStateBatch(database, documentStore, context, parsed.data.mutations)
       response.status(202).json({
         saved: parsed.data.mutations.length,
       })
@@ -246,7 +312,7 @@ export function createApp(database: Pool = databasePool) {
     }
 
     try {
-      await applyStateMutation(database, getRequestContext(), {
+      await applyStateMutation(database, documentStore, getRequestContext(), {
         operation: 'upsert',
         key: keyResult.data,
         scope: bodyResult.data.scope,
@@ -271,7 +337,7 @@ export function createApp(database: Pool = databasePool) {
     }
 
     try {
-      await applyStateMutation(database, getRequestContext(), {
+      await applyStateMutation(database, documentStore, getRequestContext(), {
         operation: 'delete',
         key: keyResult.data,
         scope: scopeResult.data,

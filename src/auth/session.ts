@@ -16,6 +16,10 @@ type AuthSession = {
   signedInAt: string
 }
 
+type DatabaseLoginResponse = {
+  user: Omit<AuthUser, 'password'>
+}
+
 type PasswordResetRecord = {
   email: string
   expiresAt: number
@@ -27,6 +31,7 @@ const authUserStorageKey = 'bconomics-auth-user'
 const passwordResetStorageKey = 'bconomics-password-resets-v1'
 const defaultResetLifetimeMs = 30 * 60 * 1000
 export const authUserUpdatedEvent = 'bconomics-auth-user-updated'
+const authApiBaseUrl = import.meta.env.VITE_API_URL ?? '/api'
 
 const seededUsers: AuthUser[] = []
 
@@ -191,7 +196,7 @@ export function registerUser(input: {
   return nextUser
 }
 
-export function loginUser(input: { email: string; password: string }) {
+function loginUserLocally(input: { email: string; password: string }) {
   const email = normalizeEmail(input.email)
   const user = loadAuthUsers().find((item) => normalizeEmail(item.email) === email)
 
@@ -201,6 +206,41 @@ export function loginUser(input: { email: string; password: string }) {
 
   persistSession(user)
   return user
+}
+
+export async function loginUser(input: { email: string; password: string }) {
+  try {
+    const response = await fetch(`${authApiBaseUrl}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    })
+
+    if (response.ok) {
+      const payload = (await response.json()) as DatabaseLoginResponse
+      const user: AuthUser = {
+        ...payload.user,
+        password: '',
+      }
+      const users = loadAuthUsers().filter((item) => item.id !== user.id)
+      saveAuthUsers([...users, user])
+      persistSession(user)
+      return user
+    }
+
+    if (response.status !== 404) {
+      throw new Error('The email or password is incorrect.')
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message === 'The email or password is incorrect.') {
+      throw error
+    }
+    // Keep local-only demo accounts usable when the API is not running.
+  }
+
+  return loginUserLocally(input)
 }
 
 export function clearAuthSession() {

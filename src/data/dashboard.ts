@@ -86,17 +86,17 @@ export const dashboardGroups: DashboardGroup[] = [
         entries: makeEntries('Funding Readiness', 'readiness score'),
       },
       {
-        id: 'quick-generate',
-        label: 'Quick Generate',
+        id: 'quick-build',
+        label: 'Quick Build',
         icon: 'bolt',
         badgeIcon: 'spark',
         description: 'Review generated plans, forecasts, and memo runs from the quick generation workflow.',
         intro:
           'This listing page gathers all generated output entries so users can reopen or rerun them.',
-        entries: makeEntries('Quick Generate', 'generated document'),
+        entries: makeEntries('Quick Build', 'generated document'),
       },
       {
-        id: 'ai-workspace',
+        id: 'advisory-hub',
         label: 'Advisory Hub',
         icon: 'grid',
         badgeIcon: 'spark',
@@ -314,7 +314,7 @@ export const footerItems: DashboardItem[] = [
 
 export const quickActionRoutes = [
   { label: 'Grants & Loans', path: '/grants-loans', icon: 'search' as const, tone: 'primary' as const },
-  { label: 'Quick Generate', path: '/quick-generate', icon: 'spark' as const, tone: 'secondary' as const },
+  { label: 'Quick Build', path: '/quick-build', icon: 'spark' as const, tone: 'secondary' as const },
   { label: 'Templates', path: '/templates', icon: 'file' as const, tone: 'ghost' as const },
   { label: 'Social Resources', path: '/social-resources', icon: 'user' as const, tone: 'ghost' as const },
   { label: 'Tools', path: '/tools', icon: 'grid' as const, tone: 'ghost' as const },

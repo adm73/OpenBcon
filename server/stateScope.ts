@@ -1,14 +1,13 @@
 export type StateScope = 'platform' | 'workspace' | 'user'
 
 const remotePlatformStateKeys = new Set([
+  'bconomics-platform-config-v1',
   'bconomics-synced-funding-programs-v1',
   'bconomics-synced-resource-records-v1',
 ])
 
-const localOnlyPlatformStateKeys = new Set(['bconomics-platform-config-v1'])
-
 const remoteUserStateKeys = new Set([
-  'bconomics-quick-generate-preferences-v1',
+  'bconomics-quick-build-preferences-v1',
   'bconomics-pinned-social-resources-v1',
   'bconomics-saved-tools-v1',
   'bconomics-workspaces-v2',
@@ -26,7 +25,7 @@ const workspaceStateKeys = new Set([
   'bconomics-saved-programs-v1',
   'bconomics-selected-funding-program-v1',
   'bconomics-selected-template-v1',
-  'bconomics-quick-generate-draft-v1',
+  'bconomics-quick-build-draft-v1',
 ])
 
 export const persistentStateKeys = [
@@ -44,7 +43,7 @@ export function isPersistentStateKey(key: string) {
 }
 
 export function getStateScope(key: string): StateScope {
-  if (remotePlatformStateKeys.has(key) || localOnlyPlatformStateKeys.has(key)) {
+  if (remotePlatformStateKeys.has(key)) {
     return 'platform'
   }
   if (remoteUserStateKeys.has(key) || localOnlyUserStateKeys.has(key)) {

@@ -106,7 +106,24 @@ describe('applications', () => {
     expect(secondPass[0]?.id).toMatch(/^\d+$/u)
   })
 
-  it('keeps multiple strategic review reports linked to one application', () => {
+  it('ignores incomplete strategic review placeholders', () => {
+    const applications = [
+      {
+        ...initialApplications[0],
+        strategicReviewReports: [
+          {
+            id: 'strategic-review-placeholder',
+            applicationId: initialApplications[0].id,
+            generatedPackage: null,
+          },
+        ],
+      },
+    ] as unknown as typeof initialApplications
+
+    expect(getStrategicReviewReports(applications)).toEqual([])
+  })
+
+  it('keeps one Strategic Report linked to one application', () => {
     const firstReport = {
       id: 'strategic-review-1',
       applicationId: '100000000001',
@@ -130,7 +147,6 @@ describe('applications', () => {
       owner: 'Riley Hart',
       readinessScore: 88,
       documentCount: 1,
-      generatedPackage: testGeneratedPackage,
       strategicReviewReport: firstReport,
     })
     const secondPass = upsertGeneratedApplication(firstPass, {
@@ -143,29 +159,13 @@ describe('applications', () => {
       owner: 'Riley Hart',
       readinessScore: 91,
       documentCount: 1,
-      generatedPackage: secondReport.generatedPackage,
       strategicReviewReport: secondReport,
     })
 
-    expect(getStrategicReviewReports(secondPass)).toHaveLength(2)
+    expect(getStrategicReviewReports(secondPass)).toHaveLength(1)
     expect(getStrategicReviewReports(secondPass).map((report) => report.id)).toEqual([
       'strategic-review-2',
-      'strategic-review-1',
     ])
-  })
-
-  it('migrates a legacy generated package into a strategic review report', () => {
-    const legacyApplication = {
-      ...initialApplications[0],
-      generatedPackage: testGeneratedPackage,
-    }
-
-    const reports = getStrategicReviewReports([legacyApplication])
-
-    expect(reports[0]).toMatchObject({
-      id: 'legacy-100000000001',
-      applicationId: '100000000001',
-    })
   })
 
   it('materializes a saved program into an application with step-one fields', () => {

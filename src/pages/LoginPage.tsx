@@ -25,11 +25,11 @@ export function LoginPage() {
     document.title = `Log in | ${platformName}`
   }, [platformName])
 
-  function submitLogin(event: FormEvent<HTMLFormElement>) {
+  async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     try {
-      loginUser({ email, password })
+      await loginUser({ email, password })
       navigate(nextPath, { replace: true })
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to sign in.')

@@ -118,6 +118,18 @@ def build_section_prompt(
 ) -> list[dict[str, str]]:
     company = context.company
     program = context.program
+    agent = next(
+        (
+            configured_agent
+            for configured_agent in context.advisory_agents
+            if configured_agent.id == outline_item.agent_id
+        ),
+        None,
+    )
+    if agent is None:
+        raise ValueError(
+            f"Missing Advisory Hub agent configuration for section {outline_item.section_key}."
+        )
     return [
         {
             "role": "system",
@@ -137,6 +149,10 @@ Section key: {outline_item.section_key}
 Section title: {outline_item.title}
 Section objective: {outline_item.objective}
 Section guidance: {outline_item.guidance}
+Assigned agent name: {agent.name}
+Assigned agent role: {agent.role}
+Assigned agent prompt:
+{agent.prompt}
 
 Business summary:
 {company.business_summary}

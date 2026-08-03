@@ -17,6 +17,11 @@ const environmentSchema = z.object({
     .min(1)
     .default('postgresql://bconomics:bconomics@localhost:5432/bconomics'),
   DATABASE_SSL: booleanFromEnvironment(false),
+  MONGODB_URL: z
+    .string()
+    .min(1)
+    .default('mongodb://localhost:27017'),
+  MONGODB_DATABASE: z.string().min(1).default('bconomics'),
   API_PORT: z.coerce.number().int().positive().default(8787),
   API_HOST: z.string().default('0.0.0.0'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
@@ -26,8 +31,9 @@ const environmentSchema = z.object({
   SEED_DEMO_DATA: booleanFromEnvironment(true),
   DEMO_USER_ID: z
     .string()
-    .uuid()
-    .default('00000000-0000-4000-8000-000000000001'),
+    .regex(/^\d+$/u)
+    .default('1'),
+  DEMO_USER_PASSWORD: z.string().min(8).optional(),
   DEMO_WORKSPACE_ID: z
     .string()
     .uuid()
@@ -36,4 +42,4 @@ const environmentSchema = z.object({
 
 export const environment = environmentSchema.parse(process.env)
 
-export const platformOwnerId = '00000000-0000-4000-8000-000000000000'
+export const platformOwnerId = 'platform'

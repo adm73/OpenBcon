@@ -3,68 +3,18 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
-
-
-class DirectCompanyInfo(BaseModel):
-    name: str
-    founder_name: str
-    business_summary: str
-    legal_name: str | None = None
-    industry: str | None = None
-    location: str | None = None
-    stage: str | None = None
-    revenue_model: str | None = None
-    team_background: str | None = None
-    traction: str | None = None
-    use_of_funds: str | None = None
-    annual_revenue: Decimal | None = None
-    monthly_revenue: Decimal | None = None
-    employee_count: int | None = None
-    website: str | None = None
-    external_id: str | None = None
-    metadata: dict = Field(default_factory=dict)
-
-
-class DirectFundingProgramInfo(BaseModel):
-    name: str
-    provider: str | None = None
-    category: str | None = None
-    program_url: str | None = None
-    funding_amount: Decimal | None = None
-    location: str | None = None
-    raw_guidelines_text: str | None = None
-    target_outcome: str | None = None
-    external_id: str | None = None
-    metadata: dict = Field(default_factory=dict)
+from pydantic import BaseModel, Field, SecretStr
 
 
 class GeneratePlanRequest(BaseModel):
-    workspace_id: UUID
-    company_id: UUID | None = None
-    funding_program_id: UUID | None = None
-    requested_by_user_id: UUID
-    package_name: str | None = None
-    target_language: str = "en"
-    section_limit: int = Field(default=7, ge=4, le=12)
-    force_mock: bool = False
-    company_info: DirectCompanyInfo | None = None
-    program_info: DirectFundingProgramInfo | None = None
-
-    @model_validator(mode="after")
-    def validate_input_mode(self):
-        has_direct_payload = self.company_info is not None and self.program_info is not None
-        has_database_ids = self.company_id is not None and self.funding_program_id is not None
-        if not has_direct_payload and not has_database_ids:
-            raise ValueError(
-                "Provide either company_id + funding_program_id or company_info + program_info.",
-            )
-        return self
+    app_id: str = Field(min_length=1, max_length=160)
 
 
 class CompanyRecord(BaseModel):
-    id: UUID
+    id: int | None = None
     workspace_id: UUID
+    created_by: int
+    owner_user_id: int
     name: str
     legal_name: str | None = None
     founder_name: str
@@ -91,20 +41,45 @@ class FundingProgramRecord(BaseModel):
     category: str | None = None
     program_url: str | None = None
     funding_amount: Decimal | None = None
+    currency: str = "CAD"
     location: str | None = None
     raw_guidelines_text: str | None = None
     target_outcome: str | None = None
     metadata: dict = Field(default_factory=dict)
 
 
+class AdvisoryHubSectionConfig(BaseModel):
+    id: str
+    title: str
+    document_type_id: str
+    prompt: str
+    agent_id: str
+    enabled: bool
+
+
+class AdvisoryHubAgentConfig(BaseModel):
+    id: str
+    name: str
+    role: str
+    prompt: str
+
+
+class AdvisoryHubConfiguration(BaseModel):
+    sections: list[AdvisoryHubSectionConfig]
+    agents: list[AdvisoryHubAgentConfig]
+
+
 class GenerationContext(BaseModel):
+    application_id: int
     workspace_id: UUID
     company: CompanyRecord
     program: FundingProgramRecord
     package_name: str
-    requested_by_user_id: UUID
+    requested_by_user_id: int
     target_language: str
     section_limit: int
+    advisory_sections: list[AdvisoryHubSectionConfig] = Field(default_factory=list)
+    advisory_agents: list[AdvisoryHubAgentConfig] = Field(default_factory=list)
 
 
 class ProgramAnalysis(BaseModel):
@@ -132,6 +107,7 @@ class OutlineItem(BaseModel):
     title: str
     objective: str
     guidance: str
+    agent_id: str | None = None
 
 
 class DocumentOutline(BaseModel):
@@ -145,6 +121,42 @@ class GeneratedSection(BaseModel):
     citations: list[str] = Field(default_factory=list)
 
 
+class ForecastMonth(BaseModel):
+    key: str
+    label: str
+    year: int
+    month: int
+
+
+class FinancialForecastRow(BaseModel):
+    category: Literal["revenue", "expense"]
+    name: str
+    values: list[float]
+    total: float
+
+
+class FinancialForecastYearSummary(BaseModel):
+    year: int
+    label: str
+    total_revenue: float
+    total_expenses: float
+    net_cash_flow: float
+
+
+class FinancialForecast(BaseModel):
+    years: int = Field(default=3, ge=1)
+    currency: str
+    start_month: str
+    months: list[ForecastMonth]
+    rows: list[FinancialForecastRow]
+    monthly_revenue_totals: list[float]
+    monthly_expense_totals: list[float]
+    monthly_net_cash_flow: list[float]
+    ending_cash_balance: list[float]
+    annual_summaries: list[FinancialForecastYearSummary]
+    assumptions: list[str]
+
+
 class FinalDocument(BaseModel):
     title: str
     program_name: str
@@ -155,25 +167,15 @@ class FinalDocument(BaseModel):
     risks: list[str]
     use_of_funds_summary: str
     next_steps: list[str]
+    financial_forecast: FinancialForecast
 
 
 class GenerationRunResult(BaseModel):
-    package_id: UUID
-    run_id: UUID
+    strategic_report_id: UUID
     status: Literal["completed", "failed"]
     document: FinalDocument | None = None
     message: str | None = None
     completed_at: datetime | None = None
-
-
-class FundingPackageRunRecord(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    package_id: UUID
-    status: str
-    model_name: str
-    started_at: datetime | None = None
 
 
 class ErrorResponse(BaseModel):

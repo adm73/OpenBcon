@@ -1,20 +1,25 @@
 import json
+import re
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler
 from urllib.request import Request as URLRequest
 from urllib.request import build_opener
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 
 from .config import get_settings
 from .db import get_connection
+from .advisory_config import load_advisory_hub_configuration
+from .forecast import build_financial_forecast
 from .graph import build_plan_graph
 from .llm import build_model_gateway
 from .models import (
     AIConnectionTestRequest,
     AIConnectionTestResponse,
     ErrorResponse,
+    FinancialForecast,
     GeneratePlanRequest,
     GenerationRunResult,
 )
@@ -27,6 +32,50 @@ router = APIRouter()
 class _NoRedirectHandler(HTTPRedirectHandler):
     def redirect_request(self, *_args, **_kwargs):
         return None
+
+
+@router.post(
+    "/api/business-plan/forecast",
+    response_model=FinancialForecast,
+    responses={400: {"model": ErrorResponse}},
+)
+def generate_financial_forecast(request: GeneratePlanRequest) -> FinancialForecast:
+    with get_connection() as connection:
+        try:
+            context = FundingPlanRepository(connection).load_generation_context(request)
+            return build_financial_forecast(context)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(error),
+            ) from error
+
+
+def _safe_upstream_error(status_code: int, detail: str, reason: str) -> str:
+    if status_code in {401, 403}:
+        return (
+            f"The provider rejected the configured API key (HTTP {status_code}). "
+            "Check that the key is valid, active, and belongs to the configured provider."
+        )
+
+    redacted = _redact_sensitive_text(detail)
+    return f"Upstream model request failed: {redacted[:300] or reason}"
+
+
+def _redact_sensitive_text(detail: str) -> str:
+    redacted = re.sub(
+        r"(?i)([?&](?:api[_-]?key|key)=)[^&\s]+",
+        r"\1[redacted]",
+        detail,
+    )
+    redacted = re.sub(r"\bsk-[A-Za-z0-9_-]+\b", "[redacted]", redacted)
+    redacted = re.sub(
+        r"(?i)(incorrect api key provided:\s*)[^\n.]+",
+        r"\1[redacted]",
+        redacted,
+    )
+    compact = re.sub(r"\s+", " ", redacted).strip()
+    return compact
 
 
 def _build_ai_request(
@@ -121,7 +170,7 @@ def test_ai_connection(request: AIConnectionTestRequest) -> AIConnectionTestResp
         detail = error.read(4096).decode("utf-8", errors="replace").strip()
         raise HTTPException(
             status_code=error.code,
-            detail=f"Upstream model request failed: {detail[:500] or error.reason}",
+            detail=_safe_upstream_error(error.code, detail, str(error.reason)),
         ) from error
     except TimeoutError as error:
         raise HTTPException(
@@ -145,41 +194,72 @@ def test_ai_connection(request: AIConnectionTestRequest) -> AIConnectionTestResp
 )
 def generate_business_plan(request: GeneratePlanRequest) -> GenerationRunResult:
     settings = get_settings()
-    gateway = build_model_gateway(settings, force_mock=request.force_mock)
-    graph = build_plan_graph(PlanNodes(gateway))
+    strategic_report_id: UUID | None = None
+    graph_trace: dict = {}
 
     with get_connection() as connection:
         repository = FundingPlanRepository(connection)
 
         try:
             context = repository.load_generation_context(request)
-            repository.ensure_context_records(context)
-            package_id = repository.create_package(context, request)
-            run = repository.create_run(
-                package_id,
-                request.requested_by_user_id,
+            gateway = build_model_gateway(settings)
+            graph = build_plan_graph(PlanNodes(gateway))
+            context = repository.ensure_context_records(context)
+            advisory_hub = load_advisory_hub_configuration(settings)
+            context = context.model_copy(
+                update={
+                    "advisory_sections": advisory_hub.sections,
+                    "advisory_agents": advisory_hub.agents,
+                    "section_limit": len(advisory_hub.sections),
+                }
+            )
+            strategic_report_id = repository.create_strategic_report(
+                context,
+                request,
                 gateway.model_name,
             )
-
-            graph_result = graph.invoke({"context": context})
+            graph_result = {"context": context}
+            for update in graph.stream({"context": context}, stream_mode="updates"):
+                for node_name, node_result in update.items():
+                    graph_trace[node_name] = node_result
+                    graph_result.update(node_result)
             document = graph_result["final_document"]
-            repository.save_generation_result(package_id, run.id, context, document)
+            repository.save_strategic_report_result(
+                strategic_report_id,
+                graph_trace,
+                document,
+            )
             return GenerationRunResult(
-                package_id=package_id,
-                run_id=run.id,
+                strategic_report_id=strategic_report_id,
                 status="completed",
                 document=document,
                 completed_at=repository.completed_timestamp(),
             )
         except ValueError as error:
+            safe_error = _redact_sensitive_text(str(error))
+            if strategic_report_id:
+                repository.mark_strategic_report_failed(
+                    strategic_report_id,
+                    safe_error,
+                    graph_trace,
+                )
+            if strategic_report_id:
+                connection.commit()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(error),
+                detail=safe_error,
             ) from error
         except Exception as error:
-            if "package_id" in locals() and "run" in locals():
-                repository.mark_run_failed(package_id, run.id, str(error))
+            safe_error = _redact_sensitive_text(str(error))
+            if strategic_report_id:
+                repository.mark_strategic_report_failed(
+                    strategic_report_id,
+                    safe_error,
+                    graph_trace,
+                )
+            if strategic_report_id:
+                connection.commit()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Business plan generation failed: {error}",
+                detail=f"Business plan generation failed: {safe_error}",
             ) from error

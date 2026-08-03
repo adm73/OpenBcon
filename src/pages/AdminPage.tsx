@@ -46,7 +46,7 @@ import {
 
 const moduleLabels: Array<{ id: PlatformModuleId; label: string; group: string }> = [
   { id: 'funding-readiness', label: 'Funding Readiness', group: 'Funding Centre' },
-  { id: 'quick-generate', label: 'Quick Generate', group: 'Funding Centre' },
+  { id: 'quick-build', label: 'Quick Build', group: 'Funding Centre' },
   { id: 'my-company', label: 'My Company', group: 'My Workspace' },
   { id: 'saved-programs', label: 'Saved Programs', group: 'My Workspace' },
   { id: 'my-applications', label: 'My Applications', group: 'My Workspace' },
@@ -3068,8 +3068,11 @@ export function AdminPage() {
                     Add model
                   </button>
                 </div>
-                {draft.ai.models.map((model) => (
-                  <article className="admin-ai-model-editor" key={model.id}>
+                {draft.ai.models.map((model, modelIndex) => (
+                  <article
+                    className="admin-ai-model-editor"
+                    key={`ai-model-editor-${modelIndex}`}
+                  >
                     <div className="admin-ai-model-editor-header">
                       <div>
                         <span className="admin-model-provider">

@@ -4,6 +4,7 @@ from .models import (
     CompanyAnalysis,
     DocumentOutline,
     FinalDocument,
+    FinancialForecast,
     GeneratedSection,
     GenerationContext,
     ProgramAnalysis,
@@ -18,5 +19,6 @@ class PlanGraphState(TypedDict, total=False):
     company_analysis: CompanyAnalysis
     outline: DocumentOutline
     sections: list[GeneratedSection]
+    financial_forecast: FinancialForecast
     final_document: FinalDocument
     errors: list[str]

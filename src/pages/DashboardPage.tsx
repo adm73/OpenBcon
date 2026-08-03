@@ -39,7 +39,6 @@ import {
   type PlatformModuleId,
 } from '../config/platform'
 import { persistLocalPlatformSecureConfig } from '../config/localSecureConfig'
-import { defaultProfile, documentTypes, fundingTracks } from '../data/demo'
 import {
   findFundingProgramByName,
   loadFundingPrograms,
@@ -62,9 +61,9 @@ import {
 } from '../lib/stripeBillingApi'
 import { renderFormattedContent } from '../lib/legalContent'
 import {
-  buildGeneratedApplicationId,
   createStrategicReviewReport,
   findApplicationRecord,
+  findApplicationRecordByAppId,
   getStrategicReviewReports,
   loadApplications,
   materializeSavedProgramApplication,
@@ -74,6 +73,15 @@ import {
   type ApplicationRecord,
   type ApplicationStatus,
 } from '../data/applications'
+
+function getQuickBuildPath(applicationId: string) {
+  const application = findApplicationRecord(loadApplications(), applicationId)
+  if (application?.appId) {
+    return `/quick-build?app_id=${encodeURIComponent(application.appId)}`
+  }
+
+  return `/quick-build?applicationId=${encodeURIComponent(applicationId)}`
+}
 import {
   loadTemplateCatalog,
   type TemplateFormat,
@@ -90,14 +98,15 @@ import {
   type ToolRecord,
   type ToolType,
 } from '../data/tools'
-import { buildDocument } from '../lib/generator'
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
 import {
+  generateFinancialForecastViaApi,
   generateBusinessPlanViaApi,
   type BusinessPlanGenerateResponse,
   type BusinessPlanSectionResponse,
 } from '../lib/businessPlanApi'
 import type {
+  FinancialForecast,
   GeneratedDocument,
   GeneratedPackage,
   GeneratedPackageSection,
@@ -1635,6 +1644,9 @@ function SavedProgramsPage() {
   const selectedProgram = savedPrograms.find(
     ({ program }) => program.id === selectedId,
   )
+  const selectedApplicationPath = selectedProgram?.entry.applicationId
+    ? getQuickBuildPath(selectedProgram.entry.applicationId)
+    : '/quick-build'
   const totalPotential = savedPrograms.reduce(
     (sum, { program }) => sum + program.amount,
     0,
@@ -1675,7 +1687,7 @@ function SavedProgramsPage() {
     }
 
     setSelectedId('')
-    navigate(`/quick-generate?applicationId=${encodeURIComponent(entry.applicationId)}`)
+    navigate(getQuickBuildPath(entry.applicationId))
   }
 
   return (
@@ -1980,16 +1992,10 @@ function SavedProgramsPage() {
                 Remove
               </button>
               <Link
-                to={
-                  selectedProgram.entry.applicationId
-                    ? `/quick-generate?applicationId=${encodeURIComponent(
-                        selectedProgram.entry.applicationId,
-                      )}`
-                    : '/quick-generate'
-                }
+                to={selectedApplicationPath}
                 onClick={() => openSavedProgramApplication(selectedProgram.program.id)}
               >
-                Build application package
+                Build application
               </Link>
             </div>
           </section>
@@ -2078,7 +2084,7 @@ function MyApplicationsPage() {
 
   function continueApplication(application: ApplicationRecord) {
     setSelectedId('')
-    navigate(`/quick-generate?applicationId=${encodeURIComponent(application.id)}`)
+    navigate(getQuickBuildPath(application.id))
   }
 
   return (
@@ -2092,7 +2098,7 @@ function MyApplicationsPage() {
             from one operational pipeline.
           </p>
         </div>
-        <Link to="/quick-generate">
+        <Link to="/quick-build">
           <Glyph type="spark" />
           New application
         </Link>
@@ -2272,12 +2278,12 @@ function MyApplicationsPage() {
                     type="button"
                     className="application-open"
                     aria-label={
-                      application.generatedPackage
+                      application.strategicReviewReports?.length
                         ? `Open workspace for ${application.title}`
                         : `Open ${application.title}`
                     }
                     onClick={() =>
-                      application.generatedPackage
+                      application.strategicReviewReports?.length
                         ? continueApplication(application)
                         : setSelectedId(application.id)
                     }
@@ -2528,7 +2534,7 @@ function MyApplicationsPage() {
                 type="button"
                 onClick={() => continueApplication(selectedApplication)}
               >
-                {selectedApplication.generatedPackage
+                {selectedApplication.strategicReviewReports?.length
                   ? 'Open workspace'
                   : 'Continue application'}
               </button>
@@ -3003,7 +3009,7 @@ function GrantsLoansPage() {
                   : 'Save program'}
               </button>
               <Link
-                to="/quick-generate"
+                to="/quick-build"
                 onClick={() =>
                   setPersistentItem(
                     selectedFundingProgramStorageKey,
@@ -3011,7 +3017,7 @@ function GrantsLoansPage() {
                   )
                 }
               >
-                Use in Quick Generate
+                Use in Quick Build
               </Link>
               {selectedProgram.url ? (
                 <a href={selectedProgram.url} target="_blank" rel="noreferrer">
@@ -3359,7 +3365,7 @@ function TemplatesPage() {
                   <button type="button" onClick={() => setSelectedTemplate(template)}>
                     Preview
                   </button>
-                  <Link to="/quick-generate" onClick={() => stageTemplate(template)}>
+                  <Link to="/quick-build" onClick={() => stageTemplate(template)}>
                     Use template
                   </Link>
                 </div>
@@ -3437,7 +3443,7 @@ function TemplatesPage() {
                   Close
                 </button>
               )}
-              <Link to="/quick-generate" onClick={() => stageTemplate(selectedTemplate)}>
+              <Link to="/quick-build" onClick={() => stageTemplate(selectedTemplate)}>
                 Use this template
               </Link>
             </div>
@@ -4551,14 +4557,14 @@ type LegacyUserSettings = Partial<UserSettings> & {
   billingTransactions?: BillingTransaction[]
 }
 
-type QuickGeneratePreferences = {
+type QuickBuildPreferences = {
   usePlatformStructureByDefault: boolean
 }
 
 const userSettingsStorageKey = 'bconomics-user-settings-v1'
 const billingTransactionsStorageKey = 'bconomics-billing-transactions-v1'
-const quickGeneratePreferencesStorageKey =
-  'bconomics-quick-generate-preferences-v1'
+const quickBuildPreferencesStorageKey =
+  'bconomics-quick-build-preferences-v1'
 const pendingStripeCheckoutStorageKey = 'bconomics-pending-stripe-checkout-v1'
 const pendingStripeCheckoutPriceItemStorageKey =
   'bconomics-pending-stripe-price-item-v1'
@@ -4584,7 +4590,7 @@ const defaultUserSettings: UserSettings = {
   activePriceItemId: '',
 }
 
-const defaultQuickGeneratePreferences: QuickGeneratePreferences = {
+const defaultQuickBuildPreferences: QuickBuildPreferences = {
   usePlatformStructureByDefault: true,
 }
 
@@ -4599,17 +4605,17 @@ function loadUserSettings() {
   }
 }
 
-function loadQuickGeneratePreferences() {
+function loadQuickBuildPreferences() {
   try {
-    const saved = window.localStorage.getItem(quickGeneratePreferencesStorageKey)
+    const saved = window.localStorage.getItem(quickBuildPreferencesStorageKey)
     return saved
       ? {
-          ...defaultQuickGeneratePreferences,
-          ...(JSON.parse(saved) as Partial<QuickGeneratePreferences>),
+          ...defaultQuickBuildPreferences,
+          ...(JSON.parse(saved) as Partial<QuickBuildPreferences>),
         }
-      : defaultQuickGeneratePreferences
+      : defaultQuickBuildPreferences
   } catch {
-    return defaultQuickGeneratePreferences
+    return defaultQuickBuildPreferences
   }
 }
 
@@ -5370,7 +5376,7 @@ function SettingsPage() {
                   <select value={settings.defaultCompanyId} onChange={(event) => updateSetting('defaultCompanyId', event.target.value)}>
                     {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
                   </select>
-                  <small>Used by Quick Generate and program matching.</small>
+                  <small>Used by Quick Build and program matching.</small>
                 </label>
                 <label><span>Timezone</span><select value={settings.timezone} onChange={(event) => updateSetting('timezone', event.target.value)}><option>America/Toronto</option><option>America/Vancouver</option><option>America/Halifax</option></select></label>
                 <label><span>Language</span><select value={settings.language} onChange={(event) => updateSetting('language', event.target.value)}><option>English</option><option>French</option></select></label>
@@ -5601,7 +5607,7 @@ function SettingsPage() {
   )
 }
 
-type QuickGenerateStep = 1 | 2 | 3 | 'workspace'
+type QuickBuildStep = 1 | 2 | 3 | 'workspace'
 type WorkspacePhase =
   | 'idle'
   | 'analyzing'
@@ -5616,10 +5622,7 @@ type WorkspaceSectionState = GeneratedPackageSection & {
   preview: string
 }
 
-const demoUserId = '00000000-0000-4000-8000-000000000001'
-const demoWorkspaceId = '00000000-0000-4000-8000-000000000002'
-
-const quickGeneratePhaseRank: Record<WorkspacePhase, number> = {
+const quickBuildPhaseRank: Record<WorkspacePhase, number> = {
   idle: 0,
   analyzing: 1,
   planning: 2,
@@ -5659,60 +5662,6 @@ function createConfiguredAdvisoryHubSections(
     })) satisfies GeneratedPackageSection[]
 }
 
-function createGeneratedPackage(
-  profile: typeof defaultProfile,
-  programName: string,
-  fundingRequest: string,
-  sourceMaterial: string,
-  configuredSections: AdvisoryHubSectionConfig[],
-  configuredAgents: AdvisoryHubAgentConfig[],
-  configuredDocumentTypes: AdvisoryHubDocumentTypeConfig[],
-) {
-  const documents = documentTypes.map((documentType) =>
-    buildDocument(profile, fundingTracks[0], documentType),
-  )
-  const [plan, forecast, memo] = documents
-  const sections = createConfiguredAdvisoryHubSections(
-    configuredSections,
-    configuredAgents,
-    configuredDocumentTypes,
-    {
-      'executive-summary': plan.sections[0]?.body ?? plan.summary,
-      'company-overview':
-        plan.sections[3]?.body ?? plan.sections[1]?.body ?? plan.summary,
-      'market-analysis': `${plan.sections[1]?.body ?? ''} ${
-        plan.sections[2]?.body ?? ''
-      }`.trim(),
-      'financial-model': `${forecast.sections[0]?.body ?? ''} ${
-        forecast.sections[2]?.body ?? ''
-      }`.trim(),
-      'funding-narrative': `${memo.sections[0]?.body ?? ''} ${
-        memo.sections[2]?.body ?? ''
-      }`.trim(),
-      'ai-review': `The package is being tuned around reviewer confidence, measurable milestones, and stronger evidence language for ${programName}.`,
-    },
-  )
-
-  return {
-    title: `${profile.companyName} Funding Package`,
-    programName,
-    businessName: profile.companyName,
-    fundingRequest,
-    sourceMaterial,
-    completedAt: new Date().toISOString(),
-    readinessScore: Math.round(
-      documents.reduce((sum, document) => sum + document.readinessScore, 0) / documents.length,
-    ),
-    thoughts: [
-      `${programName} emphasizes reviewer-ready structure and milestone clarity.`,
-      `The business story for ${profile.companyName} is being framed around execution strength, realistic growth, and measurable KPIs.`,
-      `Financial language is being adjusted to match the ${fundingTracks[0].label.toLowerCase()} workflow.`,
-    ],
-    documents,
-    sections,
-  } satisfies GeneratedPackage
-}
-
 function hydrateWorkspaceSections(packageRecord: GeneratedPackage): WorkspaceSectionState[] {
   return packageRecord.sections.map((section) => ({
     ...section,
@@ -5731,6 +5680,26 @@ function createSectionVariant(
 }
 
 function buildPackageExport(packageRecord: GeneratedPackage, sections: WorkspaceSectionState[]) {
+  const forecast = packageRecord.financialForecast
+  const forecastExport = forecast
+    ? [
+        '',
+        '# Financial Forecast',
+        `Currency: ${forecast.currency}`,
+        `Period: ${forecast.months[0]?.label ?? forecast.start_month} - ${forecast.months.at(-1)?.label ?? ''}`,
+        '',
+        ['Line item', ...forecast.months.map((month) => month.label)].join('\t'),
+        ...forecast.rows.map((row) =>
+          [row.name, ...row.values.map((value) => `${forecast.currency} ${value.toFixed(2)}`)].join('\t'),
+        ),
+        '',
+        ...forecast.annual_summaries.map(
+          (summary) =>
+            `${summary.label}: revenue ${forecast.currency} ${summary.total_revenue.toFixed(2)}, expenses ${forecast.currency} ${summary.total_expenses.toFixed(2)}, net cash flow ${forecast.currency} ${summary.net_cash_flow.toFixed(2)}`,
+        ),
+      ]
+    : []
+
   return [
     packageRecord.title,
     '',
@@ -5740,7 +5709,227 @@ function buildPackageExport(packageRecord: GeneratedPackage, sections: Workspace
     `Completed: ${packageRecord.completedAt}`,
     '',
     ...sections.flatMap((section) => [`# ${section.title}`, section.preview || section.body, '']),
+    ...forecastExport,
   ].join('\n')
+}
+
+function formatForecastCurrency(value: number, currency: string) {
+  return new Intl.NumberFormat('en-CA', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function FinancialForecastCharts({ forecast }: { forecast: FinancialForecast }) {
+  const chartWidth = 820
+  const chartHeight = 260
+  const chartPadding = { top: 22, right: 20, bottom: 34, left: 52 }
+  const plotWidth = chartWidth - chartPadding.left - chartPadding.right
+  const plotHeight = chartHeight - chartPadding.top - chartPadding.bottom
+  const maxValue = Math.max(
+    ...forecast.monthly_revenue_totals,
+    ...forecast.monthly_expense_totals,
+    1,
+  )
+  const xForIndex = (index: number) =>
+    chartPadding.left + (index / Math.max(forecast.months.length - 1, 1)) * plotWidth
+  const yForValue = (value: number) =>
+    chartPadding.top + ((maxValue - value) / maxValue) * plotHeight
+  const linePoints = (values: number[]) =>
+    values.map((value, index) => `${xForIndex(index)},${yForValue(value)}`).join(' ')
+  const revenuePoints = linePoints(forecast.monthly_revenue_totals)
+  const expensePoints = linePoints(forecast.monthly_expense_totals)
+  const firstX = xForIndex(0)
+  const lastX = xForIndex(forecast.months.length - 1)
+  const plotBottom = chartPadding.top + plotHeight
+  const revenueArea = `${revenuePoints} ${lastX},${plotBottom} ${firstX},${plotBottom}`
+  const netMax = Math.max(
+    ...forecast.monthly_net_cash_flow.map((value) => Math.abs(value)),
+    1,
+  )
+  const netChartHeight = 176
+  const netZeroY = 76
+  const netScale = 58 / netMax
+  const netBarWidth = Math.max(5, (chartWidth - 82) / forecast.months.length - 3)
+  const tickIndexes = forecast.months
+    .map((_, index) => index)
+    .filter((index) => index % 6 === 0 || index === forecast.months.length - 1)
+
+  return (
+    <div className="generator-forecast-charts">
+      <div className="generator-forecast-chart-heading">
+        <div>
+          <span>Forecast visualisation</span>
+          <h3>Revenue is growing, while the cost base stays ahead</h3>
+          <p>Monthly operating trend across the full three-year planning horizon.</p>
+        </div>
+        <div className="generator-forecast-legend" aria-label="Chart legend">
+          <span><i className="is-revenue" />Revenue</span>
+          <span><i className="is-expense" />Expenses</span>
+          <span><i className="is-net" />Net cash flow</span>
+        </div>
+      </div>
+
+      <div className="generator-forecast-chart-panel">
+        <div className="generator-forecast-chart-label">
+          <strong>Monthly revenue and expenses</strong>
+          <span>{forecast.months[0]?.label} to {forecast.months.at(-1)?.label}</span>
+        </div>
+        <div className="generator-forecast-svg-wrap">
+          <svg
+            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+            role="img"
+            aria-label="Monthly revenue and expenses trend"
+          >
+            <defs>
+              <linearGradient id="forecast-revenue-fill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#5b6fd1" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#5b6fd1" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
+              const y = chartPadding.top + plotHeight * tick
+              const value = maxValue * (1 - tick)
+              return (
+                <g key={`value-tick-${tick}`}>
+                  <line x1={chartPadding.left} x2={chartWidth - chartPadding.right} y1={y} y2={y} className="forecast-grid-line" />
+                  <text x={chartPadding.left - 10} y={y + 4} textAnchor="end" className="forecast-axis-label">
+                    {formatForecastCurrency(value, forecast.currency)}
+                  </text>
+                </g>
+              )
+            })}
+            <polygon points={revenueArea} fill="url(#forecast-revenue-fill)" />
+            <polyline points={revenuePoints} className="forecast-line is-revenue" />
+            <polyline points={expensePoints} className="forecast-line is-expense" />
+            {tickIndexes.map((index) => (
+              <text key={`month-tick-${forecast.months[index]?.key}`} x={xForIndex(index)} y={chartHeight - 8} textAnchor="middle" className="forecast-axis-label">
+                {forecast.months[index]?.label}
+              </text>
+            ))}
+          </svg>
+        </div>
+      </div>
+
+      <div className="generator-forecast-chart-panel">
+        <div className="generator-forecast-chart-label">
+          <strong>Net cash flow by month</strong>
+          <span>Negative values indicate additional capital required</span>
+        </div>
+        <div className="generator-forecast-svg-wrap">
+          <svg
+            viewBox={`0 0 ${chartWidth} ${netChartHeight}`}
+            role="img"
+            aria-label="Monthly net cash flow bars"
+          >
+            <line x1={chartPadding.left} x2={chartWidth - chartPadding.right} y1={netZeroY} y2={netZeroY} className="forecast-zero-line" />
+            <text x={chartPadding.left - 10} y={netZeroY + 4} textAnchor="end" className="forecast-axis-label">0</text>
+            {forecast.monthly_net_cash_flow.map((value, index) => {
+              const height = Math.max(2, Math.abs(value) * netScale)
+              const x = chartPadding.left + (index / forecast.months.length) * plotWidth + 2
+              const y = value >= 0 ? netZeroY - height : netZeroY
+              return (
+                <rect
+                  key={`net-bar-${forecast.months[index]?.key}`}
+                  x={x}
+                  y={y}
+                  width={netBarWidth}
+                  height={height}
+                  rx="3"
+                  className={`forecast-net-bar ${value >= 0 ? 'is-positive' : 'is-negative'}`}
+                />
+              )
+            })}
+            {tickIndexes.map((index) => (
+              <text key={`net-month-tick-${forecast.months[index]?.key}`} x={xForIndex(index)} y={netChartHeight - 8} textAnchor="middle" className="forecast-axis-label">
+                {forecast.months[index]?.label}
+              </text>
+            ))}
+          </svg>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
+  return (
+    <article id="financial-forecast-panel" className="generator-ai-card generator-forecast-card">
+      <header>
+        <div>
+          <span>Financial model</span>
+          <h3>{forecast.years}-year monthly financial forecast</h3>
+        </div>
+        <b>{forecast.months.length} months</b>
+      </header>
+      <FinancialForecastCharts forecast={forecast} />
+      <div className="generator-forecast-summary">
+        {forecast.annual_summaries.map((summary) => (
+          <div key={summary.year}>
+            <strong>{summary.label}</strong>
+            <span>Revenue {formatForecastCurrency(summary.total_revenue, forecast.currency)}</span>
+            <span>Expenses {formatForecastCurrency(summary.total_expenses, forecast.currency)}</span>
+            <b>Net {formatForecastCurrency(summary.net_cash_flow, forecast.currency)}</b>
+          </div>
+        ))}
+      </div>
+      <div className="generator-forecast-scroll">
+        <table className="generator-forecast-table">
+          <thead>
+            <tr>
+              <th>Line item</th>
+              {forecast.months.map((month) => (
+                <th key={month.key}>{month.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {forecast.rows.map((row) => (
+              <tr key={row.name} className={`is-${row.category}`}>
+                <th>{row.name}</th>
+                {row.values.map((value, index) => (
+                  <td key={`${row.name}-${forecast.months[index]?.key ?? index}`}>
+                    {formatForecastCurrency(value, forecast.currency)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+            <tr className="is-total">
+              <th>Total revenue</th>
+              {forecast.monthly_revenue_totals.map((value, index) => (
+                <td key={`revenue-total-${forecast.months[index]?.key ?? index}`}>
+                  {formatForecastCurrency(value, forecast.currency)}
+                </td>
+              ))}
+            </tr>
+            <tr className="is-total">
+              <th>Total expenses</th>
+              {forecast.monthly_expense_totals.map((value, index) => (
+                <td key={`expense-total-${forecast.months[index]?.key ?? index}`}>
+                  {formatForecastCurrency(value, forecast.currency)}
+                </td>
+              ))}
+            </tr>
+            <tr className="is-net">
+              <th>Net cash flow</th>
+              {forecast.monthly_net_cash_flow.map((value, index) => (
+                <td key={`net-${forecast.months[index]?.key ?? index}`}>
+                  {formatForecastCurrency(value, forecast.currency)}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="generator-forecast-assumptions">
+        <strong>Planning assumptions</strong>
+        {forecast.assumptions.map((assumption) => (
+          <span key={assumption}>{assumption}</span>
+        ))}
+      </div>
+    </article>
+  )
 }
 
 function findBackendSectionBody(
@@ -5768,8 +5957,11 @@ function createGeneratedPackageFromBackend(
     throw new Error('The generation backend did not return a document.')
   }
 
+  const backendSectionIds = new Set(
+    document.sections.map((section) => section.section_key),
+  )
   const sections = createConfiguredAdvisoryHubSections(
-    configuredSections,
+    configuredSections.filter((section) => backendSectionIds.has(section.id)),
     configuredAgents,
     configuredDocumentTypes,
     {
@@ -5822,10 +6014,12 @@ function createGeneratedPackageFromBackend(
       { label: 'Sections', value: `${document.sections.length}` },
     ],
     milestones: document.next_steps,
+    financialForecast: document.financial_forecast,
   }
 
   return {
     title: document.title,
+    strategicReportId: response.strategic_report_id,
     programName: document.program_name,
     businessName: document.business_name,
     fundingRequest,
@@ -5839,16 +6033,18 @@ function createGeneratedPackageFromBackend(
     ].slice(0, 8),
     documents: [businessPlanDocument],
     sections,
+    financialForecast: document.financial_forecast,
   }
 }
 
-function QuickGeneratePage({
+function QuickBuildPage({
   initialView = 'form',
 }: {
   initialView?: 'form' | 'workspace'
 }) {
   const location = useLocation()
-  const draftStorageKey = 'bconomics-quick-generate-draft-v1'
+  const navigate = useNavigate()
+  const draftStorageKey = 'bconomics-quick-build-draft-v1'
   const generatedDocumentsStorageKey = 'bconomics-generated-documents-v1'
   const { config } = usePlatformConfig()
   const platformName = getPlatformDisplayName(config)
@@ -5856,7 +6052,7 @@ function QuickGeneratePage({
   const [programUrl, setProgramUrl] = useState('')
   const [amount, setAmount] = useState('')
   const [useWinningTemplate, setUseWinningTemplate] = useState(
-    () => loadQuickGeneratePreferences().usePlatformStructureByDefault,
+    () => loadQuickBuildPreferences().usePlatformStructureByDefault,
   )
   const [fileName, setFileName] = useState('')
   const [businessName, setBusinessName] = useState('')
@@ -5864,7 +6060,7 @@ function QuickGeneratePage({
   const [businessIdea, setBusinessIdea] = useState('')
   const [teamIntro, setTeamIntro] = useState('')
   const [formMessage, setFormMessage] = useState('')
-  const [activeStep, setActiveStep] = useState<QuickGenerateStep>(1)
+  const [activeStep, setActiveStep] = useState<QuickBuildStep>(1)
   const [currentApplicationId, setCurrentApplicationId] = useState<string | null>(null)
   const [generatedPackage, setGeneratedPackage] = useState<GeneratedPackage | null>(null)
   const [strategicReviewReports, setStrategicReviewReports] = useState<StrategicReviewReport[]>(
@@ -5878,10 +6074,6 @@ function QuickGeneratePage({
   const [workspaceThoughts, setWorkspaceThoughts] = useState<string[]>([])
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
   const [editorMode, setEditorMode] = useState(false)
-  const [selectedCompanyRecord, setSelectedCompanyRecord] = useState<CompanyRecord | null>(null)
-  const [selectedFundingProgram, setSelectedFundingProgram] = useState<FundingProgramRecord | null>(
-    null,
-  )
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false)
   const [companyOptions, setCompanyOptions] = useState<CompanyRecord[]>([])
   const [companyQuery, setCompanyQuery] = useState('')
@@ -5889,8 +6081,11 @@ function QuickGeneratePage({
   const [programQuery, setProgramQuery] = useState('')
   const [programType, setProgramType] = useState<'All' | 'Grant' | 'Loan'>('All')
   const generationRun = useRef(0)
+  const appIdFromQuery =
+    new URLSearchParams(location.search).get('app_id')?.trim() ?? ''
   const applicationIdFromQuery =
     new URLSearchParams(location.search).get('applicationId')?.trim() ?? ''
+  const hasApplicationQuery = Boolean(appIdFromQuery || applicationIdFromQuery)
   const fundingProgramCatalog = useMemo(
     () =>
       loadFundingPrograms(
@@ -5917,7 +6112,7 @@ function QuickGeneratePage({
   ).size
 
   useEffect(() => {
-    if (applicationIdFromQuery) return
+    if (hasApplicationQuery) return
 
     const savedDraft = window.localStorage.getItem(draftStorageKey)
     if (!savedDraft) return
@@ -5939,42 +6134,73 @@ function QuickGeneratePage({
     } catch {
       removePersistentItem(draftStorageKey)
     }
-  }, [applicationIdFromQuery])
+  }, [hasApplicationQuery])
 
   useEffect(() => {
     if (
-      window.localStorage.getItem(quickGeneratePreferencesStorageKey) !== null
+      window.localStorage.getItem(quickBuildPreferencesStorageKey) !== null
     ) {
       return
     }
 
     setPersistentItem(
-      quickGeneratePreferencesStorageKey,
-      JSON.stringify(defaultQuickGeneratePreferences),
+      quickBuildPreferencesStorageKey,
+      JSON.stringify(defaultQuickBuildPreferences),
     )
   }, [])
 
   useEffect(() => {
-    if (!applicationIdFromQuery) return
+    if (location.pathname !== '/advisory-hub' || !hasApplicationQuery) return
 
-    const matchingApplication = findApplicationRecord(
-      loadApplications(),
-      applicationIdFromQuery,
-    )
+    const application = appIdFromQuery
+      ? findApplicationRecordByAppId(loadApplications(), appIdFromQuery)
+      : null
+    const canonicalSearch = `?applicationId=${encodeURIComponent(
+      application?.id ?? applicationIdFromQuery,
+    )}`
+    if (application?.id && location.search !== canonicalSearch) {
+      navigate(`/advisory-hub${canonicalSearch}`, { replace: true })
+    }
+  }, [appIdFromQuery, applicationIdFromQuery, hasApplicationQuery, location.pathname, location.search, navigate])
+
+  useEffect(() => {
+    if (location.pathname !== '/quick-build' || !applicationIdFromQuery) return
+
+    const application = findApplicationRecord(loadApplications(), applicationIdFromQuery)
+    if (!application?.appId) return
+
+    const canonicalSearch = `?app_id=${encodeURIComponent(application.appId)}`
+    if (location.search !== canonicalSearch) {
+      navigate(`/quick-build${canonicalSearch}`, { replace: true })
+    }
+  }, [applicationIdFromQuery, location.pathname, location.search, navigate])
+
+  useEffect(() => {
+    if (!hasApplicationQuery) return
+
+    const applications = loadApplications()
+    const matchingApplication = appIdFromQuery
+      ? findApplicationRecordByAppId(applications, appIdFromQuery)
+      : findApplicationRecord(applications, applicationIdFromQuery)
 
     if (!matchingApplication) {
       setFormMessage('This application could not be found in My Applications.')
       return
     }
 
-    restoreApplicationWorkspace(
+    const matchingReport = matchingApplication.strategicReviewReports?.at(-1)
+
+    void restoreApplicationWorkspace(
       matchingApplication,
-      `${matchingApplication.title} restored from My Applications.`,
+      matchingReport
+        ? `${matchingReport.generatedPackage.title} opened in Advisory Hub.`
+        : `${matchingApplication.title} restored from My Applications.`,
+      matchingReport,
     )
-  }, [applicationIdFromQuery])
+  }, [appIdFromQuery, applicationIdFromQuery, hasApplicationQuery])
 
   useEffect(() => {
-    if (applicationIdFromQuery) return
+    if (hasApplicationQuery) return
 
     const selectedProgram = window.localStorage.getItem(selectedFundingProgramStorageKey)
     if (!selectedProgram) return
@@ -5990,10 +6216,10 @@ function QuickGeneratePage({
     } finally {
       removePersistentItem(selectedFundingProgramStorageKey)
     }
-  }, [applicationIdFromQuery])
+  }, [hasApplicationQuery])
 
   useEffect(() => {
-    if (applicationIdFromQuery) return
+    if (hasApplicationQuery) return
 
     const selectedTemplate = window.localStorage.getItem(selectedTemplateStorageKey)
     if (!selectedTemplate) return
@@ -6008,10 +6234,12 @@ function QuickGeneratePage({
     } finally {
       removePersistentItem(selectedTemplateStorageKey)
     }
-  }, [applicationIdFromQuery])
+  }, [hasApplicationQuery])
 
   useEffect(() => {
     if (initialView === 'workspace') {
+      if (hasApplicationQuery) return
+
       setStrategicReviewReports(getStrategicReviewReports(loadApplications()))
       setSelectedStrategicReviewReportId(null)
       setGeneratedPackage(null)
@@ -6026,7 +6254,7 @@ function QuickGeneratePage({
     }
 
     setActiveStep(generatedPackage ? 3 : 1)
-  }, [initialView])
+  }, [hasApplicationQuery, initialView])
 
   useEffect(
     () => () => {
@@ -6139,7 +6367,7 @@ function QuickGeneratePage({
       status:
         workspacePhase === 'analyzing'
           ? 'working'
-          : quickGeneratePhaseRank[workspacePhase] > quickGeneratePhaseRank.analyzing
+          : quickBuildPhaseRank[workspacePhase] > quickBuildPhaseRank.analyzing
             ? 'complete'
             : 'waiting',
     },
@@ -6148,7 +6376,7 @@ function QuickGeneratePage({
       status:
         workspacePhase === 'planning'
           ? 'working'
-          : quickGeneratePhaseRank[workspacePhase] > quickGeneratePhaseRank.planning
+          : quickBuildPhaseRank[workspacePhase] > quickBuildPhaseRank.planning
             ? 'complete'
             : 'waiting',
     },
@@ -6157,7 +6385,7 @@ function QuickGeneratePage({
       status:
         workspacePhase === 'planning'
           ? 'working'
-          : quickGeneratePhaseRank[workspacePhase] > quickGeneratePhaseRank.planning
+          : quickBuildPhaseRank[workspacePhase] > quickBuildPhaseRank.planning
             ? 'complete'
             : 'waiting',
     },
@@ -6222,8 +6450,8 @@ function QuickGeneratePage({
             ) ||
             (workspacePhase === 'complete' &&
               (agent.name === reviewAgent?.name ||
-                quickGeneratePhaseRank[workspacePhase] >
-                  quickGeneratePhaseRank.planning))
+                quickBuildPhaseRank[workspacePhase] >
+                  quickBuildPhaseRank.planning))
           ? ('completed' as const)
           : ('waiting' as const),
   }))
@@ -6349,7 +6577,6 @@ function QuickGeneratePage({
             readinessScore: nextPackage.readinessScore,
             documentCount: nextPackage.documents.length,
             generatedAt: new Date(nextPackage.completedAt),
-            generatedPackage: nextPackage,
             strategicReviewReport: currentReport
               ? {
                   ...currentReport,
@@ -6376,21 +6603,20 @@ function QuickGeneratePage({
     setProgramName(program.name)
     setProgramUrl(program.url)
     setAmount(program.amount.toLocaleString('en-CA'))
-    setSelectedFundingProgram(program)
     setFormMessage(message)
   }
 
   function updateUseWinningTemplatePreference(nextValue: boolean) {
     setUseWinningTemplate(nextValue)
     setPersistentItem(
-      quickGeneratePreferencesStorageKey,
+      quickBuildPreferencesStorageKey,
       JSON.stringify({
         usePlatformStructureByDefault: nextValue,
-      } satisfies QuickGeneratePreferences),
+      } satisfies QuickBuildPreferences),
     )
   }
 
-  function restoreApplicationWorkspace(
+  async function restoreApplicationWorkspace(
     application: ApplicationRecord,
     message?: string,
     report?: StrategicReviewReport,
@@ -6398,7 +6624,7 @@ function QuickGeneratePage({
     const matchedProgram = findFundingProgramByName(application.programName)
     const selectedReport =
       report ?? application.strategicReviewReports?.at(-1) ?? undefined
-    const packageRecord = selectedReport?.generatedPackage ?? application.generatedPackage
+    const packageRecord = selectedReport?.generatedPackage
     setCurrentApplicationId(application.id)
     setSelectedStrategicReviewReportId(selectedReport?.id ?? null)
     setProgramName(application.programName)
@@ -6406,26 +6632,51 @@ function QuickGeneratePage({
     setAmount(application.amount.toLocaleString('en-CA'))
     setBusinessName(application.company)
     setFullName(application.owner)
-    setSelectedFundingProgram({
-      id: application.id,
-      name: application.programName,
-      type: application.fundingType,
-      provider: matchedProgram?.provider ?? '',
-      amount: application.amount,
-      deadline: application.deadline,
-      match: matchedProgram?.match ?? application.progress,
-      url: application.programUrl || matchedProgram?.url || '',
-      location: matchedProgram?.location ?? '',
-      sourceName: matchedProgram?.sourceName,
-    })
     if (packageRecord) {
-      setGeneratedPackage(packageRecord)
-      setWorkspaceSections(hydrateWorkspaceSections(packageRecord))
+      const applyPackage = (nextPackage: GeneratedPackage) => {
+        setGeneratedPackage(nextPackage)
+        setWorkspaceSections(hydrateWorkspaceSections(nextPackage))
+        setWorkspaceThoughts(nextPackage.thoughts)
+        setSelectedSectionId(nextPackage.sections[0]?.id ?? null)
+      }
+
+      applyPackage(packageRecord)
       setWorkspaceThoughts(packageRecord.thoughts)
       setSelectedSectionId(packageRecord.sections[0]?.id ?? null)
       setWorkspacePhase('complete')
       setEditorMode(false)
       setActiveStep('workspace')
+
+      if (!packageRecord.financialForecast && selectedReport) {
+          setFormMessage(`${message ?? 'Strategic Report opened.'} Loading financial forecast...`)
+          try {
+            const financialForecast = await generateFinancialForecastViaApi({
+              app_id: application.appId ?? application.id,
+            })
+          const nextPackage = { ...packageRecord, financialForecast }
+          const nextApplications = loadApplications().map((currentApplication) =>
+            currentApplication.id !== application.id
+              ? currentApplication
+              : {
+                  ...currentApplication,
+                  strategicReviewReports: currentApplication.strategicReviewReports?.map(
+                    (currentReport) =>
+                      currentReport.id === selectedReport.id
+                        ? { ...currentReport, generatedPackage: nextPackage }
+                        : currentReport,
+                  ),
+                },
+          )
+          saveApplications(nextApplications)
+          setStrategicReviewReports(getStrategicReviewReports(nextApplications))
+          applyPackage(nextPackage)
+          setFormMessage(`${message ?? 'Strategic Report opened.'} Financial forecast ready.`)
+        } catch {
+          setFormMessage(
+            `${message ?? 'Strategic Report opened.'} Financial forecast could not be loaded.`,
+          )
+        }
+      }
     }
     if (message) {
       setFormMessage(message)
@@ -6435,14 +6686,12 @@ function QuickGeneratePage({
   function openStrategicReviewReport(report: StrategicReviewReport) {
     const application = findApplicationRecord(loadApplications(), report.applicationId)
     if (!application) {
-      setFormMessage('This Strategic Review report is no longer linked to an application.')
+      setFormMessage('This Strategic Report is no longer linked to an application.')
       return
     }
 
-    restoreApplicationWorkspace(
-      application,
-      `${report.generatedPackage.title} opened from Strategic Review Reports.`,
-      report,
+    navigate(
+      `/advisory-hub?applicationId=${encodeURIComponent(application.id)}`,
     )
   }
 
@@ -6465,10 +6714,9 @@ function QuickGeneratePage({
     setProgramUrl('')
     setAmount('')
     setUseWinningTemplate(
-      loadQuickGeneratePreferences().usePlatformStructureByDefault,
+      loadQuickBuildPreferences().usePlatformStructureByDefault,
     )
     setFileName('')
-    setSelectedFundingProgram(null)
     setFormMessage('')
   }
 
@@ -6483,7 +6731,6 @@ function QuickGeneratePage({
     setWorkspaceThoughts([])
     setSelectedSectionId(null)
     setEditorMode(false)
-    setSelectedCompanyRecord(null)
     setCurrentApplicationId(null)
     setGeneratedPackage(null)
     removePersistentItem(generatedDocumentsStorageKey)
@@ -6506,7 +6753,6 @@ function QuickGeneratePage({
     setProgramName(program.name)
     setProgramUrl(program.url)
     setAmount(program.amount.toLocaleString('en-CA'))
-    setSelectedFundingProgram(program)
     setProgramPickerOpen(false)
     setFormMessage(`${program.name} imported from Grants & Loans.`)
   }
@@ -6526,7 +6772,6 @@ function QuickGeneratePage({
         company.industry ? company.industry.toLowerCase() : 'business'
       } team in ${company.location || 'Canada'}.`,
     )
-    setSelectedCompanyRecord(company)
     if (options?.closePicker !== false) {
       setCompanyPickerOpen(false)
     }
@@ -6553,72 +6798,12 @@ function QuickGeneratePage({
   }
 
   async function fetchGeneratedPackageFromBackend(
+    applicationId: string,
     sourceMaterial: string,
-    fundingNeed: number,
-    forceMock: boolean,
   ) {
-    const resolvedCompany = selectedCompanyRecord
-    const resolvedProgram = selectedFundingProgram
-    const targetAmount = Number.isFinite(fundingNeed) ? fundingNeed : undefined
-    const monthlyRevenue = Number(
-      String(resolvedCompany?.monthlyRevenue ?? '').replace(/[^0-9.]/gu, ''),
-    )
-
+    const application = findApplicationRecord(loadApplications(), applicationId)
     const response = await generateBusinessPlanViaApi({
-      workspace_id: demoWorkspaceId,
-      requested_by_user_id: demoUserId,
-      package_name: `${businessName || resolvedCompany?.name || 'Business'} - ${programName} package`,
-      target_language: 'en',
-      section_limit: 7,
-      force_mock: forceMock,
-      company_info: {
-        external_id: resolvedCompany?.id,
-        name: businessName || resolvedCompany?.name || 'Unnamed business',
-        founder_name: fullName || resolvedCompany?.owner || 'Unknown founder',
-        legal_name: resolvedCompany?.legalName || undefined,
-        business_summary: businessIdea || resolvedCompany?.description || 'No business summary provided.',
-        industry: resolvedCompany?.industry || undefined,
-        location: resolvedCompany?.location || undefined,
-        stage: resolvedCompany?.stage || undefined,
-        revenue_model: businessIdea || resolvedCompany?.description || undefined,
-        team_background: teamIntro || undefined,
-        traction:
-          resolvedCompany && resolvedCompany.readiness > 0
-            ? `Current readiness score: ${resolvedCompany.readiness}.`
-            : undefined,
-        use_of_funds: targetAmount
-          ? `Use up to ${targetAmount.toLocaleString('en-CA')} CAD to support growth milestones for ${programName}.`
-          : undefined,
-        monthly_revenue: Number.isFinite(monthlyRevenue) ? monthlyRevenue : undefined,
-        annual_revenue:
-          Number.isFinite(monthlyRevenue) && monthlyRevenue > 0 ? monthlyRevenue * 12 : undefined,
-        employee_count: Number(
-          String(resolvedCompany?.employees ?? '').replace(/[^0-9]/gu, ''),
-        ) || undefined,
-        website: resolvedCompany?.website || undefined,
-        metadata: {
-          email: resolvedCompany?.email || null,
-          phone: resolvedCompany?.phone || null,
-        },
-      },
-      program_info: {
-        external_id: resolvedProgram?.id,
-        name: programName,
-        provider: resolvedProgram?.provider || undefined,
-        category: resolvedProgram?.type || undefined,
-        program_url: programUrl || resolvedProgram?.url || undefined,
-        funding_amount: targetAmount,
-        location: resolvedProgram?.location || undefined,
-        raw_guidelines_text:
-          useWinningTemplate && fileName
-            ? `Use the uploaded or selected structure: ${fileName}.`
-            : undefined,
-        target_outcome: `Generate a funding-ready business plan package for ${programName}.`,
-        metadata: {
-          source_name: resolvedProgram?.sourceName || null,
-          source_material: sourceMaterial,
-        },
-      },
+      app_id: application?.appId ?? applicationId,
     })
 
     return createGeneratedPackageFromBackend(
@@ -6743,37 +6928,29 @@ function QuickGeneratePage({
       return
     }
 
+    if (!currentApplicationId) {
+      setFormMessage('Open an existing application before launching Advisory Hub.')
+      return
+    }
+
     const currentRun = generationRun.current + 1
     generationRun.current = currentRun
 
-    const profile = {
-      ...defaultProfile,
-      companyName: businessName,
-      founderName: fullName,
-      fundingNeed,
-      differentiation: businessIdea,
-    }
-    const sourceMaterial = fileName || (useWinningTemplate ? `${platformName} structure` : 'Official URL')
-    const usingMockGeneration = config.ai.mockModeEnabled
+    const sourceMaterial = 'Database application record'
 
     setActiveStep('workspace')
     setEditorMode(false)
     setWorkspacePhase('analyzing')
     setWorkspaceSections([])
     setWorkspaceThoughts([
-      `Analyzing ${programName} and matching the package structure to the official funding source.`,
+      `Loading application ${currentApplicationId} and its saved funding context.`,
     ])
     setSelectedSectionId(null)
-    setFormMessage(
-      usingMockGeneration
-        ? `Advisory Hub launched in mock mode with ${config.ai.defaultModel}.`
-        : `Advisory Hub launched with ${config.ai.defaultModel}.`,
-    )
+    setFormMessage(`Advisory Hub launched for application ${currentApplicationId}.`)
 
     const backendPromise = fetchGeneratedPackageFromBackend(
+      currentApplicationId,
       sourceMaterial,
-      fundingNeed,
-      usingMockGeneration,
     )
 
     await waitForWorkspace(700)
@@ -6805,22 +6982,16 @@ function QuickGeneratePage({
     let nextPackage: GeneratedPackage
     try {
       nextPackage = await backendPromise
-    } catch {
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'Unknown generation error.'
       setWorkspaceThoughts((previous) => [
         ...previous,
-        usingMockGeneration
-          ? 'Mock mode is enabled in Admin Console, so the workspace continued with the local demo generator.'
-          : 'Python backend was unavailable, so the workspace fell back to the local mock generator.',
+        `Generation failed: ${detail}`,
       ])
-      nextPackage = createGeneratedPackage(
-        profile,
-        programName,
-        `$${amount} CAD`,
-        sourceMaterial,
-        advisoryHubSections,
-        advisoryHubAgents,
-        advisoryHubDocumentTypes,
-      )
+      setWorkspacePhase('idle')
+      setActiveStep(3)
+      setFormMessage(`Generation failed: ${detail}`)
+      return
     }
 
     const startingSections = nextPackage.sections.map((section) => ({
@@ -6866,30 +7037,29 @@ function QuickGeneratePage({
     const currentApplication = currentApplicationId
       ? findApplicationRecord(savedApplications, currentApplicationId)
       : null
-    const reusableApplicationId =
-      currentApplication &&
-      currentApplication.programName === programName &&
-      currentApplication.company === businessName
-        ? currentApplication.id
-        : undefined
-    const nextApplicationId =
-      reusableApplicationId ?? buildGeneratedApplicationId(businessName, programName)
+    if (!currentApplication) {
+      setWorkspacePhase('idle')
+      setActiveStep(3)
+      setFormMessage('The application is no longer available in this workspace.')
+      return
+    }
+
+    const nextApplicationId = currentApplication.id
     const strategicReviewReport = createStrategicReviewReport(nextApplicationId, nextPackage)
 
     const nextApplications = upsertGeneratedApplication(savedApplications, {
       id: nextApplicationId,
-      title: `${programName} application`,
-      programName,
-      programUrl,
-      company: businessName,
-      fundingType: selectedFundingProgram?.type ?? 'Grant',
-      amount: Number.isFinite(fundingNeed) ? fundingNeed : 0,
-      deadline: selectedFundingProgram?.deadline ?? 'Open',
-      owner: fullName || selectedCompanyRecord?.owner || 'Workspace Admin',
+      title: `${nextPackage.programName} application`,
+      programName: nextPackage.programName,
+      programUrl: currentApplication.programUrl || programUrl,
+      company: nextPackage.businessName,
+      fundingType: currentApplication.fundingType,
+      amount: currentApplication.amount,
+      deadline: currentApplication.deadline,
+      owner: currentApplication.owner,
       readinessScore: nextPackage.readinessScore,
       documentCount: nextPackage.documents.length,
       generatedAt: new Date(nextPackage.completedAt),
-      generatedPackage: nextPackage,
       strategicReviewReport,
     })
     saveApplications(nextApplications)
@@ -6904,10 +7074,9 @@ function QuickGeneratePage({
     setWorkspaceThoughts((previous) => [...previous, 'Funding package ready for editing, export, and sharing.'])
     setSelectedSectionId(nextPackage.sections[0]?.id ?? null)
     removePersistentItem(draftStorageKey)
-    setFormMessage(
-      usingMockGeneration
-        ? `Funding-ready workspace generated in mock mode with ${config.ai.defaultModel}.`
-        : `Funding-ready workspace generated successfully with ${config.ai.defaultModel}.`,
+    setFormMessage('Funding-ready workspace generated successfully from the saved application.')
+    navigate(
+      `/advisory-hub?applicationId=${encodeURIComponent(nextApplicationId)}`,
     )
   }
 
@@ -6928,6 +7097,23 @@ function QuickGeneratePage({
     setSelectedSectionId(null)
     setActiveStep(3)
     setFormMessage('Generation cancelled. Your inputs are still available.')
+  }
+
+  function openFinancialForecast() {
+    if (!generatedPackage?.financialForecast) {
+      setFormMessage('This Strategic Report does not contain a financial forecast yet.')
+      return
+    }
+
+    setSelectedSectionId('financial-model')
+    setEditorMode(false)
+    window.setTimeout(
+      () =>
+        document
+          .getElementById('financial-forecast-panel')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      0,
+    )
   }
 
   function openEditor() {
@@ -7059,7 +7245,7 @@ function QuickGeneratePage({
   }
 
   async function shareWorkspace() {
-    const shareUrl = `${window.location.origin}/quick-generate`
+    const shareUrl = `${window.location.origin}/quick-build`
     try {
       await window.navigator.clipboard.writeText(shareUrl)
       setFormMessage('Workspace link copied to the clipboard.')
@@ -7082,14 +7268,14 @@ function QuickGeneratePage({
           </h1>
           <p>
             {showsStrategicReviewListing
-              ? 'Open a completed Strategic Review report by application, then review the analysis, generated sections, and funding package preview.'
+              ? 'Open a completed Strategic Report by application, then review the analysis, generated sections, and funding package preview.'
               : 'One guided workspace for your business plan, cash flow forecast, funding narrative, and now a live AI generation room the founder can actually follow.'}
           </p>
         </div>
         {showsStrategicReviewListing ? (
-          <Link to="/quick-generate" className="generator-save-button">
+          <Link to="/quick-build" className="generator-save-button">
             <Glyph type="spark" />
-            Begin Strategic Review
+            Generate Strategic Report
           </Link>
         ) : (
           <button type="button" className="generator-save-button" onClick={saveDraft}>
@@ -7122,7 +7308,7 @@ function QuickGeneratePage({
             <section className="generator-stage advisory-report-listing-stage">
               <div className="advisory-report-listing-heading">
                 <div>
-                  <span>Strategic Review Reports</span>
+                  <span>Strategic Reports</span>
                   <h2>Choose a report to open the full review.</h2>
                   <p>
                     Every report is linked to the application that created it, so the
@@ -7138,6 +7324,7 @@ function QuickGeneratePage({
                     <small>Applications</small>
                     <strong>{strategicReviewApplicationCount}</strong>
                   </article>
+
                 </div>
               </div>
 
@@ -7154,11 +7341,12 @@ function QuickGeneratePage({
                         <Glyph type="spark" />
                       </span>
                       <span className="advisory-report-main">
-                        <span className="advisory-report-label">Strategic Review Report</span>
+                        <span className="advisory-report-label">Strategic Report</span>
                         <strong>{report.generatedPackage.programName}</strong>
                         <small>
                           {report.generatedPackage.businessName} · Application ID {report.applicationId}
                         </small>
+                        <small>Strategic Report ID {report.id}</small>
                       </span>
                       <span className="advisory-report-score">
                         <strong>{report.generatedPackage.readinessScore}%</strong>
@@ -7184,9 +7372,9 @@ function QuickGeneratePage({
               ) : (
                 <div className="advisory-report-empty">
                   <span><Glyph type="spark" /></span>
-                  <strong>No Strategic Review reports yet</strong>
-                  <p>Start a funding package in Quick Generate to create the first report.</p>
-                  <Link to="/quick-generate">Start a new Strategic Review</Link>
+                  <strong>No Strategic Reports yet</strong>
+                  <p>Start a funding package in Quick Build to create the first report.</p>
+                  <Link to="/quick-build">Generate a new Strategic Report</Link>
                 </div>
               )}
             </section>
@@ -7532,7 +7720,7 @@ function QuickGeneratePage({
                   disabled={isGenerating}
                 >
                   <Glyph type="spark" />
-                  Begin Strategic Review
+                  Start
                 </button>
               </div>
             </section>
@@ -7547,7 +7735,7 @@ function QuickGeneratePage({
                   onClick={returnToStrategicReviewReports}
                 >
                   <Glyph type="arrow" />
-                  Back to Strategic Review Reports
+                  Back to Strategic Reports
                 </button>
               ) : null}
               <div className="generator-ai-hero">
@@ -7566,6 +7754,12 @@ function QuickGeneratePage({
                       </span>
                     ))}
                   </div>
+                  {selectedStrategicReviewReportId ? (
+                    <div className="generator-strategic-report-id">
+                      <span>Strategic Report ID</span>
+                      <code>{selectedStrategicReviewReportId}</code>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="generator-ai-status">
                   <div className="generator-ai-status-heading">
@@ -7605,8 +7799,8 @@ function QuickGeneratePage({
                         <span>Analyze</span>
                         <h3>Opportunity understanding</h3>
                       </div>
-                      <b className={quickGeneratePhaseRank[workspacePhase] >= 2 ? 'is-complete' : ''}>
-                        {quickGeneratePhaseRank[workspacePhase] >= 2 ? 'Done' : 'Live'}
+                      <b className={quickBuildPhaseRank[workspacePhase] >= 2 ? 'is-complete' : ''}>
+                        {quickBuildPhaseRank[workspacePhase] >= 2 ? 'Done' : 'Live'}
                       </b>
                     </header>
                     <ul className="generator-ai-checklist">
@@ -7614,7 +7808,7 @@ function QuickGeneratePage({
                         <li
                           key={item}
                           className={
-                            quickGeneratePhaseRank[workspacePhase] >= 2
+                            quickBuildPhaseRank[workspacePhase] >= 2
                               ? 'is-complete'
                               : workspacePhase === 'analyzing'
                                 ? 'is-working'
@@ -7622,7 +7816,7 @@ function QuickGeneratePage({
                           }
                         >
                           <i>
-                            {quickGeneratePhaseRank[workspacePhase] >= 2
+                            {quickBuildPhaseRank[workspacePhase] >= 2
                               ? '✓'
                               : workspacePhase === 'analyzing'
                                 ? '•'
@@ -7640,8 +7834,8 @@ function QuickGeneratePage({
                         <span>Planning</span>
                         <h3>Document structure</h3>
                       </div>
-                      <b className={quickGeneratePhaseRank[workspacePhase] >= 3 ? 'is-complete' : ''}>
-                        {quickGeneratePhaseRank[workspacePhase] >= 3 ? 'Planned' : 'Queued'}
+                      <b className={quickBuildPhaseRank[workspacePhase] >= 3 ? 'is-complete' : ''}>
+                        {quickBuildPhaseRank[workspacePhase] >= 3 ? 'Planned' : 'Queued'}
                       </b>
                     </header>
                     <ul className="generator-ai-checklist">
@@ -7649,7 +7843,7 @@ function QuickGeneratePage({
                         <li
                           key={item}
                           className={
-                            quickGeneratePhaseRank[workspacePhase] >= 3
+                            quickBuildPhaseRank[workspacePhase] >= 3
                               ? 'is-complete'
                               : workspacePhase === 'planning'
                                 ? 'is-working'
@@ -7657,7 +7851,7 @@ function QuickGeneratePage({
                           }
                         >
                           <i>
-                            {quickGeneratePhaseRank[workspacePhase] >= 3
+                            {quickBuildPhaseRank[workspacePhase] >= 3
                               ? '✓'
                               : workspacePhase === 'planning'
                                 ? '•'
@@ -7717,6 +7911,7 @@ function QuickGeneratePage({
                       ))}
                     </div>
                   </article>
+
                 </div>
 
                 <div className="generator-ai-column">
@@ -7849,6 +8044,11 @@ function QuickGeneratePage({
                           ))}
                         </div>
                         <div className="generator-ai-ready-actions">
+                          {generatedPackage.financialForecast ? (
+                            <button type="button" onClick={openFinancialForecast}>
+                              View Financial Forecast
+                            </button>
+                          ) : null}
                           <button type="button" onClick={openEditor}>
                             Open Editor
                           </button>
@@ -7865,7 +8065,12 @@ function QuickGeneratePage({
                       </div>
                     ) : null}
                   </article>
+
                 </div>
+
+                {generatedPackage?.financialForecast ? (
+                  <FinancialForecastTable forecast={generatedPackage.financialForecast} />
+                ) : null}
               </div>
             </section>
           ) : null}
@@ -7975,12 +8180,12 @@ function QuickGeneratePage({
             {activeStep === 'workspace' ? (
               <>
                 <div className="generator-summary-checks">
-                  <span className={quickGeneratePhaseRank[workspacePhase] >= 2 ? 'is-complete' : ''}>
-                    <i>{quickGeneratePhaseRank[workspacePhase] >= 2 ? '✓' : '1'}</i>
+                  <span className={quickBuildPhaseRank[workspacePhase] >= 2 ? 'is-complete' : ''}>
+                    <i>{quickBuildPhaseRank[workspacePhase] >= 2 ? '✓' : '1'}</i>
                     Opportunity analyzed
                   </span>
-                  <span className={quickGeneratePhaseRank[workspacePhase] >= 3 ? 'is-complete' : ''}>
-                    <i>{quickGeneratePhaseRank[workspacePhase] >= 3 ? '✓' : '2'}</i>
+                  <span className={quickBuildPhaseRank[workspacePhase] >= 3 ? 'is-complete' : ''}>
+                    <i>{quickBuildPhaseRank[workspacePhase] >= 3 ? '✓' : '2'}</i>
                     Strategy built
                   </span>
                   <span
@@ -8273,7 +8478,7 @@ function OverviewPage() {
           <h1>Good afternoon, Alex.</h1>
           <p>Here is what needs your attention across the funding workspace.</p>
         </div>
-        <Link to="/quick-generate" className="workspace-primary-action">
+        <Link to="/quick-build" className="workspace-primary-action">
           <Glyph type="spark" />
           <span>Create funding package</span>
         </Link>
@@ -8562,8 +8767,8 @@ export function DashboardPage() {
   }
 
   const isOverview = !sectionId || sectionId === 'dashboard'
-  const isQuickGenerate = currentItem?.id === 'quick-generate'
-  const isAiWorkspace = currentItem?.id === 'ai-workspace'
+  const isQuickBuild = currentItem?.id === 'quick-build'
+  const isAiWorkspace = currentItem?.id === 'advisory-hub'
   const isFundingReadiness = currentItem?.id === 'funding-readiness'
   const isMyCompany = currentItem?.id === 'my-company'
   const isGrantsLoans = currentItem?.id === 'grants-loans'
@@ -8802,7 +9007,7 @@ export function DashboardPage() {
             ) : null}
           </div>
           <Link
-            to="/quick-generate"
+            to="/quick-build"
             className="clone-sidebar-create"
             onClick={() => setSidebarOpen(false)}
           >
@@ -8977,10 +9182,10 @@ export function DashboardPage() {
             <OverviewPage />
           ) : isFundingReadiness ? (
             <FundingReadinessPage />
-          ) : isQuickGenerate ? (
-            <QuickGeneratePage initialView="form" />
+          ) : isQuickBuild ? (
+            <QuickBuildPage initialView="form" />
           ) : isAiWorkspace ? (
-            <QuickGeneratePage initialView="workspace" />
+            <QuickBuildPage initialView="workspace" />
           ) : isMyCompany ? (
             <MyCompanyPage />
           ) : isSavedPrograms ? (
@@ -9001,7 +9206,7 @@ export function DashboardPage() {
             <SectionListing item={currentItem} />
           ) : null}
 
-          {!isQuickGenerate && showsProgramPanels ? (
+          {!isQuickBuild && showsProgramPanels ? (
             <>
               {config.modules['saved-programs'] ? (
                 <section className="clone-section">

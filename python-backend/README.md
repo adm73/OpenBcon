@@ -1,12 +1,13 @@
 # OpenBcon Python Business Plan Backend
 
-This service is a focused Python backend for the Quick Generate core workflow:
+This service is a focused Python backend for the Quick Build core workflow:
 
-1. read funding program information from PostgreSQL
-2. read company information from PostgreSQL
+1. read an application by numeric ID from the PostgreSQL `applications` table
+2. resolve its company and funding program records from PostgreSQL
 3. build a normalized generation context
-4. run a LangGraph workflow
-5. return and persist a generated business plan
+4. read the enabled section order and prompts plus the configured agents from the Admin Console Advisory Hub configuration in MongoDB
+5. run a LangGraph workflow using exactly those configured sections and agent instructions
+6. return and persist a generated business plan and complete strategic review trace
 
 The frontend can keep progress animations, timeline rendering, and AI workspace
 UI states. This backend only owns the core data loading and generation logic.
@@ -38,22 +39,20 @@ Request body:
 
 ```json
 {
-  "workspace_id": "00000000-0000-4000-8000-000000000002",
-  "company_id": "11111111-1111-4111-8111-111111111111",
-  "funding_program_id": "22222222-2222-4222-8222-222222222222",
-  "requested_by_user_id": "00000000-0000-4000-8000-000000000001",
-  "package_name": "Northstar Foods FedDev Package",
-  "target_language": "en",
-  "section_limit": 7
+  "app_id": "8d3f7a1c2e9b4d60"
 }
 ```
+
+The external application ID is the only accepted input. The backend rejects direct
+company or program payloads and loads the complete application context from
+the relational `applications` table, including its linked company, funding
+program, and owner.
 
 Response body:
 
 ```json
 {
-  "package_id": "7de4d4b2-1b9d-4ab0-a31b-6daff0e63630",
-  "run_id": "c09ff509-6b5b-4480-81b0-40368ef764f1",
+  "strategic_report_id": "7de4d4b2-1b9d-4ab0-a31b-6daff0e63630",
   "status": "completed",
   "document": {
     "title": "Northstar Foods Business Plan",
@@ -80,6 +79,8 @@ OPENBCON_DB_DSN=postgresql://bconomics:bconomics@localhost:5432/bconomics
 OPENBCON_OPENAI_MODEL=gpt-5
 OPENBCON_OPENAI_API_KEY=your-key
 OPENBCON_USE_MOCK_LLM=false
+OPENBCON_MONGODB_URL=mongodb://localhost:27017
+OPENBCON_MONGODB_DATABASE=bconomics
 OPENBCON_API_HOST=0.0.0.0
 OPENBCON_API_PORT=8010
 OPENBCON_ALLOWED_AI_ENDPOINT_HOSTS=api.openai.com,api.anthropic.com,generativelanguage.googleapis.com
@@ -91,6 +92,11 @@ If you want to test without a model key, set:
 ```bash
 OPENBCON_USE_MOCK_LLM=true
 ```
+
+Advisory Hub sections have no Python-side defaults. Every generation reads the
+current Admin Console section and agent configuration from MongoDB. Generation
+fails if the configuration is missing, contains no enabled sections, or a
+section references an unavailable agent.
 
 ## Install and run
 
@@ -114,14 +120,17 @@ local development.
 ## How the LangGraph flow works
 
 ```text
-load company + program from database
+load application by ID from database
+  -> resolve company + program records
+  -> read enabled Advisory Hub sections and agents from MongoDB
   -> normalize_inputs
   -> analyze_program
   -> analyze_company
-  -> build_outline
+  -> build_outline from Admin Console section configuration
   -> generate_sections
   -> compile_output
-  -> save sections + final document back to PostgreSQL
+  -> save complete trace + final document to PostgreSQL strategic_reports
+  -> save the complete trace and final result to strategic_reports
 ```
 
 ## Notes

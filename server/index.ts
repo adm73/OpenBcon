@@ -3,12 +3,14 @@ import { environment } from './config'
 import { runMigrations } from './db/migrate'
 import { databasePool } from './db/pool'
 import { seedDatabase } from './db/seed'
+import { createDocumentStore } from './documentStore'
 
 async function startServer() {
   if (environment.AUTO_MIGRATE) await runMigrations()
   if (environment.SEED_DEMO_DATA) await seedDatabase()
 
-  const app = createApp(databasePool)
+  const documentStore = createDocumentStore()
+  const app = createApp(databasePool, documentStore)
   const server = app.listen(
     environment.API_PORT,
     environment.API_HOST,

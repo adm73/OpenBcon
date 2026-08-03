@@ -58,7 +58,7 @@ The repository currently includes three product surfaces:
 - `/dashboard` - user workspace
 - `/admin` - platform configuration console, including Advisory Hub setup
 
-Every workspace module uses a flat route such as `/funding-readiness`, `/quick-generate`, `/ai-workspace` (Advisory Hub), and `/grants-loans`.
+Every workspace module uses a flat route such as `/funding-readiness`, `/quick-build`, `/advisory-hub`, and `/grants-loans`.
 
 Built-in auth entry flows are also included for `/login`, `/signup`, `/forgot-password`, and `/reset-password`.
 
@@ -77,7 +77,7 @@ Live demo and short product walkthroughs are planned. Until then, the repository
       <sub>Landing Page 2</sub>
     </td>
     <td align="center">
-      <img src="./public/images/openbcon-screenshot-03.png" alt="OpenBcon quick generate workflow" width="100%" /><br />
+      <img src="./public/images/openbcon-screenshot-03.png" alt="OpenBcon Quick Build workflow" width="100%" /><br />
       <sub>Dashboard Overview</sub>
     </td>
   </tr>
@@ -85,7 +85,7 @@ Live demo and short product walkthroughs are planned. Until then, the repository
 
 ## Screenshot Gallery
 
-The current repository snapshot includes the landing experience, dashboard workspace, directories, and Quick Generate flow.
+The current repository snapshot includes the landing experience, dashboard workspace, directories, and Quick Build flow.
 
 <table>
   <tr>
@@ -95,11 +95,11 @@ The current repository snapshot includes the landing experience, dashboard works
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-05.png" alt="My Company page" width="100%" /><br />
-      <sub>Quick Generate</sub>
+      <sub>Quick Build</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-06.png" alt="Saved Programs page" width="100%" /><br />
-      <sub>Quick Generate - Result Preview</sub>
+      <sub>Quick Build - Result Preview</sub>
     </td>
   </tr>
   <tr>
@@ -132,15 +132,15 @@ The current repository snapshot includes the landing experience, dashboard works
   </tr>
   <tr>
     <td align="center">
-      <img src="./public/images/openbcon-screenshot-13.png" alt="Quick Generate step 1" width="100%" /><br />
+      <img src="./public/images/openbcon-screenshot-13.png" alt="Quick Build step 1" width="100%" /><br />
       <sub>Tools</sub>
     </td>
     <td align="center">
-      <img src="./public/images/openbcon-screenshot-14.png" alt="Quick Generate step 2" width="100%" /><br />
+      <img src="./public/images/openbcon-screenshot-14.png" alt="Quick Build step 2" width="100%" /><br />
       <sub>Settings</sub>
     </td>
     <td align="center">
-      <img src="./public/images/openbcon-screenshot-15.png" alt="Quick Generate step 3 review" width="100%" /><br />
+      <img src="./public/images/openbcon-screenshot-15.png" alt="Quick Build step 3 review" width="100%" /><br />
       <sub>Admin Console</sub>
     </td>
   </tr>
@@ -156,15 +156,17 @@ The current repository snapshot includes the landing experience, dashboard works
 - Billing settings surface with current subscription, pricing options, and transaction history
 - Module and Partner Portal feature flags
 - Searchable and filterable listing views with record details
-- Three-step Quick Generate workflow with validation, company import, application restore, and generated previews
-- Dedicated Advisory Hub route (`/ai-workspace`) for reopening the latest generated package outside the form flow
+- Three-step Quick Build workflow with validation, company import, application restore, and generated previews
+- Dedicated Advisory Hub route (`/advisory-hub`) for reopening the latest generated package outside the form flow
 - Advisory Hub generation driven by configurable sections, document types, agents, roles, prompts, and workflow ordering
 - Saved Programs materialized as applications with funding-program step data prefilled
-- My Applications and Quick Generate linked by numeric `applicationId` route parameters
+- My Applications and Quick Build use the unique external `app_id` in links and API requests
 - Google Sheets and Airtable funding data-source integrations
 - Admin data-source search, create, edit, delete, enable, and manual sync controls
-- Dynamic Grants & Loans directory with source attribution and Quick Generate import
-- PostgreSQL-backed persistence with local offline fallback and first-run migration
+- Dynamic Grants & Loans directory with source attribution and Quick Build import
+- PostgreSQL domain data plus MongoDB-backed dynamic configuration and workspace state
+- One Strategic Report per application, persisted in `strategic_reports` with LangGraph trace and final result data
+- Three-year, 36-month financial forecasts with monthly revenue and expense rows, annual summaries, and Advisory Hub visualizations
 - Database migrations, demo seed data, audit logs, and Docker Compose setup
 - Route-specific titles, metadata, and a dedicated 404 page
 - Vitest checks and a GitHub Actions verification workflow
@@ -179,6 +181,7 @@ The current repository snapshot includes the landing experience, dashboard works
 - Oxlint
 - Express
 - PostgreSQL 17
+- MongoDB 8
 - Zod
 
 ## Local development
@@ -192,7 +195,18 @@ npm run dev
 Open [http://localhost:5173](http://localhost:5173).
 
 Copy `.env.example` to `.env` before changing database credentials or ports.
-`npm run dev` starts both the API on port `8787` and Vite on port `5173`.
+Start both database services before migrating state:
+
+```bash
+docker compose up -d postgres mongodb
+npm run db:migrate-state-to-mongo
+npm run db:migrate
+npm run db:seed
+```
+
+`npm run db:setup` runs the same migration and seed steps after the database
+services are available. `npm run dev` starts the API on port `8787` and Vite on
+port `5173`.
 For the Python AI backend used by the model connection chat, create the
 Python environment described in `python-backend/README.md`, then run
 `npm run dev:python` in a second terminal. It listens on port `8010`.
@@ -238,6 +252,51 @@ npm run db:seed
 npm run db:down
 ```
 
+## Strategic Reports
+
+Quick Build accepts the public application identifier and launches one Strategic
+Report for that application:
+
+```text
+/quick-build?app_id=3a819e8f5ce9f1d8
+```
+
+The public generation API uses the same identifier:
+
+```http
+POST http://localhost:8010/api/business-plan/generate
+Content-Type: application/json
+
+{"app_id":"3a819e8f5ce9f1d8"}
+```
+
+The forecast-only endpoint is:
+
+```http
+POST http://localhost:8010/api/business-plan/forecast
+Content-Type: application/json
+
+{"app_id":"3a819e8f5ce9f1d8"}
+```
+
+The backend loads the application, company, and funding-program records from
+PostgreSQL, then reads the current enabled Advisory Hub sections and assigned
+agents from MongoDB. Sections are generated in the configured order using each
+agent's current name, role, and prompt; there are no Python-side default section
+values. The LangGraph run trace and final result are stored in the application's
+single `strategic_reports` row.
+
+The report page resolves that row from the application relationship, so the
+navigation URL can be `/advisory-hub?applicationId=<applications.id>`; the
+stored Strategic Report ID is displayed by the page and does not need to be
+passed as a second query parameter.
+
+Financial forecasting is part of the Strategic Report. By default it produces
+three years of monthly periods (36 columns), with revenue rows first, expense
+rows second, and calculated total revenue, total expenses, and net cash flow.
+Advisory Hub renders the forecast with trend charts, net-cash-flow bars, annual
+summaries, and the detailed monthly table.
+
 ## Project structure
 
 ```text
@@ -263,7 +322,7 @@ state-key allowlist so session tokens and local-only settings cannot be written
 to the state database.
 
 Workspace settings such as the profile, billing selections, default company,
-and Quick Generate preferences are persisted locally for the active browser
+and Quick Build preferences are persisted locally for the active browser
 session profile. Payment gateway secrets are never written back to the remote
 state store in plaintext.
 
@@ -290,10 +349,11 @@ The landing page can be managed directly from `/admin#landing-page`, including:
 Saved opportunities now bridge directly into the application workflow:
 
 - saving a program can materialize a corresponding application record
-- each application stores the Quick Generate step-one funding context
-- `/quick-generate?applicationId=...` restores an existing application instead of starting a new one
+- each application stores the Quick Build step-one funding context
+- `/quick-build?app_id=...` restores an existing application instead of starting a new one
 - the Step 2 business profile can automatically import the configured default company
-- generated packages can be reopened later from the dedicated `/ai-workspace` route
+- generated packages can be reopened later from the dedicated `/advisory-hub` route
+- each application maps to one Strategic Report through `strategic_reports.application_id`
 
 Payment settings under `/admin#payments` now focus on gateway configuration:
 
@@ -316,26 +376,48 @@ Before production deployment:
 4. Keep production secrets in a secret manager and use Admin only for references or encrypted-at-rest secure storage.
 5. Configure TLS and a managed PostgreSQL backup policy.
 
-## PostgreSQL persistence
+## Persistence
 
-The API stores the current product state in PostgreSQL using three scopes:
+PostgreSQL stores relational domain data, especially users, companies, funding
+programs, applications, and strategic reports. Internal application relations
+use the numeric `applications.id`, while external generation calls use the
+unique 16-character `applications.app_id`.
 
-- `platform` for branding, modules, AI/payment configuration, and data sources
-- `workspace` for companies, applications, saved programs, and generated documents
+MongoDB stores editable dynamic JSON configuration and lightweight workspace state
+in the `dynamic_state` collection using three scopes:
+
+- `platform` for branding, landing-page content, modules, AI/payment configuration, and data sources
+- `workspace` for saved-program preferences and Quick Build drafts
 - `user` for personal settings, pinned resources, and active workspace selection
 
 Sensitive payment keys inside `bconomics-platform-config-v1` are not returned to
 the browser in plaintext. The API redacts them in bootstrap payloads, encrypts
-raw values before saving them to PostgreSQL, and decrypts them only for
+raw values before saving them to MongoDB, and decrypts them only for
 server-side payment operations.
 
-On first connection, existing supported browser state is uploaded automatically.
-On later visits, PostgreSQL is loaded before the React application mounts. Mutations
-are debounced and written in batches, and every database mutation creates an audit
-record.
+On first migration, existing `app_state` JSON documents are copied to MongoDB.
+The PostgreSQL `app_state` table is no longer used. On later visits, MongoDB and
+the relational `applications` table are loaded before the React application mounts.
+Mutations are debounced and written in batches, and every mutation creates an audit
+record in PostgreSQL.
 
 See [docs/DATABASE.md](./docs/DATABASE.md) for the schema, API contract, deployment
 guidance, and migration path toward fully normalized domain tables.
+
+## Security and Deployment Notes
+
+This repository is currently a development/demo workspace. The visible login
+pages are present, but server-side authentication and workspace authorization are
+not implemented yet; API routes currently use the configured demo user and
+workspace context. Do not expose the Node API, Python AI API, PostgreSQL,
+MongoDB, payment routes, or model endpoints publicly until authentication,
+authorization, production CORS, secret management, TLS, and database network
+controls are configured.
+
+Keep `.env` and provider keys out of Git. Use a secret manager in production and
+never place raw AI or payment credentials in frontend configuration. Review and
+back up the database before applying destructive historical migrations, including
+the migration that removes the legacy funding-package tables.
 
 ## Workspace data sources
 

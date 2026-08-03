@@ -20,7 +20,8 @@
     "db:down": "docker compose down",
     "db:migrate": "tsx server/db/migrate.ts",
     "db:seed": "tsx server/db/seed.ts",
-    "db:setup": "npm run db:up && npm run db:migrate && npm run db:seed"
+    "db:migrate-state-to-mongo": "tsx server/db/migrateAppStateToMongo.ts",
+    "db:setup": "npm run db:up && npm run db:migrate-state-to-mongo && npm run db:migrate && npm run db:seed"
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -29,6 +30,7 @@
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "marked": "^18.0.7",
+    "mongodb": "^6.21.0",
     "pg": "^8.22.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

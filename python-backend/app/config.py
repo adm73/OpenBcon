@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     db_dsn: str = Field(
         default="postgresql://bconomics:bconomics@localhost:5432/bconomics",
     )
+    mongodb_url: str = "mongodb://localhost:27017"
+    mongodb_database: str = "bconomics"
+    platform_config_key: str = "bconomics-platform-config-v1"
     openai_api_key: str | None = None
     openai_model: str = "gpt-5"
     use_mock_llm: bool = False

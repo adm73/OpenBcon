@@ -12,6 +12,7 @@ export type ApplicationStatus =
 
 export type ApplicationRecord = {
   id: string
+  appId?: string
   title: string
   programName: string
   programUrl?: string
@@ -28,7 +29,6 @@ export type ApplicationRecord = {
   documentsTotal: number
   nextAction: string
   note: string
-  generatedPackage?: GeneratedPackage | null
   strategicReviewReports?: StrategicReviewReport[]
 }
 
@@ -45,7 +45,6 @@ export type GeneratedApplicationInput = {
   readinessScore: number
   documentCount: number
   generatedAt?: Date
-  generatedPackage?: GeneratedPackage | null
   strategicReviewReport?: StrategicReviewReport | null
 }
 
@@ -64,9 +63,19 @@ export type SavedProgramApplicationInput = {
 
 export const applicationStorageKey = 'bconomics-applications-v1'
 
+const legacyApplicationIdMap: Record<string, string> = {
+  '9747353081165': '1',
+  '9186863812373': '2',
+  '9072234635298': '3',
+  '9558176441246': '4',
+  '9346348411018': '5',
+  '9579697458235': '6',
+  '9892337221705': '7',
+}
+
 export const initialApplications: ApplicationRecord[] = [
   {
-    id: '100000000001',
+    id: '2',
     title: 'Growth project application',
     programName: 'FedDev Ontario Growth Program',
     programUrl: 'https://feddev-ontario.canada.ca/en/funding',
@@ -85,7 +94,7 @@ export const initialApplications: ApplicationRecord[] = [
     note: 'Finance team is validating equipment quotes and matching funds.',
   },
   {
-    id: '100000000002',
+    id: '3',
     title: 'Digital adoption plan',
     programName: 'Canada Digital Adoption Program',
     programUrl: 'https://ised-isde.canada.ca/site/canada-digital-adoption-program/en',
@@ -104,7 +113,7 @@ export const initialApplications: ApplicationRecord[] = [
     note: 'Digital plan and vendor estimates are complete.',
   },
   {
-    id: '100000000003',
+    id: '4',
     title: 'Working capital financing',
     programName: 'BDC Small Business Loan',
     programUrl: 'https://www.bdc.ca/en/financing/small-business-loan',
@@ -123,7 +132,7 @@ export const initialApplications: ApplicationRecord[] = [
     note: '',
   },
   {
-    id: '100000000004',
+    id: '5',
     title: 'Ontario expansion proposal',
     programName: 'Ontario Business Expansion Fund',
     programUrl: 'https://www.ontario.ca/page/business-and-economy',
@@ -142,7 +151,7 @@ export const initialApplications: ApplicationRecord[] = [
     note: 'Confirmation number ON-BEF-20481.',
   },
   {
-    id: '100000000005',
+    id: '6',
     title: 'Heat-pump fleet modernization',
     programName: 'Clean Technology Adoption Fund',
     programUrl: 'https://ised-isde.canada.ca/site/strategic-innovation-fund/en/clean-technology-adoption',
@@ -161,7 +170,7 @@ export const initialApplications: ApplicationRecord[] = [
     note: 'Approved for $96,000 subject to contribution agreement.',
   },
   {
-    id: '100000000006',
+    id: '7',
     title: 'Retail market expansion',
     programName: 'Ontario Market Expansion Grant',
     programUrl: 'https://www.ontario.ca/page/business-and-economy',
@@ -185,6 +194,11 @@ function isNumericApplicationId(value: string) {
   return /^\d+$/u.test(value.trim())
 }
 
+function normalizePersistedApplicationId(value: string) {
+  const normalized = value.trim()
+  return legacyApplicationIdMap[normalized] ?? normalized
+}
+
 function hashApplicationIdSeed(seed: string) {
   let left = 0
   let right = 0
@@ -203,7 +217,7 @@ function normalizeApplicationId(
   index = 0,
 ) {
   if (isNumericApplicationId(application.id)) {
-    return application.id.trim()
+    return normalizePersistedApplicationId(application.id)
   }
 
   return hashApplicationIdSeed(
@@ -213,21 +227,13 @@ function normalizeApplicationId(
 
 function hydrateApplicationRecord(application: ApplicationRecord): ApplicationRecord {
   const id = normalizeApplicationId(application)
-  const strategicReviewReports =
-    application.strategicReviewReports?.length
-      ? application.strategicReviewReports.map((report) => ({
-          ...report,
-          applicationId: id,
-        }))
-      : application.generatedPackage
-        ? [
-            {
-              id: `legacy-${id}`,
-              applicationId: id,
-              generatedPackage: application.generatedPackage,
-            },
-          ]
-        : []
+  const usableReports = application.strategicReviewReports?.filter(
+    (report) => report?.generatedPackage != null,
+  )
+  const latestReport = usableReports?.at(-1)
+  const strategicReviewReports = latestReport
+    ? [{ ...latestReport, applicationId: id }]
+    : []
 
   return {
     ...application,
@@ -359,6 +365,7 @@ export function materializeSavedProgramApplication(
 
   const applicationRecord: ApplicationRecord = {
     id,
+    appId: existing?.appId,
     title: existing?.title?.trim() || `${input.programName} application`,
     programName: input.programName,
     programUrl:
@@ -379,7 +386,6 @@ export function materializeSavedProgramApplication(
     documentsTotal: existing?.documentsTotal ?? 3,
     nextAction: existing?.nextAction?.trim() || stageState.nextAction,
     note: existing?.note?.trim() || savedNote,
-    generatedPackage: existing?.generatedPackage ?? null,
     strategicReviewReports: existing?.strategicReviewReports ?? [],
   }
 
@@ -431,16 +437,13 @@ export function upsertGeneratedApplication(
     progress >= 85
       ? 'Review generated package and finalize the submission checklist'
       : 'Review generated package and add the remaining supporting evidence'
-  const generatedNote = `Generated from Quick Generate on ${generatedAt.toLocaleDateString('en-CA', {
+  const generatedNote = `Generated from Quick Build on ${generatedAt.toLocaleDateString('en-CA', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   })}.`
   const strategicReviewReports = input.strategicReviewReport
     ? [
-        ...(existing?.strategicReviewReports ?? []).filter(
-          (report) => report.id !== input.strategicReviewReport?.id,
-        ),
         {
           ...input.strategicReviewReport,
           applicationId: id,
@@ -450,6 +453,7 @@ export function upsertGeneratedApplication(
 
   const generatedRecord: ApplicationRecord = {
     id,
+    appId: existing?.appId,
     title: input.title?.trim() || `${input.programName} application`,
     programName: input.programName,
     programUrl:
@@ -473,7 +477,6 @@ export function upsertGeneratedApplication(
     nextAction:
       existing && !['Draft', 'Ready'].includes(existing.status) ? existing.nextAction : nextAction,
     note: existing?.note?.trim() ? existing.note : generatedNote,
-    generatedPackage: input.generatedPackage ?? existing?.generatedPackage ?? null,
     strategicReviewReports,
   }
 
@@ -493,14 +496,23 @@ export function findApplicationRecord(
   return applications.find((application) => application.id === applicationId) ?? null
 }
 
+export function findApplicationRecordByAppId(
+  applications: ApplicationRecord[],
+  appId: string,
+) {
+  return applications.find((application) => application.appId === appId) ?? null
+}
+
 export function getLatestGeneratedApplication(
   applications: ApplicationRecord[],
 ) {
   return applications
-    .filter((application) => application.generatedPackage)
+    .filter((application) => application.strategicReviewReports?.length)
     .sort((left, right) => {
-      const leftTime = Date.parse(left.generatedPackage?.completedAt ?? '')
-      const rightTime = Date.parse(right.generatedPackage?.completedAt ?? '')
+      const leftReport = left.strategicReviewReports?.at(-1)
+      const rightReport = right.strategicReviewReports?.at(-1)
+      const leftTime = Date.parse(leftReport?.generatedPackage.completedAt ?? '')
+      const rightTime = Date.parse(rightReport?.generatedPackage.completedAt ?? '')
       return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime)
     })[0] ?? null
 }
@@ -510,7 +522,9 @@ export function createStrategicReviewReport(
   generatedPackage: GeneratedPackage,
 ) {
   return {
-    id: `strategic-review-${applicationId}-${Date.now()}`,
+    id:
+      generatedPackage.strategicReportId ||
+      `strategic-report-${applicationId}-${Date.now()}`,
     applicationId,
     generatedPackage,
   } satisfies StrategicReviewReport
@@ -519,22 +533,14 @@ export function createStrategicReviewReport(
 export function getStrategicReviewReports(applications: ApplicationRecord[]) {
   return applications
     .flatMap((application) => {
-      const reports = application.strategicReviewReports?.length
-        ? application.strategicReviewReports
-        : application.generatedPackage
-          ? [
-              {
-                id: `legacy-${application.id}`,
-                applicationId: application.id,
-                generatedPackage: application.generatedPackage,
-              },
-            ]
-          : []
+      const reports = application.strategicReviewReports ?? []
 
-      return reports.map((report) => ({
-        ...report,
-        applicationId: application.id,
-      }))
+      return reports
+        .filter((report) => report?.generatedPackage != null)
+        .map((report) => ({
+          ...report,
+          applicationId: application.id,
+        }))
     })
     .sort((left, right) => {
       const leftTime = Date.parse(left.generatedPackage.completedAt)

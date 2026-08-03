@@ -11,6 +11,7 @@ def build_plan_graph(nodes: PlanNodes):
     graph.add_node("analyze_company", nodes.analyze_company)
     graph.add_node("build_outline", nodes.build_outline)
     graph.add_node("generate_sections", nodes.generate_sections)
+    graph.add_node("build_financial_forecast", nodes.build_financial_forecast)
     graph.add_node("compile_output", nodes.compile_output)
 
     graph.set_entry_point("normalize_inputs")
@@ -18,7 +19,8 @@ def build_plan_graph(nodes: PlanNodes):
     graph.add_edge("analyze_program", "analyze_company")
     graph.add_edge("analyze_company", "build_outline")
     graph.add_edge("build_outline", "generate_sections")
-    graph.add_edge("generate_sections", "compile_output")
+    graph.add_edge("generate_sections", "build_financial_forecast")
+    graph.add_edge("build_financial_forecast", "compile_output")
     graph.add_edge("compile_output", END)
 
     return graph.compile()

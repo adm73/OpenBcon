@@ -83,6 +83,41 @@ describe('persistence API', () => {
     expect(response.body.values).toEqual({})
   })
 
+  it('authenticates a database user with its password hash', async () => {
+    const database = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('FROM app_users')) {
+          return {
+            rows: [{
+              id: '1',
+              email: 'alex@northstarfoods.ca',
+              display_name: 'Alex Morgan',
+              role: 'owner',
+              created_at: new Date('2026-07-31T00:00:00.000Z'),
+            }],
+            rowCount: 1,
+          }
+        }
+        return { rows: [], rowCount: 1 }
+      }),
+    } as unknown as Pool
+
+    const response = await request(createApp(database))
+      .post('/api/auth/login')
+      .send({
+        email: 'alex@northstarfoods.ca',
+        password: 'BconDev-Alex-2026!7fQ9mZ2',
+      })
+
+    expect(response.status).toBe(200)
+    expect(response.body.user).toMatchObject({
+      id: '1',
+      email: 'alex@northstarfoods.ca',
+      fullName: 'Alex Morgan',
+    })
+    expect(response.body.user.password).toBeUndefined()
+  })
+
   it('rejects authentication tokens as persistent state', async () => {
     const response = await request(createApp(createDatabaseStub()))
       .put('/api/state/bconomics-access-token')

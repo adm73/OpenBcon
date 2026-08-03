@@ -69,6 +69,7 @@ function App() {
             />
             <Route path="/admin" element={<AdminRoute />} />
             <Route path="/dashboard" element={<RequireAuthRoute><DashboardPage /></RequireAuthRoute>} />
+            <Route path="/ai-workspace" element={<Navigate to="/advisory-hub" replace />} />
             <Route path="/404" element={<NotFoundPage />} />
             <Route path="/:sectionId" element={<RequireAuthRoute><DashboardPage /></RequireAuthRoute>} />
             <Route path="*" element={<Navigate to="/404" replace />} />

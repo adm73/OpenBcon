@@ -1,132 +1,175 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 import json
-from uuid import UUID, uuid4
+from uuid import UUID
 
+from pydantic import BaseModel
 from psycopg import Connection
 
 from .models import (
     CompanyRecord,
     FinalDocument,
-    FundingPackageRunRecord,
     FundingProgramRecord,
     GeneratePlanRequest,
     GenerationContext,
 )
-
 
 class FundingPlanRepository:
     def __init__(self, connection: Connection):
         self.connection = connection
 
     def load_generation_context(self, request: GeneratePlanRequest) -> GenerationContext:
-        if request.company_info and request.program_info:
-            return self._build_direct_generation_context(request)
-
-        if not request.company_id or not request.funding_program_id:
-            raise ValueError(
-                "Company and funding program identifiers are required when direct payloads are not supplied.",
-            )
-
-        company_row = self.connection.execute(
+        application_row = self.connection.execute(
             """
-            SELECT *
-            FROM companies
-            WHERE id = %s AND workspace_id = %s
+            SELECT
+              applications.id AS application_id,
+              applications.workspace_id,
+              applications.owner_user_id,
+              applications.title,
+              applications.amount,
+              applications.currency AS application_currency,
+              applications.source_id,
+              companies.id AS company_id,
+              companies.owner_user_id AS company_owner_user_id,
+              companies.created_by AS company_created_by,
+              companies.name AS company_name,
+              companies.legal_name,
+              companies.founder_name,
+              companies.business_summary,
+              companies.industry,
+              companies.location,
+              companies.stage,
+              companies.revenue_model,
+              companies.team_background,
+              companies.traction,
+              companies.use_of_funds,
+              companies.annual_revenue,
+              companies.monthly_revenue,
+              companies.employee_count,
+              companies.website,
+              companies.metadata AS company_metadata,
+              funding_programs.id AS program_id,
+              funding_programs.workspace_id AS program_workspace_id,
+              funding_programs.name AS program_name,
+              funding_programs.provider,
+              funding_programs.category,
+              funding_programs.program_url,
+              funding_programs.funding_amount,
+              funding_programs.currency AS program_currency,
+              funding_programs.location AS program_location,
+              funding_programs.raw_guidelines_text,
+              funding_programs.target_outcome,
+              funding_programs.metadata AS program_metadata
+            FROM applications
+            JOIN companies ON companies.id = applications.company_id
+            JOIN funding_programs ON funding_programs.id = applications.funding_program_id
+            WHERE applications.app_id = %s
+               OR applications.id::text = %s
+               OR applications.source_id = %s
+            LIMIT 1
             """,
-            (request.company_id, request.workspace_id),
+            (request.app_id, request.app_id, request.app_id),
         ).fetchone()
-        if not company_row:
-            raise ValueError("Company not found for the requested workspace.")
+        if not application_row:
+            raise ValueError(f"Application {request.app_id} was not found.")
 
-        program_row = self.connection.execute(
-            """
-            SELECT *
-            FROM funding_programs
-            WHERE id = %s
-              AND (workspace_id = %s OR workspace_id IS NULL)
-            """,
-            (request.funding_program_id, request.workspace_id),
-        ).fetchone()
-        if not program_row:
-            raise ValueError("Funding program not found for the requested workspace.")
-
-        company = CompanyRecord.model_validate(company_row)
-        program = FundingProgramRecord.model_validate(program_row)
-        package_name = request.package_name or f"{company.name} - {program.name}"
-        return GenerationContext(
-            workspace_id=request.workspace_id,
-            company=company,
-            program=program,
-            package_name=package_name,
-            requested_by_user_id=request.requested_by_user_id,
-            target_language=request.target_language,
-            section_limit=request.section_limit,
-        )
-
-    def _build_direct_generation_context(self, request: GeneratePlanRequest) -> GenerationContext:
-        assert request.company_info is not None
-        assert request.program_info is not None
-
+        workspace_id = UUID(str(application_row["workspace_id"]))
         company = CompanyRecord(
-            id=uuid4(),
-            workspace_id=request.workspace_id,
-            name=request.company_info.name,
-            legal_name=request.company_info.legal_name,
-            founder_name=request.company_info.founder_name,
-            business_summary=request.company_info.business_summary,
-            industry=request.company_info.industry,
-            location=request.company_info.location,
-            stage=request.company_info.stage,
-            revenue_model=request.company_info.revenue_model,
-            team_background=request.company_info.team_background,
-            traction=request.company_info.traction,
-            use_of_funds=request.company_info.use_of_funds,
-            annual_revenue=request.company_info.annual_revenue,
-            monthly_revenue=request.company_info.monthly_revenue,
-            employee_count=request.company_info.employee_count,
-            website=request.company_info.website,
-            metadata={
-                **request.company_info.metadata,
-                "source": "quick-generate-direct",
-                "external_id": request.company_info.external_id,
-            },
+            id=int(application_row["company_id"]),
+            workspace_id=workspace_id,
+            created_by=int(application_row["company_created_by"]),
+            owner_user_id=int(application_row["company_owner_user_id"]),
+            name=application_row["company_name"],
+            legal_name=application_row["legal_name"],
+            founder_name=application_row["founder_name"],
+            business_summary=application_row["business_summary"],
+            industry=application_row["industry"],
+            location=application_row["location"],
+            stage=application_row["stage"],
+            revenue_model=application_row["revenue_model"],
+            team_background=application_row["team_background"],
+            traction=application_row["traction"],
+            use_of_funds=application_row["use_of_funds"],
+            annual_revenue=application_row["annual_revenue"],
+            monthly_revenue=application_row["monthly_revenue"],
+            employee_count=application_row["employee_count"],
+            website=application_row["website"],
+            metadata=application_row["company_metadata"] or {},
         )
         program = FundingProgramRecord(
-            id=uuid4(),
-            workspace_id=request.workspace_id,
-            name=request.program_info.name,
-            provider=request.program_info.provider,
-            category=request.program_info.category,
-            program_url=request.program_info.program_url,
-            funding_amount=request.program_info.funding_amount,
-            location=request.program_info.location,
-            raw_guidelines_text=request.program_info.raw_guidelines_text,
-            target_outcome=request.program_info.target_outcome,
-            metadata={
-                **request.program_info.metadata,
-                "source": "quick-generate-direct",
-                "external_id": request.program_info.external_id,
-            },
+            id=application_row["program_id"],
+            workspace_id=(
+                UUID(str(application_row["program_workspace_id"]))
+                if application_row["program_workspace_id"]
+                else None
+            ),
+            name=application_row["program_name"],
+            provider=application_row["provider"],
+            category=application_row["category"],
+            program_url=application_row["program_url"],
+            funding_amount=application_row["funding_amount"],
+            currency=application_row["program_currency"],
+            location=application_row["program_location"],
+            raw_guidelines_text=application_row["raw_guidelines_text"],
+            target_outcome=application_row["target_outcome"],
+            metadata=application_row["program_metadata"] or {},
         )
-
         return GenerationContext(
-            workspace_id=request.workspace_id,
+            application_id=int(application_row["application_id"]),
+            workspace_id=workspace_id,
             company=company,
             program=program,
-            package_name=request.package_name or f"{company.name} - {program.name}",
-            requested_by_user_id=request.requested_by_user_id,
-            target_language=request.target_language,
-            section_limit=request.section_limit,
+            package_name=application_row["title"] or f"{company.name} - {program.name} package",
+            requested_by_user_id=int(application_row["owner_user_id"]),
+            target_language="en",
+            section_limit=0,
         )
 
-    def ensure_context_records(self, context: GenerationContext) -> None:
-        self.connection.execute(
+    @staticmethod
+    def _integer_value(value: object) -> int | None:
+        if value is None:
+            return None
+        digits = "".join(character for character in str(value) if character.isdigit())
+        return int(digits) if digits else None
+
+    @staticmethod
+    def _decimal_value(value: object) -> Decimal | None:
+        if value is None:
+            return None
+        cleaned = "".join(character for character in str(value) if character.isdigit() or character == ".")
+        try:
+            return Decimal(cleaned) if cleaned else None
+        except Exception:
+            return None
+
+    @classmethod
+    def _annual_revenue(cls, value: object) -> Decimal | None:
+        monthly = cls._decimal_value(value)
+        return monthly * 12 if monthly is not None else None
+
+    @staticmethod
+    def _build_team_background(
+        founder_name: str,
+        employee_count: int | None,
+        industry: str | None,
+        location: str | None,
+    ) -> str | None:
+        if not employee_count and not industry and not location:
+            return None
+        team_size = f"a {employee_count}-person " if employee_count else "a growing "
+        sector = f" {industry.lower()}" if industry else " business"
+        place = f" in {location}" if location else ""
+        return f"{founder_name} leads {team_size}{sector} team{place}."
+
+    def ensure_context_records(self, context: GenerationContext) -> GenerationContext:
+        company_row = self.connection.execute(
             """
             INSERT INTO companies (
-              id,
               workspace_id,
+              owner_user_id,
+              created_by,
               name,
               legal_name,
               founder_name,
@@ -145,9 +188,10 @@ class FundingPlanRepository:
               metadata
             )
             VALUES (
-              %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb
+              %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb
             )
-            ON CONFLICT (id) DO UPDATE SET
+            ON CONFLICT (workspace_id, name) DO UPDATE SET
+              owner_user_id = EXCLUDED.owner_user_id,
               name = EXCLUDED.name,
               legal_name = EXCLUDED.legal_name,
               founder_name = EXCLUDED.founder_name,
@@ -165,10 +209,12 @@ class FundingPlanRepository:
               website = EXCLUDED.website,
               metadata = EXCLUDED.metadata,
               updated_at = now()
+            RETURNING id
             """,
             (
-                context.company.id,
                 context.workspace_id,
+                context.company.owner_user_id,
+                context.company.created_by,
                 context.company.name,
                 context.company.legal_name,
                 context.company.founder_name,
@@ -186,6 +232,16 @@ class FundingPlanRepository:
                 context.company.website,
                 json.dumps(context.company.metadata),
             ),
+        ).fetchone()
+        if not company_row:
+            raise ValueError(f"Could not persist company {context.company.name}.")
+
+        context = context.model_copy(
+            update={
+                "company": context.company.model_copy(
+                    update={"id": int(company_row["id"])}
+                )
+            }
         )
 
         self.connection.execute(
@@ -198,6 +254,7 @@ class FundingPlanRepository:
               category,
               program_url,
               funding_amount,
+              currency,
               location,
               raw_guidelines_text,
               target_outcome,
@@ -212,6 +269,7 @@ class FundingPlanRepository:
               category = EXCLUDED.category,
               program_url = EXCLUDED.program_url,
               funding_amount = EXCLUDED.funding_amount,
+              currency = EXCLUDED.currency,
               location = EXCLUDED.location,
               raw_guidelines_text = EXCLUDED.raw_guidelines_text,
               target_outcome = EXCLUDED.target_outcome,
@@ -226,142 +284,110 @@ class FundingPlanRepository:
                 context.program.category,
                 context.program.program_url,
                 context.program.funding_amount,
+                context.program.currency,
                 context.program.location,
                 context.program.raw_guidelines_text,
                 context.program.target_outcome,
                 json.dumps(context.program.metadata),
             ),
         )
+        return context
 
-    def create_package(self, context: GenerationContext, request: GeneratePlanRequest) -> UUID:
+    def create_strategic_report(
+        self,
+        context: GenerationContext,
+        request: GeneratePlanRequest,
+        model_name: str,
+    ) -> UUID:
         row = self.connection.execute(
             """
-            INSERT INTO funding_packages (
+            INSERT INTO strategic_reports (
+              application_id,
               workspace_id,
-              company_id,
-              funding_program_id,
-              created_by,
-              package_name,
+              owner_user_id,
+              model_name,
               status,
               request_payload,
               context_snapshot
             )
-            VALUES (%s, %s, %s, %s, %s, 'generating', %s::jsonb, %s::jsonb)
+            VALUES (%s, %s, %s, %s, 'running', %s::jsonb, %s::jsonb)
+            ON CONFLICT (application_id) DO UPDATE SET
+              workspace_id = EXCLUDED.workspace_id,
+              owner_user_id = EXCLUDED.owner_user_id,
+              model_name = EXCLUDED.model_name,
+              status = 'running',
+              request_payload = EXCLUDED.request_payload,
+              context_snapshot = EXCLUDED.context_snapshot,
+              graph_trace = '{}'::jsonb,
+              result = NULL,
+              error_message = NULL,
+              started_at = now(),
+              completed_at = NULL,
+              updated_at = now()
             RETURNING id
             """,
             (
+                context.application_id,
                 context.workspace_id,
-                context.company.id,
-                context.program.id,
                 context.requested_by_user_id,
-                context.package_name,
+                model_name,
                 request.model_dump_json(),
                 context.model_dump_json(),
             ),
         ).fetchone()
         return row["id"]
 
-    def create_run(self, package_id: UUID, requested_by_user_id: UUID, model_name: str) -> FundingPackageRunRecord:
-        row = self.connection.execute(
-            """
-            INSERT INTO funding_package_runs (
-              package_id,
-              requested_by_user_id,
-              model_name,
-              status,
-              started_at
-            )
-            VALUES (%s, %s, %s, 'running', now())
-            RETURNING id, package_id, status, model_name, started_at
-            """,
-            (package_id, requested_by_user_id, model_name),
-        ).fetchone()
-        return FundingPackageRunRecord.model_validate(row)
+    @staticmethod
+    def _json_value(value: object) -> object:
+        if isinstance(value, BaseModel):
+            return value.model_dump(mode="json")
+        if isinstance(value, dict):
+            return {key: FundingPlanRepository._json_value(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [FundingPlanRepository._json_value(item) for item in value]
+        return value
 
-    def save_generation_result(
+    def save_strategic_report_result(
         self,
-        package_id: UUID,
-        run_id: UUID,
-        context: GenerationContext,
+        review_id: UUID,
+        graph_trace: dict,
         document: FinalDocument,
     ) -> None:
-        for sort_order, section in enumerate(document.sections, start=1):
-            self.connection.execute(
-                """
-                INSERT INTO funding_package_sections (
-                  package_run_id,
-                  section_key,
-                  title,
-                  sort_order,
-                  content,
-                  metadata
-                )
-                VALUES (%s, %s, %s, %s, %s, %s::jsonb)
-                """,
-                (
-                    run_id,
-                    section.section_key,
-                    section.title,
-                    sort_order,
-                    section.content,
-                    json.dumps({"citations": section.citations}),
-                ),
-            )
-
         self.connection.execute(
             """
-            UPDATE funding_packages
+            UPDATE strategic_reports
             SET status = 'completed',
-                generated_document = %s::jsonb,
+                graph_trace = %s::jsonb,
+                result = %s::jsonb,
+                completed_at = now(),
                 updated_at = now()
             WHERE id = %s
             """,
-            (document.model_dump_json(), package_id),
-        )
-        self.connection.execute(
-            """
-            UPDATE funding_package_runs
-            SET status = 'completed',
-                completed_at = now()
-            WHERE id = %s
-            """,
-            (run_id,),
-        )
-        self.connection.execute(
-            """
-            INSERT INTO funding_package_artifacts (
-              package_run_id,
-              artifact_type,
-              mime_type,
-              metadata
-            )
-            VALUES (%s, 'json', 'application/json', %s::jsonb)
-            """,
             (
-                run_id,
+                json.dumps(self._json_value(graph_trace)),
                 document.model_dump_json(),
+                review_id,
             ),
         )
 
-    def mark_run_failed(self, package_id: UUID, run_id: UUID, error_message: str) -> None:
+    def mark_strategic_report_failed(
+        self,
+        review_id: UUID,
+        error_message: str,
+        graph_trace: dict | None = None,
+    ) -> None:
+        trace = self._json_value(graph_trace or {})
         self.connection.execute(
             """
-            UPDATE funding_packages
+            UPDATE strategic_reports
             SET status = 'failed',
+                graph_trace = %s::jsonb,
+                error_message = %s,
+                completed_at = now(),
                 updated_at = now()
             WHERE id = %s
             """,
-            (package_id,),
-        )
-        self.connection.execute(
-            """
-            UPDATE funding_package_runs
-            SET status = 'failed',
-                completed_at = now(),
-                error_message = %s
-            WHERE id = %s
-            """,
-            (error_message[:2000], run_id),
+            (json.dumps(trace), error_message[:2000], review_id),
         )
 
     def completed_timestamp(self) -> datetime:

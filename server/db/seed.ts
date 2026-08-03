@@ -5,16 +5,36 @@ export async function seedDatabase() {
   const client = await databasePool.connect()
   try {
     await client.query('BEGIN')
-    await client.query(
+    const userResult = await client.query<{ id: string }>(
       `
-        INSERT INTO app_users (id, email, display_name, role)
-        VALUES ($1, 'alex@northstarfoods.ca', 'Alex Morgan', 'owner')
-        ON CONFLICT (id) DO UPDATE SET
+        INSERT INTO app_users (email, display_name, role, password_hash)
+        VALUES (
+          'alex@northstarfoods.ca',
+          'Alex Morgan',
+          'owner',
+          CASE
+            WHEN NULLIF($1, '') IS NULL THEN NULL
+            ELSE crypt($1, gen_salt('bf'))
+          END
+        )
+        ON CONFLICT (email) DO UPDATE SET
           email = EXCLUDED.email,
           display_name = EXCLUDED.display_name,
-          role = EXCLUDED.role
+          role = EXCLUDED.role,
+          password_hash = COALESCE(EXCLUDED.password_hash, app_users.password_hash)
+        RETURNING id
       `,
-      [environment.DEMO_USER_ID],
+      [environment.DEMO_USER_PASSWORD ?? ''],
+    )
+    const userId = userResult.rows[0]?.id ?? environment.DEMO_USER_ID
+    await client.query(
+      `
+        SELECT setval(
+          pg_get_serial_sequence('app_users', 'id'),
+          GREATEST((SELECT COALESCE(MAX(id), 1) FROM app_users), 1),
+          true
+        )
+      `,
     )
     await client.query(
       `
@@ -24,7 +44,7 @@ export async function seedDatabase() {
           name = EXCLUDED.name,
           kind = EXCLUDED.kind
       `,
-      [environment.DEMO_WORKSPACE_ID, environment.DEMO_USER_ID],
+      [environment.DEMO_WORKSPACE_ID, userId],
     )
     await client.query(
       `
@@ -32,7 +52,7 @@ export async function seedDatabase() {
         VALUES ($1, $2, 'owner')
         ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role
       `,
-      [environment.DEMO_WORKSPACE_ID, environment.DEMO_USER_ID],
+      [environment.DEMO_WORKSPACE_ID, userId],
     )
     await client.query('COMMIT')
   } catch (error) {

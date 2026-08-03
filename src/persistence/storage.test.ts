@@ -18,7 +18,7 @@ describe('browser persistence scopes', () => {
       'user',
     )
     expect(
-      getPersistentStateScope('bconomics-quick-generate-preferences-v1'),
+      getPersistentStateScope('bconomics-quick-build-preferences-v1'),
     ).toBe('user')
   })
 
@@ -42,12 +42,10 @@ describe('browser persistence scopes', () => {
     expect(isPersistentStateKey('bconomics-user-settings-v1')).toBe(true)
     expect(isPersistentStateKey('bconomics-billing-transactions-v1')).toBe(true)
     expect(
-      isPersistentStateKey('bconomics-quick-generate-preferences-v1'),
+      isPersistentStateKey('bconomics-quick-build-preferences-v1'),
     ).toBe(true)
 
-    expect(isRemotePersistentStateKey('bconomics-platform-config-v1')).toBe(
-      false,
-    )
+    expect(isRemotePersistentStateKey('bconomics-platform-config-v1')).toBe(true)
     expect(isRemotePersistentStateKey('bconomics-user-settings-v1')).toBe(
       false,
     )
@@ -55,7 +53,7 @@ describe('browser persistence scopes', () => {
       isRemotePersistentStateKey('bconomics-billing-transactions-v1'),
     ).toBe(false)
     expect(
-      isRemotePersistentStateKey('bconomics-quick-generate-preferences-v1'),
+      isRemotePersistentStateKey('bconomics-quick-build-preferences-v1'),
     ).toBe(true)
   })
 })

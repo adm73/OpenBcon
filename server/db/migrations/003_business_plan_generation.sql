@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS companies (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  owner_user_id bigint NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
   name text NOT NULL,
   legal_name text,
   founder_name text NOT NULL,
@@ -17,11 +18,14 @@ CREATE TABLE IF NOT EXISTS companies (
   employee_count integer,
   website text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
-  updated_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
+  created_by bigint REFERENCES app_users(id) ON DELETE SET NULL,
+  updated_by bigint REFERENCES app_users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE companies
+  ADD CONSTRAINT companies_workspace_name_key UNIQUE (workspace_id, name);
 
 CREATE INDEX IF NOT EXISTS companies_workspace_idx
   ON companies (workspace_id, updated_at DESC);
@@ -34,12 +38,13 @@ CREATE TABLE IF NOT EXISTS funding_programs (
   category text,
   program_url text,
   funding_amount numeric(14, 2),
+  currency text NOT NULL DEFAULT 'CAD',
   location text,
   raw_guidelines_text text,
   target_outcome text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
-  updated_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
+  created_by bigint REFERENCES app_users(id) ON DELETE SET NULL,
+  updated_by bigint REFERENCES app_users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -50,9 +55,9 @@ CREATE INDEX IF NOT EXISTS funding_programs_workspace_idx
 CREATE TABLE IF NOT EXISTS funding_packages (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  company_id uuid NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  company_id bigint NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
   funding_program_id uuid NOT NULL REFERENCES funding_programs(id) ON DELETE CASCADE,
-  created_by uuid REFERENCES app_users(id) ON DELETE SET NULL,
+  created_by bigint REFERENCES app_users(id) ON DELETE SET NULL,
   package_name text NOT NULL,
   status text NOT NULL DEFAULT 'draft',
   request_payload jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -69,7 +74,7 @@ CREATE INDEX IF NOT EXISTS funding_packages_workspace_idx
 CREATE TABLE IF NOT EXISTS funding_package_runs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   package_id uuid NOT NULL REFERENCES funding_packages(id) ON DELETE CASCADE,
-  requested_by_user_id uuid REFERENCES app_users(id) ON DELETE SET NULL,
+  requested_by_user_id bigint REFERENCES app_users(id) ON DELETE SET NULL,
   model_name text NOT NULL,
   status text NOT NULL DEFAULT 'queued',
   token_usage jsonb NOT NULL DEFAULT '{}'::jsonb,

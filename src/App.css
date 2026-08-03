@@ -4997,6 +4997,34 @@
   color: #5368d4;
 }
 
+.generator-strategic-report-id {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 8px 10px;
+  border: 1px solid #dfe5f2;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #69758d;
+  font-size: 0.58rem;
+}
+
+.generator-strategic-report-id span {
+  color: #5368b8;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.generator-strategic-report-id code {
+  color: #27334e;
+  font-size: 0.58rem;
+  font-weight: 700;
+  word-break: break-all;
+}
+
 .generator-ai-status {
   display: grid;
   gap: 12px;
@@ -5075,6 +5103,10 @@
   grid-template-columns: minmax(300px, 0.9fr) minmax(420px, 1.1fr);
   gap: 16px;
   min-width: 0;
+}
+
+.generator-ai-grid > .generator-forecast-card {
+  grid-column: 1 / -1;
 }
 
 .generator-ai-column {
@@ -5405,6 +5437,275 @@
 
 .generator-ai-preview-body.is-empty p {
   color: #8d95a6;
+}
+
+.generator-forecast-card {
+  overflow: hidden;
+}
+
+.generator-forecast-card > header {
+  margin-bottom: 14px;
+}
+
+.generator-forecast-charts {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #e1e6f1;
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(91, 111, 209, 0.12), transparent 34%),
+    linear-gradient(145deg, #f8faff, #ffffff 70%);
+}
+
+.generator-forecast-chart-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.generator-forecast-chart-heading h3 {
+  margin: 4px 0 0;
+  color: #27334e;
+  font-size: 0.83rem;
+  letter-spacing: -0.03em;
+}
+
+.generator-forecast-chart-heading p {
+  margin-top: 5px;
+  color: #7b8498;
+  font-size: 0.59rem;
+}
+
+.generator-forecast-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: flex-end;
+  gap: 7px 12px;
+  color: #69758d;
+  font-size: 0.57rem;
+  white-space: nowrap;
+}
+
+.generator-forecast-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.generator-forecast-legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5b6fd1;
+}
+
+.generator-forecast-legend i.is-expense {
+  background: #d78067;
+}
+
+.generator-forecast-legend i.is-net {
+  background: #2d8a61;
+}
+
+.generator-forecast-chart-panel {
+  overflow: hidden;
+  border: 1px solid #e5eaf3;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.generator-forecast-chart-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px 0;
+  color: #7b8498;
+  font-size: 0.57rem;
+}
+
+.generator-forecast-chart-label strong {
+  color: #49546d;
+  font-size: 0.62rem;
+}
+
+.generator-forecast-svg-wrap {
+  overflow-x: auto;
+}
+
+.generator-forecast-svg-wrap svg {
+  display: block;
+  width: 100%;
+  min-width: 660px;
+  height: auto;
+  min-height: 150px;
+}
+
+.forecast-grid-line {
+  stroke: #e9edf5;
+  stroke-width: 1;
+}
+
+.forecast-zero-line {
+  stroke: #bbc5d8;
+  stroke-dasharray: 4 4;
+  stroke-width: 1;
+}
+
+.forecast-axis-label {
+  fill: #8b94a7;
+  font-size: 9px;
+}
+
+.forecast-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.forecast-line.is-revenue {
+  stroke: #5b6fd1;
+}
+
+.forecast-line.is-expense {
+  stroke: #d78067;
+  stroke-dasharray: 7 5;
+}
+
+.forecast-net-bar {
+  opacity: 0.82;
+}
+
+.forecast-net-bar.is-positive {
+  fill: #5b6fd1;
+}
+
+.forecast-net-bar.is-negative {
+  fill: #d78067;
+}
+
+.generator-forecast-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.generator-forecast-summary > div {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #e3e8f2;
+  border-radius: 12px;
+  background: #f9fbff;
+  color: #69758d;
+  font-size: 0.58rem;
+}
+
+.generator-forecast-summary strong {
+  color: #27334e;
+  font-size: 0.64rem;
+}
+
+.generator-forecast-summary b {
+  color: #2d8a61;
+}
+
+.generator-forecast-scroll {
+  overflow-x: auto;
+  border: 1px solid #e3e8f2;
+  border-radius: 12px;
+}
+
+.generator-forecast-table {
+  min-width: 1500px;
+  border-collapse: collapse;
+  color: #5d6982;
+  font-size: 0.58rem;
+  white-space: nowrap;
+}
+
+.generator-forecast-table th,
+.generator-forecast-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #edf0f5;
+  text-align: right;
+}
+
+.generator-forecast-table th:first-child,
+.generator-forecast-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 180px;
+  background: #ffffff;
+  text-align: left;
+}
+
+.generator-forecast-table thead th {
+  background: #f4f7fc;
+  color: #47536c;
+  font-weight: 800;
+}
+
+.generator-forecast-table tbody th {
+  color: #27334e;
+  font-weight: 700;
+}
+
+.generator-forecast-table tr.is-revenue th {
+  color: #2d8a61;
+}
+
+.generator-forecast-table tr.is-expense th {
+  color: #b66756;
+}
+
+.generator-forecast-table tr.is-total th,
+.generator-forecast-table tr.is-total td,
+.generator-forecast-table tr.is-net th,
+.generator-forecast-table tr.is-net td {
+  background: #f9fbff;
+  color: #27334e;
+  font-weight: 800;
+}
+
+.generator-forecast-table tr.is-net th,
+.generator-forecast-table tr.is-net td {
+  background: #eef8f1;
+  color: #26734f;
+}
+
+.generator-forecast-assumptions {
+  display: grid;
+  gap: 5px;
+  margin-top: 14px;
+  color: #7b8498;
+  font-size: 0.59rem;
+  line-height: 1.45;
+}
+
+.generator-forecast-assumptions strong {
+  color: #49546d;
+}
+
+@media (max-width: 760px) {
+  .generator-forecast-chart-heading,
+  .generator-forecast-chart-label {
+    display: grid;
+  }
+
+  .generator-forecast-legend {
+    justify-content: flex-start;
+  }
+
+  .generator-forecast-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 .generator-editor-field {
@@ -10914,7 +11215,7 @@
   }
 }
 
-/* Quick Generate company picker */
+/* Quick Build company picker */
 .company-picker-backdrop {
   position: fixed;
   inset: 0;
