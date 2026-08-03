@@ -1,5 +1,8 @@
+import type { SupportedLocale } from '../i18n'
+
 export type BusinessPlanGenerateRequest = {
   app_id: string
+  language: SupportedLocale
 }
 
 export type BusinessPlanSectionResponse = {

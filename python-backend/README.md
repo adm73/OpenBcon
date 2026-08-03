@@ -39,14 +39,17 @@ Request body:
 
 ```json
 {
-  "app_id": "8d3f7a1c2e9b4d60"
+  "app_id": "8d3f7a1c2e9b4d60",
+  "language": "en-CA"
 }
 ```
 
-The external application ID is the only accepted input. The backend rejects direct
-company or program payloads and loads the complete application context from
+The external application ID and optional output language are the only request
+inputs. Supported languages are `en-CA`, `fr-CA`, and `zh-CN`. The backend rejects
+direct company or program payloads and loads the complete application context from
 the relational `applications` table, including its linked company, funding
-program, and owner.
+program, and owner. The selected language is passed through LangGraph prompts and
+stored on the related `strategic_reports` row.
 
 Response body:
 

@@ -4,6 +4,7 @@ import './App.css'
 import { hasAdminAccess } from './auth/adminAccess'
 import { hasActiveSession } from './auth/session'
 import { PlatformConfigProvider } from './config/PlatformConfigContext'
+import { LanguageProvider } from './i18n'
 import { AdminAccessPage } from './pages/AdminAccessPage'
 import { AdminPage } from './pages/AdminPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -45,9 +46,10 @@ function AdminRoute() {
 function App() {
   return (
     <PersistenceProvider>
-      <PlatformConfigProvider>
-        <BrowserRouter>
-          <Routes>
+      <LanguageProvider>
+        <PlatformConfigProvider>
+          <BrowserRouter>
+            <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route
               path="/privacy-policy"
@@ -73,9 +75,10 @@ function App() {
             <Route path="/404" element={<NotFoundPage />} />
             <Route path="/:sectionId" element={<RequireAuthRoute><DashboardPage /></RequireAuthRoute>} />
             <Route path="*" element={<Navigate to="/404" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </PlatformConfigProvider>
+            </Routes>
+          </BrowserRouter>
+        </PlatformConfigProvider>
+      </LanguageProvider>
     </PersistenceProvider>
   )
 }

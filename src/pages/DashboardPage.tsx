@@ -29,6 +29,13 @@ import {
 import { OpenBconAttribution } from '../components/OpenBconAttribution'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import {
+  languageOptions,
+  normalizeLocale,
+  useLocale,
+  useTranslation,
+  type SupportedLocale,
+} from '../i18n'
+import {
   type AdvisoryHubAgentConfig,
   type AdvisoryHubDocumentTypeConfig,
   type AdvisoryHubSectionConfig,
@@ -81,6 +88,36 @@ function getQuickBuildPath(applicationId: string) {
   }
 
   return `/quick-build?applicationId=${encodeURIComponent(applicationId)}`
+}
+
+const navigationItemTranslationKeys: Record<string, string> = {
+  dashboard: 'navigation.items.dashboard',
+  'funding-readiness': 'navigation.items.fundingReadiness',
+  'quick-build': 'navigation.items.quickBuild',
+  'advisory-hub': 'navigation.items.advisoryHub',
+  'my-company': 'navigation.items.myCompany',
+  'saved-programs': 'navigation.items.savedPrograms',
+  'my-applications': 'navigation.items.myApplications',
+  'grants-loans': 'navigation.items.grantsLoans',
+  templates: 'navigation.items.templates',
+  'social-resources': 'navigation.items.socialResources',
+  tools: 'navigation.items.tools',
+  settings: 'navigation.items.settings',
+}
+
+const navigationGroupTranslationKeys: Record<string, string> = {
+  'Funding Centre': 'navigation.groups.fundingCentre',
+  'My Workspace': 'navigation.groups.myWorkspace',
+  'Programs & Opportunities': 'navigation.groups.programs',
+}
+
+function translateNavigationLabel(
+  t: (key: string, options?: { defaultValue?: string }) => string,
+  itemId: string,
+  fallback: string,
+) {
+  const key = navigationItemTranslationKeys[itemId]
+  return key ? t(key, { defaultValue: fallback }) : fallback
 }
 import {
   loadTemplateCatalog,
@@ -4529,7 +4566,7 @@ type UserSettings = {
   role: string
   defaultCompanyId: string
   timezone: string
-  language: string
+  language: SupportedLocale
   currency: string
   weeklyDigest: boolean
   deadlineReminders: boolean
@@ -4576,7 +4613,7 @@ const defaultUserSettings: UserSettings = {
   role: 'Workspace Admin',
   defaultCompanyId: 'northstar-foods',
   timezone: 'America/Toronto',
-  language: 'English',
+  language: 'en-CA',
   currency: 'CAD',
   weeklyDigest: true,
   deadlineReminders: true,
@@ -4597,9 +4634,14 @@ const defaultQuickBuildPreferences: QuickBuildPreferences = {
 function loadUserSettings() {
   try {
     const saved = window.localStorage.getItem(userSettingsStorageKey)
-    return saved
-      ? { ...defaultUserSettings, ...(JSON.parse(saved) as LegacyUserSettings) }
-      : defaultUserSettings
+    if (!saved) return defaultUserSettings
+
+    const parsed = JSON.parse(saved) as LegacyUserSettings
+    return {
+      ...defaultUserSettings,
+      ...parsed,
+      language: normalizeLocale(parsed.language),
+    }
   } catch {
     return defaultUserSettings
   }
@@ -4841,6 +4883,8 @@ function clearPendingStripeCheckoutPriceItemId() {
 
 function SettingsPage() {
   const { config } = usePlatformConfig()
+  const { t } = useTranslation()
+  const { locale, setLocale } = useLocale()
   const platformName = getPlatformDisplayName(config)
   const location = useLocation()
   const navigate = useNavigate()
@@ -4869,32 +4913,32 @@ function SettingsPage() {
   }> = [
     {
       id: 'profile',
-      label: 'Profile',
-      description: 'Identity and contact details',
+      label: t('settings.profile'),
+      description: t('settings.profileDescription'),
       icon: 'user',
     },
     {
       id: 'workspace',
-      label: 'Workspace',
-      description: 'Defaults and regional settings',
+      label: t('settings.workspace'),
+      description: t('settings.workspaceDescription'),
       icon: 'grid',
     },
     {
       id: 'notifications',
-      label: 'Notifications',
-      description: 'Email and product alerts',
+      label: t('settings.notifications'),
+      description: t('settings.notificationsDescription'),
       icon: 'spark',
     },
     {
       id: 'security',
-      label: 'Security',
-      description: 'Password and active sessions',
+      label: t('settings.security'),
+      description: t('settings.securityDescription'),
       icon: 'settings',
     },
     {
       id: 'billing',
-      label: 'Billing & Subscription',
-      description: 'Plan, payments, and invoices',
+      label: t('settings.billing'),
+      description: t('settings.billingDescription'),
       icon: 'file',
     },
   ]
@@ -5134,7 +5178,7 @@ function SettingsPage() {
       email: settings.email,
       role: settings.role,
     })
-    setNotice('Your settings have been saved.')
+    setNotice(t('settings.save'))
   }
 
   function activateFreePlan(item: PaymentCatalogItem) {
@@ -5271,8 +5315,8 @@ function SettingsPage() {
     <section className="settings-centre">
       <header className="settings-centre-header">
         <div>
-          <p className="workspace-eyebrow">Account centre</p>
-          <h1>Settings, without the scavenger hunt.</h1>
+          <p className="workspace-eyebrow">{t('settings.accountCentre')}</p>
+          <h1>{t('settings.title')}</h1>
           <p>
             Manage your profile, workspace preferences, security, and
             subscription from one place.
@@ -5280,7 +5324,7 @@ function SettingsPage() {
         </div>
         <button type="button" className="workspace-primary-action" onClick={saveSettings}>
           <Glyph type="spark" />
-          Save changes
+          {t('settings.save')}
         </button>
       </header>
 
@@ -5379,7 +5423,21 @@ function SettingsPage() {
                   <small>Used by Quick Build and program matching.</small>
                 </label>
                 <label><span>Timezone</span><select value={settings.timezone} onChange={(event) => updateSetting('timezone', event.target.value)}><option>America/Toronto</option><option>America/Vancouver</option><option>America/Halifax</option></select></label>
-                <label><span>Language</span><select value={settings.language} onChange={(event) => updateSetting('language', event.target.value)}><option>English</option><option>French</option></select></label>
+                <label>
+                  <span>{t('settings.language')}</span>
+                  <select
+                    value={locale}
+                    onChange={(event) => {
+                      const nextLocale = normalizeLocale(event.target.value)
+                      updateSetting('language', nextLocale)
+                      setLocale(nextLocale)
+                    }}
+                  >
+                    {languageOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
                 <label><span>Default currency</span><select value={settings.currency} onChange={(event) => updateSetting('currency', event.target.value)}><option>CAD</option><option>USD</option></select></label>
               </div>
               <div className="settings-company-preview">
@@ -5713,8 +5771,8 @@ function buildPackageExport(packageRecord: GeneratedPackage, sections: Workspace
   ].join('\n')
 }
 
-function formatForecastCurrency(value: number, currency: string) {
-  return new Intl.NumberFormat('en-CA', {
+function formatForecastCurrency(value: number, currency: string, locale = 'en-CA') {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
     maximumFractionDigits: 0,
@@ -5722,6 +5780,8 @@ function formatForecastCurrency(value: number, currency: string) {
 }
 
 function FinancialForecastCharts({ forecast }: { forecast: FinancialForecast }) {
+  const { t } = useTranslation()
+  const { locale } = useLocale()
   const chartWidth = 820
   const chartHeight = 260
   const chartPadding = { top: 22, right: 20, bottom: 34, left: 52 }
@@ -5760,27 +5820,27 @@ function FinancialForecastCharts({ forecast }: { forecast: FinancialForecast }) 
     <div className="generator-forecast-charts">
       <div className="generator-forecast-chart-heading">
         <div>
-          <span>Forecast visualisation</span>
-          <h3>Revenue is growing, while the cost base stays ahead</h3>
-          <p>Monthly operating trend across the full three-year planning horizon.</p>
+          <span>{t('forecast.visualisation')}</span>
+          <h3>{t('forecast.title')}</h3>
+          <p>{t('forecast.description')}</p>
         </div>
-        <div className="generator-forecast-legend" aria-label="Chart legend">
-          <span><i className="is-revenue" />Revenue</span>
-          <span><i className="is-expense" />Expenses</span>
-          <span><i className="is-net" />Net cash flow</span>
+        <div className="generator-forecast-legend" aria-label={t('forecast.chartLegend')}>
+          <span><i className="is-revenue" />{t('forecast.revenue')}</span>
+          <span><i className="is-expense" />{t('forecast.expenses')}</span>
+          <span><i className="is-net" />{t('forecast.netCashFlow')}</span>
         </div>
       </div>
 
       <div className="generator-forecast-chart-panel">
         <div className="generator-forecast-chart-label">
-          <strong>Monthly revenue and expenses</strong>
+          <strong>{t('forecast.monthlyRevenueExpenses')}</strong>
           <span>{forecast.months[0]?.label} to {forecast.months.at(-1)?.label}</span>
         </div>
         <div className="generator-forecast-svg-wrap">
           <svg
             viewBox={`0 0 ${chartWidth} ${chartHeight}`}
             role="img"
-            aria-label="Monthly revenue and expenses trend"
+            aria-label={t('forecast.monthlyRevenueExpensesTrend')}
           >
             <defs>
               <linearGradient id="forecast-revenue-fill" x1="0" x2="0" y1="0" y2="1">
@@ -5795,7 +5855,7 @@ function FinancialForecastCharts({ forecast }: { forecast: FinancialForecast }) 
                 <g key={`value-tick-${tick}`}>
                   <line x1={chartPadding.left} x2={chartWidth - chartPadding.right} y1={y} y2={y} className="forecast-grid-line" />
                   <text x={chartPadding.left - 10} y={y + 4} textAnchor="end" className="forecast-axis-label">
-                    {formatForecastCurrency(value, forecast.currency)}
+                    {formatForecastCurrency(value, forecast.currency, locale)}
                   </text>
                 </g>
               )
@@ -5814,14 +5874,14 @@ function FinancialForecastCharts({ forecast }: { forecast: FinancialForecast }) 
 
       <div className="generator-forecast-chart-panel">
         <div className="generator-forecast-chart-label">
-          <strong>Net cash flow by month</strong>
-          <span>Negative values indicate additional capital required</span>
+          <strong>{t('forecast.netCashFlowByMonth')}</strong>
+          <span>{t('forecast.negativeNote')}</span>
         </div>
         <div className="generator-forecast-svg-wrap">
           <svg
             viewBox={`0 0 ${chartWidth} ${netChartHeight}`}
             role="img"
-            aria-label="Monthly net cash flow bars"
+            aria-label={t('forecast.monthlyNetCashFlowBars')}
           >
             <line x1={chartPadding.left} x2={chartWidth - chartPadding.right} y1={netZeroY} y2={netZeroY} className="forecast-zero-line" />
             <text x={chartPadding.left - 10} y={netZeroY + 4} textAnchor="end" className="forecast-axis-label">0</text>
@@ -5854,12 +5914,14 @@ function FinancialForecastCharts({ forecast }: { forecast: FinancialForecast }) 
 }
 
 function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
+  const { t } = useTranslation()
+  const { locale } = useLocale()
   return (
     <article id="financial-forecast-panel" className="generator-ai-card generator-forecast-card">
       <header>
         <div>
-          <span>Financial model</span>
-          <h3>{forecast.years}-year monthly financial forecast</h3>
+          <span>{t('forecast.financialModel')}</span>
+          <h3>{t('forecast.monthlyForecast', { years: forecast.years })}</h3>
         </div>
         <b>{forecast.months.length} months</b>
       </header>
@@ -5868,9 +5930,9 @@ function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
         {forecast.annual_summaries.map((summary) => (
           <div key={summary.year}>
             <strong>{summary.label}</strong>
-            <span>Revenue {formatForecastCurrency(summary.total_revenue, forecast.currency)}</span>
-            <span>Expenses {formatForecastCurrency(summary.total_expenses, forecast.currency)}</span>
-            <b>Net {formatForecastCurrency(summary.net_cash_flow, forecast.currency)}</b>
+            <span>{t('forecast.revenue')} {formatForecastCurrency(summary.total_revenue, forecast.currency, locale)}</span>
+            <span>{t('forecast.expenses')} {formatForecastCurrency(summary.total_expenses, forecast.currency, locale)}</span>
+            <b>{t('forecast.netCashFlow')} {formatForecastCurrency(summary.net_cash_flow, forecast.currency, locale)}</b>
           </div>
         ))}
       </div>
@@ -5878,7 +5940,7 @@ function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
         <table className="generator-forecast-table">
           <thead>
             <tr>
-              <th>Line item</th>
+            <th>{t('forecast.lineItem')}</th>
               {forecast.months.map((month) => (
                 <th key={month.key}>{month.label}</th>
               ))}
@@ -5890,32 +5952,32 @@ function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
                 <th>{row.name}</th>
                 {row.values.map((value, index) => (
                   <td key={`${row.name}-${forecast.months[index]?.key ?? index}`}>
-                    {formatForecastCurrency(value, forecast.currency)}
+                    {formatForecastCurrency(value, forecast.currency, locale)}
                   </td>
                 ))}
               </tr>
             ))}
             <tr className="is-total">
-              <th>Total revenue</th>
+              <th>{t('forecast.totalRevenue')}</th>
               {forecast.monthly_revenue_totals.map((value, index) => (
                 <td key={`revenue-total-${forecast.months[index]?.key ?? index}`}>
-                  {formatForecastCurrency(value, forecast.currency)}
+                  {formatForecastCurrency(value, forecast.currency, locale)}
                 </td>
               ))}
             </tr>
             <tr className="is-total">
-              <th>Total expenses</th>
+              <th>{t('forecast.totalExpenses')}</th>
               {forecast.monthly_expense_totals.map((value, index) => (
                 <td key={`expense-total-${forecast.months[index]?.key ?? index}`}>
-                  {formatForecastCurrency(value, forecast.currency)}
+                  {formatForecastCurrency(value, forecast.currency, locale)}
                 </td>
               ))}
             </tr>
             <tr className="is-net">
-              <th>Net cash flow</th>
+              <th>{t('forecast.netCashFlow')}</th>
               {forecast.monthly_net_cash_flow.map((value, index) => (
                 <td key={`net-${forecast.months[index]?.key ?? index}`}>
-                  {formatForecastCurrency(value, forecast.currency)}
+                  {formatForecastCurrency(value, forecast.currency, locale)}
                 </td>
               ))}
             </tr>
@@ -5923,7 +5985,7 @@ function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
         </table>
       </div>
       <div className="generator-forecast-assumptions">
-        <strong>Planning assumptions</strong>
+        <strong>{t('forecast.planningAssumptions')}</strong>
         {forecast.assumptions.map((assumption) => (
           <span key={assumption}>{assumption}</span>
         ))}
@@ -6042,6 +6104,8 @@ function QuickBuildPage({
 }: {
   initialView?: 'form' | 'workspace'
 }) {
+  const { t } = useTranslation()
+  const { locale } = useLocale()
   const location = useLocation()
   const navigate = useNavigate()
   const draftStorageKey = 'bconomics-quick-build-draft-v1'
@@ -6363,7 +6427,7 @@ function QuickBuildPage({
   )
   const workflowItems = [
     {
-      label: 'Understand program',
+      label: t('quickBuild.workflow.understandProgram'),
       status:
         workspacePhase === 'analyzing'
           ? 'working'
@@ -6372,7 +6436,7 @@ function QuickBuildPage({
             : 'waiting',
     },
     {
-      label: 'Analyze business',
+      label: t('quickBuild.workflow.analyzeBusiness'),
       status:
         workspacePhase === 'planning'
           ? 'working'
@@ -6381,7 +6445,7 @@ function QuickBuildPage({
             : 'waiting',
     },
     {
-      label: 'Build outline',
+      label: t('quickBuild.workflow.buildOutline'),
       status:
         workspacePhase === 'planning'
           ? 'working'
@@ -6395,7 +6459,7 @@ function QuickBuildPage({
       )
 
       return {
-        label: `Generate ${documentLabel.toLowerCase()}`,
+        label: t('quickBuild.workflow.generate', { document: documentLabel }),
         status:
           matchingSections.length > 0 &&
           matchingSections.every((section) => section.status === 'complete')
@@ -6408,7 +6472,7 @@ function QuickBuildPage({
     ...(hasAiReviewSection
       ? [
           {
-            label: 'AI review & improve',
+            label: t('quickBuild.workflow.aiReview'),
             status:
               workspacePhase === 'reviewing'
                 ? ('working' as const)
@@ -6459,33 +6523,22 @@ function QuickBuildPage({
     (section) => section.status === 'complete',
   ).length
   const workspaceLifecycle = [
-    'Analyze opportunity',
-    'Build funding strategy',
-    'Generate business plan',
-    'Generate financial model',
-    'Generate funding narrative',
-    'AI review & improve',
-    'Funding package ready',
+    t('advisory.analyze'),
+    t('quickBuild.workflow.buildOutline'),
+    t('quickBuild.workflow.generate', { document: t('navigation.items.quickBuild') }),
+    t('quickBuild.financialForecast'),
+    t('quickBuild.workflow.generate', { document: t('quickBuild.fundingProgram') }),
+    t('quickBuild.workflow.aiReview'),
+    t('advisory.ready'),
   ] as const
   const stageSupportPoints =
     activeStep === 1
-      ? [
-          'Anchor the package to an official funding source.',
-          'Define the request amount and required evidence early.',
-          'Import directly from Grants & Loans when a match already exists.',
-        ]
+      ? t('quickBuild.support.program', { returnObjects: true })
       : activeStep === 2
-        ? [
-            'Summarize the business in reviewer language, not pitch language.',
-            'Pull from My Company to avoid retyping core details.',
-            'Give the AI enough detail to build a believable execution case.',
-          ]
-        : [
-            'Review the funding opportunity details before generating.',
-            'Confirm the business narrative and team details are accurate.',
-            'Generate only after both steps reflect the final brief.',
-          ]
-  const stageSupportCards = stageSupportPoints.map((point, index) => ({
+        ? t('quickBuild.support.business', { returnObjects: true })
+        : t('quickBuild.support.review', { returnObjects: true })
+  const localizedStageSupportPoints = stageSupportPoints as string[]
+  const stageSupportCards = localizedStageSupportPoints.map((point, index) => ({
     point,
     icon:
       activeStep === 1
@@ -6527,27 +6580,27 @@ function QuickBuildPage({
   })
   const workspaceSignalCards = [
     {
-      label: 'Current lead',
+      label: t('advisory.currentLead'),
       value: activeAgent ?? 'Queued',
-      helper: 'Who owns the next move',
+      helper: t('advisory.nextMove'),
     },
     {
-      label: 'Sections ready',
+      label: t('advisory.sectionsReady'),
       value: `${completedSections}/${workspaceSections.length || advisoryHubSections.length}`,
-      helper: 'Completed in the live room',
+      helper: t('advisory.completedLive'),
     },
     {
-      label: 'Thought stream',
+      label: t('advisory.thoughtStream'),
       value: `${workspaceThoughts.length}`,
-      helper: 'Narration updates published',
+      helper: t('advisory.narrationPublished'),
     },
     {
-      label: 'Next output',
+      label: t('advisory.nextOutput'),
       value:
         workspacePhase === 'complete'
-          ? 'Export package'
-          : previewSection?.title ?? 'Section stream',
-      helper: 'What the founder should expect',
+          ? t('advisory.exportPackage')
+          : previewSection?.title ?? t('advisory.sectionStream'),
+      helper: t('advisory.founderExpectation'),
     },
   ] as const
 
@@ -6602,7 +6655,7 @@ function QuickBuildPage({
     setActiveStep(1)
     setProgramName(program.name)
     setProgramUrl(program.url)
-    setAmount(program.amount.toLocaleString('en-CA'))
+    setAmount(program.amount.toLocaleString(locale))
     setFormMessage(message)
   }
 
@@ -6629,7 +6682,7 @@ function QuickBuildPage({
     setSelectedStrategicReviewReportId(selectedReport?.id ?? null)
     setProgramName(application.programName)
     setProgramUrl(application.programUrl || matchedProgram?.url || '')
-    setAmount(application.amount.toLocaleString('en-CA'))
+    setAmount(application.amount.toLocaleString(locale))
     setBusinessName(application.company)
     setFullName(application.owner)
     if (packageRecord) {
@@ -6652,6 +6705,7 @@ function QuickBuildPage({
           try {
             const financialForecast = await generateFinancialForecastViaApi({
               app_id: application.appId ?? application.id,
+              language: locale,
             })
           const nextPackage = { ...packageRecord, financialForecast }
           const nextApplications = loadApplications().map((currentApplication) =>
@@ -6752,7 +6806,7 @@ function QuickBuildPage({
   function importFundingProgram(program: FundingProgramRecord) {
     setProgramName(program.name)
     setProgramUrl(program.url)
-    setAmount(program.amount.toLocaleString('en-CA'))
+    setAmount(program.amount.toLocaleString(locale))
     setProgramPickerOpen(false)
     setFormMessage(`${program.name} imported from Grants & Loans.`)
   }
@@ -6804,6 +6858,7 @@ function QuickBuildPage({
     const application = findApplicationRecord(loadApplications(), applicationId)
     const response = await generateBusinessPlanViaApi({
       app_id: application?.appId ?? applicationId,
+      language: locale,
     })
 
     return createGeneratedPackageFromBackend(
@@ -7259,28 +7314,28 @@ function QuickBuildPage({
       <header className="generator-header">
         <div>
           <p className="generator-eyebrow">
-            {showsStrategicReviewListing ? 'Advisory Hub' : 'Funding Studio'}
+            {showsStrategicReviewListing ? t('quickBuild.advisoryHub') : t('quickBuild.fundingStudio')}
           </p>
           <h1>
             {showsStrategicReviewListing
-              ? 'Strategic review reports'
-              : 'Build a funding-ready document package'}
+              ? t('quickBuild.reportsTitle')
+              : t('quickBuild.title')}
           </h1>
           <p>
             {showsStrategicReviewListing
-              ? 'Open a completed Strategic Report by application, then review the analysis, generated sections, and funding package preview.'
-              : 'One guided workspace for your business plan, cash flow forecast, funding narrative, and now a live AI generation room the founder can actually follow.'}
+              ? t('quickBuild.reportsDescription')
+              : t('quickBuild.subtitle')}
           </p>
         </div>
         {showsStrategicReviewListing ? (
           <Link to="/quick-build" className="generator-save-button">
             <Glyph type="spark" />
-            Generate Strategic Report
+            {t('quickBuild.generate')}
           </Link>
         ) : (
           <button type="button" className="generator-save-button" onClick={saveDraft}>
             <Glyph type="file" />
-            Save draft
+            {t('quickBuild.saveDraft')}
           </button>
         )}
       </header>
@@ -7308,20 +7363,19 @@ function QuickBuildPage({
             <section className="generator-stage advisory-report-listing-stage">
               <div className="advisory-report-listing-heading">
                 <div>
-                  <span>Strategic Reports</span>
-                  <h2>Choose a report to open the full review.</h2>
+                  <span>{t('quickBuild.reportsTitle')}</span>
+                  <h2>{t('quickBuild.chooseReport')}</h2>
                   <p>
-                    Every report is linked to the application that created it, so the
-                    opportunity, business profile, and generated package stay together.
+                    {t('quickBuild.reportsDescription')}
                   </p>
                 </div>
                 <div className="advisory-report-listing-stats">
                   <article>
-                    <small>Reports</small>
+                    <small>{t('quickBuild.reports')}</small>
                     <strong>{strategicReviewReports.length}</strong>
                   </article>
                   <article>
-                    <small>Applications</small>
+                    <small>{t('quickBuild.applications')}</small>
                     <strong>{strategicReviewApplicationCount}</strong>
                   </article>
 
@@ -7341,29 +7395,29 @@ function QuickBuildPage({
                         <Glyph type="spark" />
                       </span>
                       <span className="advisory-report-main">
-                        <span className="advisory-report-label">Strategic Report</span>
+                        <span className="advisory-report-label">{t('quickBuild.strategicReport')}</span>
                         <strong>{report.generatedPackage.programName}</strong>
                         <small>
-                          {report.generatedPackage.businessName} · Application ID {report.applicationId}
+                          {report.generatedPackage.businessName} · {t('quickBuild.applicationId')} {report.applicationId}
                         </small>
-                        <small>Strategic Report ID {report.id}</small>
+                        <small>{t('quickBuild.strategicReportId')} {report.id}</small>
                       </span>
                       <span className="advisory-report-score">
                         <strong>{report.generatedPackage.readinessScore}%</strong>
-                        <small>readiness</small>
+                        <small>{t('quickBuild.readiness')}</small>
                       </span>
                       <span className="advisory-report-date">
                         <strong>
-                          {new Intl.DateTimeFormat('en-CA', {
+                          {new Intl.DateTimeFormat(locale, {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',
                           }).format(new Date(report.generatedPackage.completedAt))}
                         </strong>
-                        <small>Completed</small>
+                        <small>{t('common.completed')}</small>
                       </span>
                       <span className="advisory-report-open">
-                        Open report
+                        {t('quickBuild.openReport')}
                         <Glyph type="arrow" />
                       </span>
                     </button>
@@ -7372,9 +7426,9 @@ function QuickBuildPage({
               ) : (
                 <div className="advisory-report-empty">
                   <span><Glyph type="spark" /></span>
-                  <strong>No Strategic Reports yet</strong>
-                  <p>Start a funding package in Quick Build to create the first report.</p>
-                  <Link to="/quick-build">Generate a new Strategic Report</Link>
+                  <strong>{t('quickBuild.noReports')}</strong>
+                  <p>{t('quickBuild.noReportsDescription')}</p>
+                  <Link to="/quick-build">{t('quickBuild.generateNewReport')}</Link>
                 </div>
               )}
             </section>
@@ -7384,7 +7438,7 @@ function QuickBuildPage({
             <section className="generator-stage">
               <div className="generator-stage-heading generator-stage-heading-row">
                 <div>
-                  <span>Step 01 · About 2 minutes</span>
+                  <span>{t('quickBuild.stepOne')} · About 2 minutes</span>
                   <h2>Which opportunity are you applying for?</h2>
                   <p>
                     We use the official program source and your target amount to shape
@@ -7393,7 +7447,7 @@ function QuickBuildPage({
                 </div>
                 <button type="button" onClick={openProgramPicker}>
                   <Glyph type="search" />
-                  Import from Grants &amp; Loans
+                  {t('quickBuild.importPrograms')}
                 </button>
               </div>
 
@@ -7410,8 +7464,8 @@ function QuickBuildPage({
 
               <div className="generator-stage-panel">
                 <div className="generator-stage-panel-copy">
-                  <span>Opportunity brief</span>
-                  <h3>Give the AI the source of truth.</h3>
+                  <span>{t('quickBuild.opportunityBrief')}</span>
+                  <h3>{t('quickBuild.sourceOfTruth')}</h3>
                   <p>
                     When the program source is clear, the whole package becomes more believable.
                     This is where we define the opportunity, funding request, and the template
@@ -7421,7 +7475,7 @@ function QuickBuildPage({
                 <div className="generator-stage-panel-form">
                   <div className="generator-form-grid">
                     <label className="generator-field generator-field-wide">
-                      <span>Program name <b>Required</b></span>
+                      <span>{t('quickBuild.programName')} <b>{t('common.required')}</b></span>
                       <input
                         value={programName}
                         onChange={(event) => setProgramName(event.target.value)}
@@ -7429,7 +7483,7 @@ function QuickBuildPage({
                       />
                     </label>
                     <label className="generator-field">
-                      <span>Official program URL <b>Required</b></span>
+                      <span>{t('quickBuild.officialUrl')} <b>{t('common.required')}</b></span>
                       <input
                         type="url"
                         value={programUrl}
@@ -7438,7 +7492,7 @@ function QuickBuildPage({
                       />
                     </label>
                     <label className="generator-field">
-                      <span>Target amount <b>Required</b></span>
+                      <span>{t('quickBuild.targetAmount')} <b>{t('common.required')}</b></span>
                       <div className="generator-money-field">
                         <i>$</i>
                         <input
@@ -7463,10 +7517,10 @@ function QuickBuildPage({
                         <Glyph type="file" />
                       </span>
                       <span>
-                        <strong>{fileName || 'Add application files'}</strong>
+                        <strong>{fileName || t('quickBuild.addFiles')}</strong>
                         <small>PDF, DOCX, XLSX, JPG or PNG · optional</small>
                       </span>
-                      <b>{fileName ? 'Replace' : 'Browse'}</b>
+                      <b>{fileName ? t('quickBuild.replace') : t('quickBuild.browse')}</b>
                     </label>
                     <label className="generator-template-toggle">
                       <input
@@ -7480,7 +7534,7 @@ function QuickBuildPage({
                       />
                       <span />
                       <div>
-                        <strong>Use the {platformName} structure</strong>
+                        <strong>{t('quickBuild.useStructure', { platform: platformName })}</strong>
                         <small>Recommended when no official template exists.</small>
                       </div>
                     </label>
@@ -7490,10 +7544,10 @@ function QuickBuildPage({
 
               <div className="generator-stage-actions">
                 <button type="button" className="is-quiet" onClick={resetProgram}>
-                  Clear
+                  {t('quickBuild.clear')}
                 </button>
                 <button type="button" className="is-primary" onClick={continueToBusiness}>
-                  Continue to business profile
+                  {t('quickBuild.continueBusiness')}
                   <Glyph type="arrow" />
                 </button>
               </div>
@@ -7504,7 +7558,7 @@ function QuickBuildPage({
             <section className="generator-stage">
               <div className="generator-stage-heading generator-stage-heading-row">
                 <div>
-                  <span>Step 02 · About 5 minutes</span>
+                  <span>{t('quickBuild.stepTwo')} · About 5 minutes</span>
                   <h2>Tell us why this business should be funded.</h2>
                   <p>
                     Focus on the problem, your solution, commercial model, and the
@@ -7513,7 +7567,7 @@ function QuickBuildPage({
                 </div>
                 <button type="button" onClick={openCompanyPicker}>
                   <Glyph type="grid" />
-                  Import My Company
+                  {t('quickBuild.importCompany')}
                 </button>
               </div>
 
@@ -7530,8 +7584,8 @@ function QuickBuildPage({
 
               <div className="generator-stage-panel is-business">
                 <div className="generator-stage-panel-copy">
-                  <span>Business narrative</span>
-                  <h3>Give the AI a fundable story to work with.</h3>
+                  <span>{t('quickBuild.businessNarrative')}</span>
+                  <h3>{t('quickBuild.fundableStory')}</h3>
                   <p>
                     The strongest packages do not sound like generic marketing copy. They
                     show the market problem, operating model, and a team that can execute
@@ -7541,7 +7595,7 @@ function QuickBuildPage({
                 <div className="generator-stage-panel-form">
                   <div className="generator-form-grid">
                     <label className="generator-field">
-                      <span>Business name <b>Required</b></span>
+                      <span>{t('quickBuild.businessName')} <b>{t('common.required')}</b></span>
                       <input
                         value={businessName}
                         onChange={(event) => setBusinessName(event.target.value)}
@@ -7549,7 +7603,7 @@ function QuickBuildPage({
                       />
                     </label>
                     <label className="generator-field">
-                      <span>Founder or lead applicant <b>Required</b></span>
+                      <span>{t('quickBuild.leadApplicant')} <b>{t('common.required')}</b></span>
                       <input
                         value={fullName}
                         onChange={(event) => setFullName(event.target.value)}
@@ -7557,7 +7611,7 @@ function QuickBuildPage({
                       />
                     </label>
                     <label className="generator-field generator-field-wide">
-                      <span>Business idea and revenue model <b>Required</b></span>
+                      <span>{t('quickBuild.businessIdea')} <b>{t('common.required')}</b></span>
                       <textarea
                         value={businessIdea}
                         onChange={(event) => setBusinessIdea(event.target.value)}
@@ -7566,7 +7620,7 @@ function QuickBuildPage({
                       <small>{businessIdea.length} characters</small>
                     </label>
                     <label className="generator-field generator-field-wide">
-                      <span>Team experience <b>Required</b></span>
+                      <span>{t('quickBuild.teamExperience')} <b>{t('common.required')}</b></span>
                       <textarea
                         value={teamIntro}
                         onChange={(event) => setTeamIntro(event.target.value)}
@@ -7580,13 +7634,13 @@ function QuickBuildPage({
 
               <div className="generator-stage-actions">
                 <button type="button" className="is-quiet" onClick={resetBusiness}>
-                  Clear
+                  {t('quickBuild.clear')}
                 </button>
                 <button type="button" className="is-secondary" onClick={() => setActiveStep(1)}>
-                  Back
+                  {t('quickBuild.back')}
                 </button>
                 <button type="button" className="is-primary" onClick={continueToReview}>
-                  Review package
+                  {t('quickBuild.reviewPackage')}
                   <Glyph type="arrow" />
                 </button>
               </div>
@@ -7596,8 +7650,8 @@ function QuickBuildPage({
           {activeStep === 3 ? (
             <section className="generator-stage generator-review-stage">
               <div className="generator-stage-heading">
-                <span>Step 03 · Final review</span>
-                <h2>Review your funding brief before generating.</h2>
+                <span>{t('quickBuild.stepThree')}</span>
+                <h2>{t('quickBuild.reviewTitle')}</h2>
                 <p>
                   Confirm the funding opportunity and business profile first. Once these
                   details look right, generate the package.
@@ -7619,32 +7673,32 @@ function QuickBuildPage({
                 <article className="generator-review-panel">
                   <header>
                     <div>
-                      <span>Step 01</span>
-                      <h3>Funding program</h3>
+                      <span>{t('quickBuild.stepOne')}</span>
+                      <h3>{t('quickBuild.fundingProgram')}</h3>
                     </div>
                     <button type="button" onClick={() => setActiveStep(1)}>
-                      Edit
+                      {t('quickBuild.edit')}
                     </button>
                   </header>
                   <dl className="generator-review-list">
                     <div>
-                      <dt>Program name</dt>
+                      <dt>{t('quickBuild.programName')}</dt>
                       <dd>{programName || 'Not entered'}</dd>
                     </div>
                     <div>
-                      <dt>Official URL</dt>
+                      <dt>{t('quickBuild.officialUrl')}</dt>
                       <dd>{programUrl || 'Not entered'}</dd>
                     </div>
                     <div>
-                      <dt>Target amount</dt>
+                      <dt>{t('quickBuild.targetAmount')}</dt>
                       <dd>{amount ? `$${amount} CAD` : 'Not entered'}</dd>
                     </div>
                     <div>
-                      <dt>Source files</dt>
+                      <dt>{t('quickBuild.sourceFiles')}</dt>
                       <dd>{fileName || 'None uploaded'}</dd>
                     </div>
                     <div>
-                      <dt>Structure</dt>
+                      <dt>{t('quickBuild.structure')}</dt>
                       <dd>{useWinningTemplate ? `${platformName} structure enabled` : 'Official source only'}</dd>
                     </div>
                   </dl>
@@ -7653,28 +7707,28 @@ function QuickBuildPage({
                 <article className="generator-review-panel">
                   <header>
                     <div>
-                      <span>Step 02</span>
-                      <h3>Business profile</h3>
+                      <span>{t('quickBuild.stepTwo')}</span>
+                      <h3>{t('quickBuild.businessProfile')}</h3>
                     </div>
                     <button type="button" onClick={() => setActiveStep(2)}>
-                      Edit
+                      {t('quickBuild.edit')}
                     </button>
                   </header>
                   <dl className="generator-review-list">
                     <div>
-                      <dt>Business name</dt>
+                      <dt>{t('quickBuild.businessName')}</dt>
                       <dd>{businessName || 'Not entered'}</dd>
                     </div>
                     <div>
-                      <dt>Lead applicant</dt>
+                      <dt>{t('quickBuild.leadApplicant')}</dt>
                       <dd>{fullName || 'Not entered'}</dd>
                     </div>
                     <div>
-                      <dt>Business idea</dt>
+                      <dt>{t('quickBuild.businessIdea')}</dt>
                       <dd className="is-multiline">{businessIdea || 'Not entered'}</dd>
                     </div>
                     <div>
-                      <dt>Team experience</dt>
+                      <dt>{t('quickBuild.teamExperience')}</dt>
                       <dd className="is-multiline">{teamIntro || 'Not entered'}</dd>
                     </div>
                   </dl>
@@ -7684,7 +7738,7 @@ function QuickBuildPage({
               <div className="generator-review-callout is-final-review">
                 <Glyph type="spark" />
                 <div>
-                  <strong>Final check before generation</strong>
+                  <strong>{t('quickBuild.finalCheck')}</strong>
                   <p>
                     The AI package will use these details to shape the opportunity fit,
                     business plan, financial logic, and funding narrative.
@@ -7704,14 +7758,14 @@ function QuickBuildPage({
                     </p>
                   </div>
                   <button type="button" className="generator-inline-action" onClick={resumeGeneratedWorkspace}>
-                    Resume last package
+                    {t('quickBuild.resume')}
                   </button>
                 </div>
               ) : null}
 
               <div className="generator-stage-actions">
                 <button type="button" className="is-secondary" onClick={() => setActiveStep(2)}>
-                  Back
+                  {t('quickBuild.back')}
                 </button>
                 <button
                   type="button"
@@ -7735,13 +7789,13 @@ function QuickBuildPage({
                   onClick={returnToStrategicReviewReports}
                 >
                   <Glyph type="arrow" />
-                  Back to Strategic Reports
+                  {t('advisory.backToReports')}
                 </button>
               ) : null}
               <div className="generator-ai-hero">
                 <div className="generator-ai-hero-copy">
-                  <span>Advisory Hub</span>
-                  <h2>Building your funding package in public, step by step.</h2>
+                  <span>{t('advisory.advisoryMode')}</span>
+                  <h2>{t('advisory.title')}</h2>
                   <p>
                     The platform behaves like an AI funding team: it analyzes the
                     opportunity, plans the structure, generates each section live, and
@@ -7756,7 +7810,7 @@ function QuickBuildPage({
                   </div>
                   {selectedStrategicReviewReportId ? (
                     <div className="generator-strategic-report-id">
-                      <span>Strategic Report ID</span>
+                      <span>{t('quickBuild.strategicReportId')}</span>
                       <code>{selectedStrategicReviewReportId}</code>
                     </div>
                   ) : null}
@@ -7766,7 +7820,7 @@ function QuickBuildPage({
                     <small>{summaryProgram}</small>
                     <strong>
                       {workspacePhase === 'complete'
-                        ? 'Funding package ready'
+                        ? t('advisory.ready')
                         : workspacePhase === 'analyzing'
                           ? 'Analyzing opportunity'
                           : workspacePhase === 'planning'
@@ -7866,8 +7920,8 @@ function QuickBuildPage({
                   <article className="generator-ai-card">
                     <header>
                       <div>
-                        <span>Agents</span>
-                        <h3>AI consulting team</h3>
+                        <span>{t('advisory.agents')}</span>
+                        <h3>{t('advisory.consultingTeam')}</h3>
                       </div>
                     </header>
                     <div className="generator-agent-list">
@@ -7879,10 +7933,10 @@ function QuickBuildPage({
                           </div>
                           <b>
                             {agent.status === 'completed'
-                              ? 'Completed'
+                              ? t('advisory.completed')
                               : agent.status === 'working'
-                                ? 'Working'
-                                : 'Waiting'}
+                                ? t('advisory.working')
+                                : t('advisory.waiting')}
                           </b>
                         </article>
                       ))}
@@ -7892,8 +7946,8 @@ function QuickBuildPage({
                   <article className="generator-ai-card">
                     <header>
                       <div>
-                        <span>Workflow</span>
-                        <h3>What the system is doing now</h3>
+                        <span>{t('advisory.workflow')}</span>
+                        <h3>{t('advisory.systemDoing')}</h3>
                       </div>
                     </header>
                     <div className="generator-workflow-list">
@@ -7918,8 +7972,8 @@ function QuickBuildPage({
                   <article className="generator-ai-card">
                     <header>
                       <div>
-                        <span>Section generation</span>
-                        <h3>Multiple sections, not one abstract progress bar</h3>
+                        <span>{t('advisory.sectionGeneration')}</span>
+                        <h3>{t('advisory.multipleSections')}</h3>
                       </div>
                     </header>
                     <div className="generator-stream-list">
@@ -7944,10 +7998,10 @@ function QuickBuildPage({
                             </div>
                             <b>
                               {section.status === 'complete'
-                                ? 'Done'
+                                ? t('common.done')
                                 : section.status === 'working'
-                                  ? 'Writing...'
-                                  : 'Waiting'}
+                                  ? t('advisory.writing')
+                                  : t('advisory.waiting')}
                             </b>
                           </button>
                           <div className="generator-stream-bar">
@@ -7959,7 +8013,7 @@ function QuickBuildPage({
                               className="generator-stream-regenerate"
                               onClick={() => regenerateSection(section.id)}
                             >
-                              Regenerate section
+                              {t('advisory.regenerateSection')}
                             </button>
                           ) : null}
                         </article>
@@ -7970,8 +8024,8 @@ function QuickBuildPage({
                   <article className="generator-ai-card generator-thoughts-card">
                     <header>
                       <div>
-                        <span>Thought stream</span>
-                        <h3>System narration for the founder</h3>
+                        <span>{t('advisory.thoughtStream')}</span>
+                        <h3>{t('advisory.narration')}</h3>
                       </div>
                     </header>
                     <div className="generator-thought-list">
@@ -7984,7 +8038,7 @@ function QuickBuildPage({
                   <article className="generator-ai-preview" id="quick-preview-panel">
                     <div className="generator-ai-preview-header">
                       <div>
-                        <span>Live Preview</span>
+                        <span>{t('advisory.livePreview')}</span>
                         <h3>{previewSection?.title ?? 'Waiting for section data'}</h3>
                         <p>
                           {previewSection
@@ -8139,8 +8193,8 @@ function QuickBuildPage({
               <div className="generator-assurance">
                 <Glyph type="spark" />
                 <div>
-                  <strong>Advisory Hub mode</strong>
-                  <p>Users can see the analysts, writers, and reviewer work section by section.</p>
+                  <strong>{t('advisory.advisoryMode')}</strong>
+                  <p>{t('advisory.advisoryModeDescription')}</p>
                 </div>
               </div>
             ) : (
@@ -8156,10 +8210,10 @@ function QuickBuildPage({
 
           <div className={`generator-summary ${activeStep === 'workspace' ? 'is-live' : ''}`}>
             <div className="generator-summary-heading">
-              <span>Package progress</span>
+              <span>{t('advisory.packageProgress')}</span>
               <strong>
                 {workspacePhase === 'complete'
-                  ? 'Funding package ready'
+                  ? t('advisory.ready')
                   : isGenerating
                     ? 'Generation in progress'
                     : activeStep === 3
@@ -8169,7 +8223,7 @@ function QuickBuildPage({
             </div>
             <div className="generator-completion generator-completion-sidebar">
               <div>
-                <span>Overall completion</span>
+                <span>{t('advisory.overallCompletion')}</span>
                 <strong>{completion}%</strong>
               </div>
               <div>
@@ -8211,18 +8265,18 @@ function QuickBuildPage({
                 <div className="generator-summary-package">
                   <strong>Workspace stats</strong>
                   <div>
-                    <span>Sections</span>
+                    <span>{t('advisory.sections')}</span>
                     <b>{workspaceSections.length}</b>
                   </div>
                   <div>
-                    <span>Model</span>
+                    <span>{t('advisory.model')}</span>
                     <b>{config.ai.defaultModel}</b>
                   </div>
                   <div>
-                    <span>Completed</span>
+                    <span>{t('advisory.completed')}</span>
                     <b>
                       {generatedPackage
-                        ? new Intl.DateTimeFormat('en-CA', {
+                        ? new Intl.DateTimeFormat(locale, {
                             month: 'short',
                             day: 'numeric',
                             hour: 'numeric',
@@ -8334,7 +8388,7 @@ function QuickBuildPage({
                     </em>
                   </span>
                   <span className="funding-program-amount">
-                    <b>${program.amount.toLocaleString('en-CA')}</b>
+                    <b>${program.amount.toLocaleString(locale)}</b>
                     <small>Maximum</small>
                   </span>
                   <span className="company-picker-score">
@@ -8649,6 +8703,7 @@ function OverviewPage() {
 }
 
 export function DashboardPage() {
+  const { t } = useTranslation()
   const { sectionId } = useParams()
   const navigate = useNavigate()
   const [partnerOpen, setPartnerOpen] = useState(false)
@@ -8839,7 +8894,7 @@ export function DashboardPage() {
         </Link>
         <button
           type="button"
-          aria-label="Open navigation"
+          aria-label={t('navigation.openNavigation')}
           onClick={() => setSidebarOpen(true)}
         >
           <Glyph type="menu" />
@@ -8850,7 +8905,7 @@ export function DashboardPage() {
         <button
           type="button"
           className="clone-sidebar-backdrop"
-          aria-label="Close navigation"
+          aria-label={t('navigation.closeNavigation')}
           onClick={() => setSidebarOpen(false)}
         />
       ) : null}
@@ -8911,10 +8966,10 @@ export function DashboardPage() {
               <div
                 className="clone-workspace-menu"
                 role="dialog"
-                aria-label="Workspace switcher"
+              aria-label={t('navigation.workspaces')}
               >
                 <header>
-                  <span>Workspaces</span>
+                  <span>{t('navigation.workspaces')}</span>
                   <b>{workspaces.length}</b>
                 </header>
 
@@ -8933,7 +8988,7 @@ export function DashboardPage() {
                         <strong>{workspace.name}</strong>
                         <small>{workspace.kind}</small>
                       </span>
-                      {workspace.id === activeWorkspaceId ? <b>Current</b> : null}
+                      {workspace.id === activeWorkspaceId ? <b>{t('navigation.current')}</b> : null}
                     </button>
                   ))}
                 </div>
@@ -8944,7 +8999,7 @@ export function DashboardPage() {
                     onSubmit={createWorkspace}
                   >
                     <label>
-                      <span>Workspace name</span>
+                      <span>{t('navigation.workspaceName')}</span>
                       <input
                         autoFocus
                         value={workspaceName}
@@ -8953,16 +9008,16 @@ export function DashboardPage() {
                       />
                     </label>
                     <label>
-                      <span>Workspace type</span>
+                        <span>{t('navigation.workspaceType')}</span>
                       <select
                         value={workspaceKind}
                         onChange={(event) =>
                           setWorkspaceKind(event.target.value as WorkspaceKind)
                         }
                       >
-                        <option>Founder workspace</option>
-                        <option>Partner workspace</option>
-                        <option>Client workspace</option>
+                        <option value="Founder workspace">{t('navigation.founderWorkspace')}</option>
+                        <option value="Partner workspace">{t('navigation.partnerWorkspace')}</option>
+                        <option value="Client workspace">{t('navigation.clientWorkspace')}</option>
                       </select>
                     </label>
                     <div>
@@ -8970,10 +9025,10 @@ export function DashboardPage() {
                         type="button"
                         onClick={() => setWorkspaceCreatorOpen(false)}
                       >
-                        Cancel
+                        {t('navigation.cancel')}
                       </button>
                       <button type="submit" disabled={!workspaceName.trim()}>
-                        Create
+                        {t('navigation.create')}
                       </button>
                     </div>
                   </form>
@@ -8984,7 +9039,7 @@ export function DashboardPage() {
                     onClick={() => setWorkspaceCreatorOpen(true)}
                   >
                     <span>+</span>
-                    Create workspace
+                    {t('navigation.createWorkspace')}
                   </button>
                 )}
 
@@ -8998,8 +9053,8 @@ export function DashboardPage() {
                 >
                   <Glyph type="settings" />
                   <span>
-                    <strong>Workspace settings</strong>
-                    <small>Defaults, region, and company</small>
+                    <strong>{t('navigation.workspaceSettings')}</strong>
+                    <small>{t('navigation.defaultsRegionCompany')}</small>
                   </span>
                   <Glyph type="arrow" />
                 </Link>
@@ -9012,7 +9067,7 @@ export function DashboardPage() {
             onClick={() => setSidebarOpen(false)}
           >
             <Glyph type="spark" />
-            <span>New funding package</span>
+            <span>{t('navigation.createPackage')}</span>
             <b>+</b>
           </Link>
         </div>
@@ -9031,7 +9086,11 @@ export function DashboardPage() {
                   }))
                 }
               >
-                <span>{group.title}</span>
+                  <span>{
+                    navigationGroupTranslationKeys[group.title]
+                      ? t(navigationGroupTranslationKeys[group.title], { defaultValue: group.title })
+                      : group.title
+                  }</span>
                 <span
                   className={`clone-chevron ${
                     openGroups[group.title] ? 'is-open' : ''
@@ -9056,7 +9115,7 @@ export function DashboardPage() {
                       <span className="clone-nav-icon">
                         <Glyph type={item.icon} />
                       </span>
-                      <span>{item.label}</span>
+                      <span>{translateNavigationLabel(t, item.id, item.label)}</span>
                       <span className="clone-nav-badge">
                         <Glyph type={item.badgeIcon ?? 'user'} />
                       </span>
@@ -9076,7 +9135,7 @@ export function DashboardPage() {
               onClick={() => setPartnerOpen((open) => !open)}
             >
               <span className="clone-partner-label">
-                <span>Partner Portal</span>
+                <span>{t('navigation.partnerPortal')}</span>
                 <span className="clone-partner-badge">☆</span>
               </span>
               <span className={`clone-chevron ${partnerOpen ? 'is-open' : ''}`}>
@@ -9100,7 +9159,7 @@ export function DashboardPage() {
                     <span className="clone-nav-icon">
                       <Glyph type={item.icon} />
                     </span>
-                    <span>{item.label}</span>
+                    <span>{translateNavigationLabel(t, item.id, item.label)}</span>
                     <span className="clone-nav-badge">
                       <Glyph type={item.badgeIcon ?? 'spark'} />
                     </span>
@@ -9126,8 +9185,8 @@ export function DashboardPage() {
             <button
               type="button"
               className="clone-logout-button"
-              aria-label="Sign out"
-              title="Sign out"
+              aria-label={t('navigation.signOut')}
+              title={t('navigation.signOut')}
               onClick={signOut}
             >
               <Glyph type="logout" />
@@ -9148,7 +9207,7 @@ export function DashboardPage() {
               <span className="clone-nav-icon">
                 <Glyph type={item.icon} />
               </span>
-              <span>{item.label}</span>
+              <span>{translateNavigationLabel(t, item.id, item.label)}</span>
               <span className="clone-nav-badge">
                 <Glyph type={item.badgeIcon ?? 'user'} />
               </span>
@@ -9167,7 +9226,7 @@ export function DashboardPage() {
             <span className="clone-nav-icon">
               <Glyph type="settings" />
             </span>
-            <span>Admin Console</span>
+            <span>{t('navigation.items.admin')}</span>
             <span className="clone-nav-badge">
               <Glyph type="spark" />
             </span>

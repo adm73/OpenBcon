@@ -123,7 +123,7 @@ class FundingPlanRepository:
             program=program,
             package_name=application_row["title"] or f"{company.name} - {program.name} package",
             requested_by_user_id=int(application_row["owner_user_id"]),
-            target_language="en",
+            target_language=request.language,
             section_limit=0,
         )
 
@@ -306,15 +306,17 @@ class FundingPlanRepository:
               workspace_id,
               owner_user_id,
               model_name,
+              language,
               status,
               request_payload,
               context_snapshot
             )
-            VALUES (%s, %s, %s, %s, 'running', %s::jsonb, %s::jsonb)
+            VALUES (%s, %s, %s, %s, %s, 'running', %s::jsonb, %s::jsonb)
             ON CONFLICT (application_id) DO UPDATE SET
               workspace_id = EXCLUDED.workspace_id,
               owner_user_id = EXCLUDED.owner_user_id,
               model_name = EXCLUDED.model_name,
+              language = EXCLUDED.language,
               status = 'running',
               request_payload = EXCLUDED.request_payload,
               context_snapshot = EXCLUDED.context_snapshot,
@@ -331,6 +333,7 @@ class FundingPlanRepository:
                 context.workspace_id,
                 context.requested_by_user_id,
                 model_name,
+                request.language,
                 request.model_dump_json(),
                 context.model_dump_json(),
             ),

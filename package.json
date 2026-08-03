@@ -29,11 +29,13 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
+    "i18next": "^26.3.6",
     "marked": "^18.0.7",
     "mongodb": "^6.21.0",
     "pg": "^8.22.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-i18next": "^17.0.11",
     "react-router-dom": "^7.18.1",
     "stripe": "^22.4.0",
     "zod": "^4.4.3"

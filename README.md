@@ -49,6 +49,7 @@ OpenBcon is designed for teams that help businesses secure funding:
 - **Resource and template libraries**: centralize templates, social resources, tools, and reusable content
 - **Google Sheets and Airtable integrations**: connect external resource sources with admin-managed sync
 - **Open-source customization**: self-host, extend, rebrand, or commercialize under the project's dual-license model
+- **Multilingual workspace UI**: English (Canada), French (Canada), and Simplified Chinese locale support
 
 ## Product Surfaces
 
@@ -58,7 +59,7 @@ The repository currently includes three product surfaces:
 - `/dashboard` - user workspace
 - `/admin` - platform configuration console, including Advisory Hub setup
 
-Every workspace module uses a flat route such as `/funding-readiness`, `/quick-build`, `/advisory-hub`, and `/grants-loans`.
+Every workspace module uses a flat route such as `/funding-readiness`, `/quick-build`, `/advisory-hub`, `/my-applications`, and `/grants-loans`.
 
 Built-in auth entry flows are also included for `/login`, `/signup`, `/forgot-password`, and `/reset-password`.
 
@@ -182,6 +183,7 @@ The current repository snapshot includes the landing experience, dashboard works
 - Express
 - PostgreSQL 17
 - MongoDB 8
+- i18next and react-i18next
 - Zod
 
 ## Local development
@@ -210,6 +212,16 @@ port `5173`.
 For the Python AI backend used by the model connection chat, create the
 Python environment described in `python-backend/README.md`, then run
 `npm run dev:python` in a second terminal. It listens on port `8010`.
+
+If the browser shows a blank page immediately after renaming or moving a source
+module, stop and restart `npm run dev` so Vite rebuilds its module graph. Then
+reload the page. A successful `npm run build` confirms that the source imports
+resolve correctly.
+
+The workspace UI supports English (Canada), French (Canada), and Simplified
+Chinese. Change the language from Settings; the preference is persisted for the
+current browser profile and is used for workspace labels, dates, numbers,
+currency formatting, and generated forecast language.
 
 ### Stripe setup
 
@@ -267,7 +279,7 @@ The public generation API uses the same identifier:
 POST http://localhost:8010/api/business-plan/generate
 Content-Type: application/json
 
-{"app_id":"3a819e8f5ce9f1d8"}
+{"app_id":"3a819e8f5ce9f1d8","language":"en-CA"}
 ```
 
 The forecast-only endpoint is:
@@ -276,7 +288,7 @@ The forecast-only endpoint is:
 POST http://localhost:8010/api/business-plan/forecast
 Content-Type: application/json
 
-{"app_id":"3a819e8f5ce9f1d8"}
+{"app_id":"3a819e8f5ce9f1d8","language":"en-CA"}
 ```
 
 The backend loads the application, company, and funding-program records from
@@ -285,6 +297,11 @@ agents from MongoDB. Sections are generated in the configured order using each
 agent's current name, role, and prompt; there are no Python-side default section
 values. The LangGraph run trace and final result are stored in the application's
 single `strategic_reports` row.
+
+The supported output languages are `en-CA`, `fr-CA`, and `zh-CN`. The selected
+language is passed to LangGraph prompts and stored with the Strategic Report.
+Users can change the workspace language from Settings. The choice is persisted
+locally and also controls locale-aware number, date, currency, and forecast formatting.
 
 The report page resolves that row from the application relationship, so the
 navigation URL can be `/advisory-hub?applicationId=<applications.id>`; the

@@ -3,11 +3,31 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 
 class GeneratePlanRequest(BaseModel):
     app_id: str = Field(min_length=1, max_length=160)
+    language: str = Field(default="en-CA", min_length=2, max_length=16)
+
+    @field_validator("language", mode="before")
+    @classmethod
+    def normalize_language(cls, value: object) -> str:
+        aliases = {
+            "en": "en-CA",
+            "english": "en-CA",
+            "en-ca": "en-CA",
+            "fr": "fr-CA",
+            "french": "fr-CA",
+            "fr-ca": "fr-CA",
+            "zh": "zh-CN",
+            "chinese": "zh-CN",
+            "zh-cn": "zh-CN",
+        }
+        normalized = str(value or "en-CA").strip().lower()
+        if normalized in aliases:
+            return aliases[normalized]
+        return value if value in {"en-CA", "fr-CA", "zh-CN"} else "en-CA"
 
 
 class CompanyRecord(BaseModel):
