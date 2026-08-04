@@ -225,29 +225,34 @@ currency formatting, and generated forecast language.
 
 ## One-click production deployment
 
-The repository includes a Docker deployment for `open.bconomics.ai`:
+The repository includes a Docker deployment with these services:
 
 - `api`: the built React application and Express API on the private Docker network
 - `python`: the FastAPI/LangGraph generation service on the private Docker network
 - `postgres` and `mongodb`: persistent application data services
-- `caddy`: automatic HTTPS plus `/api` and `/ai-api` reverse proxying
+- `caddy`: same-origin routing for `/api` and `/ai-api`
 
-On a VPS with Docker Compose installed, point the DNS `A`/`AAAA` record for
-`open.bconomics.ai` to the server and allow inbound TCP ports `80` and `443`,
-then run:
+The default Compose file lets Caddy own public ports 80 and 443. If a VPS
+already uses Hostinger Traefik on those ports, Caddy can instead listen on
+`127.0.0.1:8080` while Traefik owns public HTTPS. The complete setup and
+troubleshooting steps are documented here:
+
+- [Hostinger VPS deployment](./docs/deployment/hostinger-vps.md)
+- [Deployment troubleshooting FAQ](./docs/troubleshooting/deployment-faq.md)
+
+For a VPS where Caddy can use ports 80 and 443 directly:
 
 ```bash
 cp deploy/.env.production.example deploy/.env.production
 openssl rand -hex 32
-# Edit deploy/.env.production with the database password, generated encryption
-# key, and server-side OPENBCON_OPENAI_API_KEY.
+# Edit deploy/.env.production with the database passwords, generated encryption
+# key, public DOMAIN, and server-side OPENBCON_OPENAI_API_KEY.
 ./deploy/deploy.sh
 ```
 
-The first deployment runs all PostgreSQL migrations, including
-`025_auth_sessions.sql` and `026_billing_resource_bindings.sql`, and does not
-seed demo data. After the first setup, register the first account, then promote
-it to a platform administrator before changing platform settings:
+The first deployment runs PostgreSQL migrations and does not seed demo data.
+After the first setup, register the first account, then promote it to a
+platform administrator before changing platform settings:
 
 ```bash
 docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
@@ -255,19 +260,16 @@ docker compose --env-file deploy/.env.production -f deploy/docker-compose.produc
   -c "UPDATE app_users SET role = 'admin' WHERE lower(email) = lower('admin@example.com');"
 ```
 
-Replace the email and database user/database values if you changed them in the
-production environment file. After the first setup, updates are:
+For updates:
 
 ```bash
 git pull --ff-only
 ./deploy/deploy.sh
 ```
 
-The deployment keeps PostgreSQL, MongoDB, port `8787`, and port `8010` off the
-public network. Caddy obtains and renews the certificate automatically. Use
-`docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml logs -f`
-to inspect the services. Never run `docker compose down --volumes` unless the
-production data is intentionally being deleted.
+Always supply `--env-file deploy/.env.production` when running Compose commands
+directly, including `logs` and `ps`. Never run `docker compose down --volumes`
+unless production data is intentionally being deleted.
 
 ### Stripe setup
 
