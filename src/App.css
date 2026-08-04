@@ -5666,15 +5666,30 @@
   margin-bottom: 14px;
 }
 
-.generator-forecast-summary > div {
+.generator-forecast-summary > button {
   display: grid;
   gap: 4px;
+  width: 100%;
   padding: 10px 12px;
   border: 1px solid #e3e8f2;
   border-radius: 12px;
   background: #f9fbff;
   color: #69758d;
   font-size: 0.58rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.generator-forecast-summary > button:hover {
+  border-color: #aab8ee;
+}
+
+.generator-forecast-summary > button.is-selected {
+  border-color: #5b6fd1;
+  background: #eef1ff;
+  box-shadow: 0 0 0 2px rgba(91, 111, 209, 0.12);
 }
 
 .generator-forecast-summary strong {
@@ -5684,6 +5699,25 @@
 
 .generator-forecast-summary b {
   color: #2d8a61;
+}
+
+.generator-forecast-table-period {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: #69758d;
+  font-size: 0.58rem;
+}
+
+.generator-forecast-table-period strong {
+  color: #27334e;
+  font-size: 0.7rem;
+}
+
+.generator-forecast-table-period small {
+  color: #8a94a8;
+  font-size: 0.58rem;
 }
 
 .generator-forecast-scroll {
@@ -10630,6 +10664,7 @@
 }
 
 .admin-environment-mode-switch {
+  position: relative;
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(104px, 1fr));
   flex: 0 0 auto;
@@ -10639,7 +10674,29 @@
   background: #eef1f7;
 }
 
+.admin-environment-mode-switch::before {
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 999px;
+  background: #2eaa68;
+  box-shadow: 0 4px 12px rgba(46, 170, 104, 0.24);
+  content: '';
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), background-color 220ms ease, box-shadow 220ms ease;
+}
+
+.admin-environment-mode-switch.is-live::before {
+  background: #1688ff;
+  box-shadow: 0 4px 12px rgba(22, 136, 255, 0.28);
+  transform: translateX(100%);
+}
+
 .admin-environment-mode-switch button {
+  position: relative;
+  z-index: 1;
   min-height: 36px;
   padding: 0 14px;
   border: 0;
@@ -10652,10 +10709,16 @@
   cursor: pointer;
 }
 
+.admin-environment-mode-switch button:first-child {
+  color: #168c4f;
+}
+
+.admin-environment-mode-switch button:last-child {
+  color: #1678e2;
+}
+
 .admin-environment-mode-switch button.is-active {
-  background: #19233f;
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(25, 35, 63, 0.18);
 }
 
 .admin-environment-mode-switch button:focus-visible {

@@ -1491,13 +1491,13 @@ export function AdminPage() {
               <div className="admin-environment-mode admin-field-wide">
                 <div className="admin-environment-mode-header">
                   <div>
-                    <span>Environment mode</span>
+                    <span>Mode Switch</span>
                     <small>Choose whether this workspace is configured for testing or production use.</small>
                   </div>
                   <div
-                    className="admin-environment-mode-switch"
+                    className={`admin-environment-mode-switch ${draft.environmentMode === 'live' ? 'is-live' : 'is-test'}`}
                     role="radiogroup"
-                    aria-label="Environment mode"
+                    aria-label="Mode Switch"
                   >
                     <button
                       type="button"
@@ -1506,7 +1506,7 @@ export function AdminPage() {
                       role="radio"
                       onClick={() => updateField('environmentMode', 'test')}
                     >
-                      Test mode
+                      Test Mode
                     </button>
                     <button
                       type="button"
@@ -1515,13 +1515,13 @@ export function AdminPage() {
                       role="radio"
                       onClick={() => updateField('environmentMode', 'live')}
                     >
-                      Live mode
+                      Live Mode
                     </button>
                   </div>
                 </div>
                 <div className="admin-environment-mode-notice" role="note">
                   <strong>
-                    {draft.environmentMode === 'test' ? 'Test mode is selected' : 'Live mode is selected'}
+                    {draft.environmentMode === 'test' ? 'Test Mode is selected' : 'Live Mode is selected'}
                   </strong>
                   <p>
                     Test mode uses mock data, does not call an LLM, writes to the test database,

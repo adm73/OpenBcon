@@ -168,6 +168,7 @@ The current repository snapshot includes the landing experience, dashboard works
 - PostgreSQL domain data plus MongoDB-backed dynamic configuration and workspace state
 - One Strategic Report per application, persisted in `strategic_reports` with LangGraph trace and final result data
 - Three-year, 36-month financial forecasts with monthly revenue and expense rows, annual summaries, and Strategic Report visualizations
+- Financial forecast line-item tables open on Year 1 and switch between Year 1, Year 2, and Year 3 twelve-month views from the annual summary cards
 - Database migrations, demo seed data, audit logs, and Docker Compose setup
 - Admin Console update checks compare the stamped build commit with the latest GitHub `main` commit
 - Route-specific titles, metadata, and a dedicated 404 page
@@ -426,10 +427,12 @@ stored Strategic Report ID is displayed by the page and does not need to be
 passed as a second query parameter.
 
 Financial forecasting is part of the Strategic Report. By default it produces
-three years of monthly periods (36 columns), with revenue rows first, expense
+three years of monthly periods (36 months), with revenue rows first, expense
 rows second, and calculated total revenue, total expenses, and net cash flow.
-Strategic Report renders the forecast with trend charts, net-cash-flow bars, annual
-summaries, and the detailed monthly table.
+Strategic Report renders the forecast with trend charts, net-cash-flow bars, and
+annual summary cards. The detailed line-item table opens on Year 1 and the cards
+switch it to the selected year's twelve monthly periods, so users can review
+each year without scanning all 36 columns at once.
 
 ## Project structure
 

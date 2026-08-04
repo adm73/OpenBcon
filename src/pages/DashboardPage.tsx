@@ -5936,6 +5936,12 @@ function FinancialForecastCharts({ forecast }: { forecast: FinancialForecast }) 
 function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
   const { t } = useTranslation()
   const { locale } = useLocale()
+  const [selectedYearIndex, setSelectedYearIndex] = useState(0)
+  const selectedYear = forecast.annual_summaries[selectedYearIndex]
+  const monthStart = selectedYearIndex * 12
+  const visibleMonths = forecast.months.slice(monthStart, monthStart + 12)
+  const visibleValues = (values: number[]) => values.slice(monthStart, monthStart + 12)
+
   return (
     <article id="financial-forecast-panel" className="generator-ai-card generator-forecast-card">
       <header>
@@ -5947,21 +5953,35 @@ function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
       </header>
       <FinancialForecastCharts forecast={forecast} />
       <div className="generator-forecast-summary">
-        {forecast.annual_summaries.map((summary) => (
-          <div key={summary.year}>
+        {forecast.annual_summaries.map((summary, index) => (
+          <button
+            key={summary.year}
+            type="button"
+            className={`generator-forecast-year-tab ${index === selectedYearIndex ? 'is-selected' : ''}`}
+            data-year-index={index}
+            aria-pressed={index === selectedYearIndex}
+            onClick={() => setSelectedYearIndex(index)}
+          >
             <strong>{summary.label}</strong>
             <span>{t('forecast.revenue')} {formatForecastCurrency(summary.total_revenue, forecast.currency, locale)}</span>
             <span>{t('forecast.expenses')} {formatForecastCurrency(summary.total_expenses, forecast.currency, locale)}</span>
             <b>{t('forecast.netCashFlow')} {formatForecastCurrency(summary.net_cash_flow, forecast.currency, locale)}</b>
-          </div>
+          </button>
         ))}
       </div>
+      {selectedYear ? (
+        <div className="generator-forecast-table-period" aria-live="polite">
+          <span>{t('forecast.lineItem')}</span>
+          <strong>{selectedYear.label}</strong>
+          <small>{visibleMonths[0]?.label} to {visibleMonths.at(-1)?.label}</small>
+        </div>
+      ) : null}
       <div className="generator-forecast-scroll">
         <table className="generator-forecast-table">
           <thead>
             <tr>
             <th>{t('forecast.lineItem')}</th>
-              {forecast.months.map((month) => (
+              {visibleMonths.map((month) => (
                 <th key={month.key}>{month.label}</th>
               ))}
             </tr>
@@ -5970,8 +5990,8 @@ function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
             {forecast.rows.map((row) => (
               <tr key={row.name} className={`is-${row.category}`}>
                 <th>{row.name}</th>
-                {row.values.map((value, index) => (
-                  <td key={`${row.name}-${forecast.months[index]?.key ?? index}`}>
+                {visibleValues(row.values).map((value, index) => (
+                  <td key={`${row.name}-${visibleMonths[index]?.key ?? index}`}>
                     {formatForecastCurrency(value, forecast.currency, locale)}
                   </td>
                 ))}
@@ -5979,24 +5999,24 @@ function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
             ))}
             <tr className="is-total">
               <th>{t('forecast.totalRevenue')}</th>
-              {forecast.monthly_revenue_totals.map((value, index) => (
-                <td key={`revenue-total-${forecast.months[index]?.key ?? index}`}>
+              {visibleValues(forecast.monthly_revenue_totals).map((value, index) => (
+                <td key={`revenue-total-${visibleMonths[index]?.key ?? index}`}>
                   {formatForecastCurrency(value, forecast.currency, locale)}
                 </td>
               ))}
             </tr>
             <tr className="is-total">
               <th>{t('forecast.totalExpenses')}</th>
-              {forecast.monthly_expense_totals.map((value, index) => (
-                <td key={`expense-total-${forecast.months[index]?.key ?? index}`}>
+              {visibleValues(forecast.monthly_expense_totals).map((value, index) => (
+                <td key={`expense-total-${visibleMonths[index]?.key ?? index}`}>
                   {formatForecastCurrency(value, forecast.currency, locale)}
                 </td>
               ))}
             </tr>
             <tr className="is-net">
               <th>{t('forecast.netCashFlow')}</th>
-              {forecast.monthly_net_cash_flow.map((value, index) => (
-                <td key={`net-${forecast.months[index]?.key ?? index}`}>
+              {visibleValues(forecast.monthly_net_cash_flow).map((value, index) => (
+                <td key={`net-${visibleMonths[index]?.key ?? index}`}>
                   {formatForecastCurrency(value, forecast.currency, locale)}
                 </td>
               ))}
