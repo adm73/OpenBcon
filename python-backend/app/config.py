@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,6 +14,9 @@ class Settings(BaseSettings):
 
     api_host: str = "0.0.0.0"
     api_port: int = 8010
+    runtime_env: Literal["development", "test", "production"] = "development"
+    demo_user_id: int = 1
+    demo_workspace_id: str = "00000000-0000-4000-8000-000000000002"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     db_dsn: str = Field(
         default="postgresql://bconomics:bconomics@localhost:5432/bconomics",

@@ -16,6 +16,7 @@ import {
   useParams,
 } from 'react-router-dom'
 import {
+  hasAdminAccess,
   grantAdminAccess,
   revokeAdminAccess,
 } from '../auth/adminAccess'
@@ -67,10 +68,12 @@ import {
   lookupStripeCheckoutSession,
 } from '../lib/stripeBillingApi'
 import { renderFormattedContent } from '../lib/legalContent'
+import { createApplicationViaApi } from '../lib/applicationsApi'
 import {
   createStrategicReviewReport,
   findApplicationRecord,
   findApplicationRecordByAppId,
+  findApplicationRecordByPublicId,
   getStrategicReviewReports,
   loadApplications,
   materializeSavedProgramApplication,
@@ -90,16 +93,28 @@ function getQuickBuildPath(applicationId: string) {
   return `/quick-build?app_id=${encodeURIComponent(applicationId)}`
 }
 
-function getAdvisoryHubPath(applicationId: string) {
+function getStrategicReportsPath(applicationId: string) {
   const application = findApplicationRecord(loadApplications(), applicationId)
-  return `/advisory-hub?app_id=${encodeURIComponent(application?.appId ?? applicationId)}`
+  return `/strategic-reports?app_id=${encodeURIComponent(application?.appId ?? applicationId)}`
+}
+
+function getStrategicReportsPathForApplication(application: Pick<ApplicationRecord, 'id' | 'appId'>) {
+  return `/strategic-reports?app_id=${encodeURIComponent(application.appId ?? application.id)}`
+}
+
+function getSafeNotificationUrl(value: string) {
+  const url = value.trim()
+  if (!url) return ''
+  if (url.startsWith('/') && !url.startsWith('//')) return url
+  if (url.startsWith('#')) return url
+  return /^https?:\/\//iu.test(url) ? url : ''
 }
 
 const navigationItemTranslationKeys: Record<string, string> = {
   dashboard: 'navigation.items.dashboard',
-  'funding-readiness': 'navigation.items.fundingReadiness',
+  discovery: 'navigation.items.fundingReadiness',
   'quick-build': 'navigation.items.quickBuild',
-  'advisory-hub': 'navigation.items.advisoryHub',
+  'strategic-reports': 'navigation.items.advisoryHub',
   'my-company': 'navigation.items.myCompany',
   'saved-programs': 'navigation.items.savedPrograms',
   'my-applications': 'navigation.items.myApplications',
@@ -1348,7 +1363,7 @@ function FundingReadinessPage() {
       <header className="readiness-topbar">
         <div>
           <p className="readiness-eyebrow">Funding Centre</p>
-          <h1>Funding Readiness</h1>
+          <h1>Discovery</h1>
           <p>
             See exactly what funders will evaluate and what to improve before you
             apply.
@@ -5999,6 +6014,553 @@ function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
   )
 }
 
+function StrategicReportContentSection({
+  eyebrow,
+  title,
+  description,
+  sections,
+  emptyMessage,
+}: {
+  eyebrow: string
+  title: string
+  description: string
+  sections: GeneratedPackageSection[]
+  emptyMessage?: string
+}) {
+  return (
+    <section className="strategic-report-content-section">
+      <header>
+        <div>
+          <span>{eyebrow}</span>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+        {sections.length > 0 ? <small>{sections.length} source section{sections.length === 1 ? '' : 's'}</small> : null}
+      </header>
+      {sections.length > 0 ? (
+        <div className="strategic-report-content-items">
+          {sections.map((section) => (
+            <article key={section.id}>
+              <div>
+                <small>{section.agent}</small>
+              </div>
+              <h3>{section.title}</h3>
+              <p>{section.body}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="strategic-report-content-empty">
+          <strong>{emptyMessage ?? 'This analysis has not been generated yet.'}</strong>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function StrategicReportGeneratingView({
+  application,
+  error,
+  onRetry,
+}: {
+  application: ApplicationRecord
+  error?: string
+  onRetry?: () => void
+}) {
+  const steps = [
+    'Analyze opportunity and reviewer criteria',
+    'Build the configured Strategic Report structure',
+    'Generate business and technology analysis',
+    'Generate the financial model and monthly forecast',
+    'Run the final AI review and save the report',
+  ]
+
+  return (
+    <section className="strategic-reports-page">
+      <header className="strategic-reports-header">
+        <div>
+          <p className="workspace-eyebrow">Strategic Reports</p>
+          <h1>Building your Strategic Report.</h1>
+          <p>
+            {application.programName} · {application.company}. The report is being generated here,
+            so you can follow the analysis without returning to Quick Build.
+          </p>
+        </div>
+      </header>
+
+      <section className="strategic-report-analysis-panel strategic-report-generation-panel">
+        <header className="strategic-report-analysis-heading">
+          <div>
+            <span>Analysis Process</span>
+            <h2>{error ? 'Generation needs attention.' : 'The report is being built now.'}</h2>
+            <p>
+              {error ??
+                'The application is saved. Strategic Report sections, the financial forecast, and the AI review are running in this page.'}
+            </p>
+          </div>
+          <small>Application {application.appId ?? application.id}</small>
+        </header>
+
+        <div className="strategic-report-process-list">
+          {steps.map((step, index) => (
+            <article key={step}>
+              <span>{error ? '!' : index === 0 ? '•' : '○'}</span>
+              <div>
+                <strong>{step}</strong>
+                <p>{index === 0 && !error ? 'Live request in progress.' : 'Queued.'}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {onRetry ? (
+          <button type="button" className="strategic-reports-primary-action" onClick={onRetry}>
+            Retry generation
+          </button>
+        ) : null}
+      </section>
+    </section>
+  )
+}
+
+function StrategicReportsPage() {
+  const { t } = useTranslation()
+  const { locale } = useLocale()
+  const { config } = usePlatformConfig()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [generationError, setGenerationError] = useState('')
+  const [generationStatus, setGenerationStatus] = useState<'idle' | 'generating' | 'failed'>('idle')
+  const generationApplicationRef = useRef<string | null>(null)
+  const applications = loadApplications()
+  const reports = getStrategicReviewReports(applications)
+  const requestedAppId =
+    new URLSearchParams(location.search).get('app_id')?.trim() ?? ''
+  const selectedApplication = requestedAppId
+    ? findApplicationRecordByPublicId(applications, requestedAppId)
+    : null
+  const selectedReport = selectedApplication
+    ? reports.find((report) => report.applicationId === selectedApplication.id) ?? null
+    : null
+  const selectedApplicationId = selectedApplication?.id ?? ''
+  const selectedApplicationAppId = selectedApplication?.appId ?? ''
+  const selectedApplicationAmount = selectedApplication?.amount ?? 0
+  const hasSelectedReport = Boolean(selectedReport)
+  const reportApplicationCount = new Set(reports.map((report) => report.applicationId)).size
+  const totalSections = reports.reduce(
+    (total, report) => total + report.generatedPackage.sections.length,
+    0,
+  )
+
+  useEffect(() => {
+    if (!requestedAppId || !selectedApplicationId || hasSelectedReport) {
+      return
+    }
+    if (generationApplicationRef.current === selectedApplicationId) {
+      return
+    }
+
+    generationApplicationRef.current = selectedApplicationId
+    setGenerationError('')
+    setGenerationStatus('generating')
+
+    let active = true
+    const abortController = new AbortController()
+    const generateReport = async () => {
+      try {
+        const applicationId = selectedApplicationAppId || selectedApplicationId
+        const response = await generateBusinessPlanViaApi({
+          app_id: applicationId,
+          language: locale,
+          signal: abortController.signal,
+        })
+        const nextPackage = createGeneratedPackageFromBackend(
+          response,
+          `$${selectedApplicationAmount.toLocaleString(locale)} CAD`,
+          'Database application record',
+          config.advisoryHub.sections.filter((section) => section.enabled),
+          config.advisoryHub.agents,
+          config.advisoryHub.documentTypes,
+        )
+        const currentApplications = loadApplications()
+        const currentApplication = findApplicationRecord(
+          currentApplications,
+          selectedApplicationId,
+        )
+        if (!currentApplication) {
+          throw new Error('The application is no longer available in this workspace.')
+        }
+
+        const report = createStrategicReviewReport(currentApplication.id, nextPackage)
+        const nextApplications = upsertGeneratedApplication(currentApplications, {
+          id: currentApplication.id,
+          title: `${nextPackage.programName} application`,
+          programName: nextPackage.programName,
+          programUrl: currentApplication.programUrl,
+          company: nextPackage.businessName,
+          fundingType: currentApplication.fundingType,
+          amount: currentApplication.amount,
+          deadline: currentApplication.deadline,
+          owner: currentApplication.owner,
+          readinessScore: nextPackage.readinessScore,
+          documentCount: nextPackage.documents.length,
+          generatedAt: new Date(nextPackage.completedAt),
+          strategicReviewReport: report,
+        })
+        saveApplications(nextApplications)
+
+        if (active) setGenerationStatus('idle')
+      } catch (error) {
+        if (!active) return
+        generationApplicationRef.current = null
+        setGenerationStatus('failed')
+        setGenerationError(
+          error instanceof Error ? error.message : 'Strategic Report generation failed.',
+        )
+      }
+    }
+
+    void generateReport()
+    return () => {
+      active = false
+      abortController.abort()
+      if (generationApplicationRef.current === selectedApplicationId) {
+        generationApplicationRef.current = null
+      }
+    }
+  }, [
+    config.advisoryHub.agents,
+    config.advisoryHub.documentTypes,
+    config.advisoryHub.sections,
+    locale,
+    hasSelectedReport,
+    requestedAppId,
+    selectedApplicationAmount,
+    selectedApplicationAppId,
+    selectedApplicationId,
+  ])
+
+  if (requestedAppId && selectedApplication && !selectedReport) {
+    return (
+      <StrategicReportGeneratingView
+        application={selectedApplication}
+        error={generationStatus === 'failed' ? generationError : undefined}
+        onRetry={
+          generationStatus === 'failed'
+            ? () => {
+                generationApplicationRef.current = null
+                setGenerationError('')
+                setGenerationStatus('idle')
+              }
+            : undefined
+        }
+      />
+    )
+  }
+
+  function openReport(report: StrategicReviewReport) {
+    const application = applications.find((item) => item.id === report.applicationId)
+    if (!application) return
+
+    navigate(
+      `/strategic-reports?app_id=${encodeURIComponent(application.appId ?? application.id)}`,
+    )
+  }
+
+  function closeReport() {
+    navigate('/strategic-reports')
+  }
+
+  if (selectedReport && selectedApplication) {
+    const packageRecord = selectedReport.generatedPackage
+    const forecast = packageRecord.financialForecast
+    const firstDocument = packageRecord.documents[0]
+    const sectionText = (section: GeneratedPackageSection) =>
+      `${section.id} ${section.title} ${section.documentLabel}`.toLowerCase()
+    const technologyAnalysisSection = packageRecord.sections.find((section) =>
+      /technology|tech|digital/iu.test(sectionText(section)),
+    )
+    const financialModelSection = packageRecord.sections.find((section) =>
+      /financial|forecast|cash[-\s]?flow/iu.test(sectionText(section)),
+    )
+    const businessAnalysisSections = packageRecord.sections.filter(
+      (section) =>
+        section.id !== technologyAnalysisSection?.id &&
+        section.id !== financialModelSection?.id,
+    )
+    const reportAgents = [...new Set(packageRecord.sections.map((section) => section.agent))]
+    const analysisSteps = [
+      {
+        label: 'Analyze opportunity',
+        detail: 'Funding requirements, reviewer criteria, and evidence needs were identified.',
+      },
+      {
+        label: 'Build funding strategy',
+        detail: `${packageRecord.sections.length} configured sections were mapped to the report workflow.`,
+      },
+      {
+        label: 'Generate report sections',
+        detail: `${packageRecord.sections.length} sections were generated and saved to this report.`,
+      },
+      {
+        label: 'Generate financial forecast',
+        detail: forecast
+          ? `${forecast.years}-year forecast with ${forecast.months.length} monthly periods is ready.`
+          : 'No financial forecast is attached to this report yet.',
+      },
+      {
+        label: 'AI review & improve',
+        detail: 'The completed package is ready for review, editing, and export.',
+      },
+    ]
+
+    return (
+      <section className="strategic-reports-page">
+        <header className="strategic-reports-header">
+          <div>
+            <p className="workspace-eyebrow">Strategic Reports</p>
+            <h1>{packageRecord.programName}</h1>
+            <p>
+              {packageRecord.businessName} · {packageRecord.fundingRequest}
+            </p>
+          </div>
+          <div className="strategic-reports-header-actions">
+            <button type="button" className="strategic-reports-secondary-action" onClick={closeReport}>
+              {t('quickBuild.backToReports')}
+            </button>
+            <Link
+              to={`/quick-build?app_id=${encodeURIComponent(selectedApplication.appId ?? selectedApplication.id)}`}
+              className="strategic-reports-primary-action"
+            >
+              {t('quickBuild.edit')}
+            </Link>
+          </div>
+        </header>
+
+        <div className="strategic-reports-id-row">
+          <span>Strategic Report ID</span>
+          <code>{selectedReport.id}</code>
+        </div>
+
+        <div className="strategic-reports-metrics">
+          <article className="is-primary">
+            <span>{t('quickBuild.readiness')}</span>
+            <strong>{packageRecord.readinessScore}%</strong>
+            <small>{t('common.completed')}</small>
+          </article>
+          <article>
+            <span>Sections</span>
+            <strong>{packageRecord.sections.length}</strong>
+            <small>Configured report sections</small>
+          </article>
+          <article>
+            <span>Financial forecast</span>
+            <strong>{forecast ? `${forecast.years} yr` : 'Ready'}</strong>
+            <small>{forecast ? `${forecast.months.length} monthly periods` : 'Open the editor to generate'}</small>
+          </article>
+        </div>
+
+        <section className="strategic-report-analysis-panel">
+          <header className="strategic-report-analysis-heading">
+            <div>
+              <span>Analysis Process</span>
+              <h2>How this Strategic Report was built.</h2>
+              <p>
+                The report keeps the analysis trail visible so you can see how the opportunity,
+                strategy, sections, forecast, and review were connected.
+              </p>
+            </div>
+            <small>{packageRecord.sourceMaterial}</small>
+          </header>
+
+          <div className="strategic-report-analysis-grid">
+            <div className="strategic-report-process-list">
+              {analysisSteps.map((step) => (
+                <article key={step.label}>
+                  <span>✓</span>
+                  <div>
+                    <strong>{step.label}</strong>
+                    <p>{step.detail}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="strategic-report-analysis-side">
+              <article>
+                <header>
+                  <span>Thought Stream</span>
+                  <small>{packageRecord.thoughts.length} updates</small>
+                </header>
+                <ol>
+                  {(packageRecord.thoughts.length > 0
+                    ? packageRecord.thoughts
+                    : ['The report analysis was completed and saved.']
+                  ).map((thought, index) => (
+                    <li key={`${thought}-${index}`}>{thought}</li>
+                  ))}
+                </ol>
+              </article>
+
+              <article>
+                <header>
+                  <span>AI Consulting Team</span>
+                  <small>{reportAgents.length} agents</small>
+                </header>
+                <div className="strategic-report-agent-list">
+                  {reportAgents.map((agent) => (
+                    <span key={agent}>{agent}</span>
+                  ))}
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section className="strategic-report-detail-panel strategic-report-overview-panel">
+          <div className="strategic-report-detail-heading">
+            <div>
+              <span>Strategic Report</span>
+              <h2>{packageRecord.title}</h2>
+              <p>{firstDocument?.summary || 'Review the generated funding package section by section.'}</p>
+            </div>
+            <small>
+              {new Intl.DateTimeFormat(locale, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              }).format(new Date(packageRecord.completedAt))}
+            </small>
+          </div>
+        </section>
+
+        <StrategicReportContentSection
+          eyebrow="Business Analysis"
+          title="Business analysis"
+          description="The business plan is presented as one independent analysis of the company, operating model, and execution case."
+          sections={businessAnalysisSections}
+          emptyMessage="No business analysis section was generated for this report."
+        />
+
+        <StrategicReportContentSection
+          eyebrow="Technology Analysis"
+          title="Technology analysis"
+          description="Review the technology, digital capability, systems, and implementation requirements connected to the opportunity."
+          sections={technologyAnalysisSection ? [technologyAnalysisSection] : []}
+          emptyMessage="Technology analysis has not been generated for this report yet."
+        />
+
+        <section className="strategic-report-content-section strategic-report-financial-section">
+          <header>
+            <div>
+              <span>Financial Model</span>
+              <h2>Financial model</h2>
+              <p>Monthly financial forecast and planning assumptions for the funding strategy.</p>
+            </div>
+            {financialModelSection ? <small>{financialModelSection.agent}</small> : null}
+          </header>
+          {financialModelSection ? (
+            <div className="strategic-report-financial-context">
+              <strong>{financialModelSection.title}</strong>
+              <p>{financialModelSection.body}</p>
+            </div>
+          ) : null}
+          {forecast ? (
+            <FinancialForecastTable forecast={forecast} />
+          ) : (
+            <div className="strategic-report-content-empty">
+              <strong>Financial forecast has not been generated for this report yet.</strong>
+              <Link
+                to={`/quick-build?app_id=${encodeURIComponent(selectedApplication.appId ?? selectedApplication.id)}`}
+                className="strategic-reports-primary-action"
+              >
+                Open Quick Build
+              </Link>
+            </div>
+          )}
+        </section>
+
+      </section>
+    )
+  }
+
+  return (
+    <section className="strategic-reports-page">
+      <header className="strategic-reports-header">
+        <div>
+          <p className="workspace-eyebrow">Strategic Reports</p>
+          <h1>Review your strategic reports.</h1>
+          <p>Every report stays linked to its application, opportunity, business profile, and generated package.</p>
+        </div>
+        <Link to="/quick-build" className="strategic-reports-primary-action">
+          <Glyph type="spark" />
+          {t('quickBuild.generate')}
+        </Link>
+      </header>
+
+      <div className="strategic-reports-metrics">
+        <article className="is-primary">
+          <span>Reports</span>
+          <strong>{reports.length}</strong>
+          <small>Generated in this workspace</small>
+        </article>
+        <article>
+          <span>Applications</span>
+          <strong>{reportApplicationCount}</strong>
+          <small>Linked application records</small>
+        </article>
+        <article>
+          <span>Sections</span>
+          <strong>{totalSections}</strong>
+          <small>Across all strategic reports</small>
+        </article>
+      </div>
+
+      <section className="strategic-reports-results">
+        <div className="strategic-reports-results-heading">
+          <div>
+            <span>Strategic Reports</span>
+            <h2>Choose a report to open the full review.</h2>
+          </div>
+          <small>{reports.length} {reports.length === 1 ? 'report' : 'reports'}</small>
+        </div>
+
+        {reports.length > 0 ? (
+          <div className="strategic-reports-grid">
+            {reports.map((report) => (
+              <button
+                key={report.id}
+                type="button"
+                className="strategic-report-card"
+                onClick={() => openReport(report)}
+              >
+                <div className="strategic-report-card-topline">
+                  <span><Glyph type="spark" /> Strategic Report</span>
+                  <strong>{report.generatedPackage.readinessScore}%</strong>
+                </div>
+                <h3>{report.generatedPackage.programName}</h3>
+                <p>{report.generatedPackage.businessName}</p>
+                <small>Report ID · {report.id}</small>
+                <footer>
+                  <span>{report.generatedPackage.sections.length} sections</span>
+                  <b>{t('quickBuild.openReport')} <Glyph type="arrow" /></b>
+                </footer>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="strategic-reports-empty">
+            <span><Glyph type="spark" /></span>
+            <strong>{t('quickBuild.noReports')}</strong>
+            <p>{t('quickBuild.noReportsDescription')}</p>
+            <Link to="/quick-build">{t('quickBuild.generateNewReport')}</Link>
+          </div>
+        )}
+      </section>
+    </section>
+  )
+}
+
 function findBackendSectionBody(
   sections: BusinessPlanSectionResponse[],
   matcher: RegExp,
@@ -6234,7 +6796,7 @@ function QuickBuildPage({
     void restoreApplicationWorkspace(
       matchingApplication,
       matchingReport
-        ? `${matchingReport.generatedPackage.title} opened in Advisory Hub.`
+        ? `${matchingReport.generatedPackage.title} opened in Strategic Report.`
         : `${matchingApplication.title} restored from My Applications.`,
       matchingReport,
     )
@@ -6384,13 +6946,10 @@ function QuickBuildPage({
     'Preferred writing tone and commercialization signals',
   ]
   const planningChecklist = advisoryHubSections.map((section) => section.title)
-  const advisoryHubSectionSummary = advisoryHubSections
-    .map((section) => section.title)
-    .join(', ')
   const workflowGenerationGroups = Array.from(
     new Set(
       advisoryHubSections
-        .filter((section) => section.documentTypeId !== 'ai-review')
+        .filter((section) => section.id !== 'ai-review')
         .map((section) =>
           advisoryHubDocumentTypes.find(
             (documentType) => documentType.id === section.documentTypeId,
@@ -6400,7 +6959,7 @@ function QuickBuildPage({
     ),
   )
   const hasAiReviewSection = advisoryHubSections.some(
-    (section) => section.documentTypeId === 'ai-review',
+    (section) => section.id === 'ai-review',
   )
   const workflowItems = [
     {
@@ -6721,7 +7280,7 @@ function QuickBuildPage({
       return
     }
 
-    navigate(getAdvisoryHubPath(application.id))
+    navigate(getStrategicReportsPath(application.id))
   }
 
   function returnToStrategicReviewReports() {
@@ -6826,26 +7385,6 @@ function QuickBuildPage({
     })
   }
 
-  async function fetchGeneratedPackageFromBackend(
-    applicationId: string,
-    sourceMaterial: string,
-  ) {
-    const application = findApplicationRecord(loadApplications(), applicationId)
-    const response = await generateBusinessPlanViaApi({
-      app_id: application?.appId ?? applicationId,
-      language: locale,
-    })
-
-    return createGeneratedPackageFromBackend(
-      response,
-      `$${amount} CAD`,
-      sourceMaterial,
-      advisoryHubSections,
-      advisoryHubAgents,
-      advisoryHubDocumentTypes,
-    )
-  }
-
   function saveDraft() {
     setPersistentItem(
       draftStorageKey,
@@ -6947,165 +7486,90 @@ function QuickBuildPage({
 
     const fundingNeed = Number(amount.replace(/[^0-9.]/g, ''))
     if (programComplete < 3 || !Number.isFinite(fundingNeed)) {
-      setFormMessage('Complete the funding program details before launching Advisory Hub.')
+      setFormMessage('Complete the funding program details before launching Strategic Report.')
       setActiveStep(1)
       return
     }
 
     if (businessComplete < 4) {
-      setFormMessage('Complete the business profile before launching Advisory Hub.')
+      setFormMessage('Complete the business profile before launching Strategic Report.')
       setActiveStep(2)
       return
     }
 
-    if (!currentApplicationId) {
-      setFormMessage('Open an existing application before launching Advisory Hub.')
-      return
+    let applicationId = currentApplicationId
+    let applicationPublicId: string | undefined
+    if (applicationId) {
+      applicationPublicId = findApplicationRecord(loadApplications(), applicationId)?.appId
     }
-
-    const currentRun = generationRun.current + 1
-    generationRun.current = currentRun
-
-    const sourceMaterial = 'Database application record'
-
-    setActiveStep('workspace')
-    setEditorMode(false)
-    setWorkspacePhase('analyzing')
-    setWorkspaceSections([])
-    setWorkspaceThoughts([
-      `Loading application ${currentApplicationId} and its saved funding context.`,
-    ])
-    setSelectedSectionId(null)
-    setFormMessage(`Advisory Hub launched for application ${currentApplicationId}.`)
-
-    const backendPromise = fetchGeneratedPackageFromBackend(
-      currentApplicationId,
-      sourceMaterial,
-    )
-
-    await waitForWorkspace(700)
-    if (generationRun.current !== currentRun) {
-      return
-    }
-
-    setWorkspaceThoughts((previous) => [
-      ...previous,
-      `Reviewer criteria and mandatory sections were detected for ${programName}.`,
-      `The target raise of $${amount} CAD is being translated into a realistic execution plan.`,
-    ])
-    await waitForWorkspace(650)
-    if (generationRun.current !== currentRun) {
-      return
-    }
-
-    setWorkspacePhase('planning')
-    setWorkspaceThoughts((previous) => [
-      ...previous,
-      `Building the outline for ${advisoryHubSectionSummary.toLowerCase()}.`,
-      `Thinking through what reviewers will need to believe before approving ${businessName}.`,
-    ])
-    await waitForWorkspace(900)
-    if (generationRun.current !== currentRun) {
-      return
-    }
-
-    let nextPackage: GeneratedPackage
-    try {
-      nextPackage = await backendPromise
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : 'Unknown generation error.'
-      setWorkspaceThoughts((previous) => [
-        ...previous,
-        `Generation failed: ${detail}`,
-      ])
-      setWorkspacePhase('idle')
-      setActiveStep(3)
-      setFormMessage(`Generation failed: ${detail}`)
-      return
-    }
-
-    const startingSections = nextPackage.sections.map((section) => ({
-      ...section,
-      status: 'waiting' as const,
-      progress: 0,
-      preview: '',
-    }))
-
-    setWorkspaceSections(startingSections)
-    setSelectedSectionId(startingSections[0]?.id ?? null)
-    setWorkspacePhase('generating')
-    for (const section of startingSections) {
-      setWorkspaceThoughts((previous) => [
-        ...previous,
-        section.id === 'market-analysis'
-          ? 'Adjusting market section to better emphasize traction and commercialization.'
-          : section.id === 'financial-model'
-            ? 'Pressure-testing the financial assumptions and runway logic.'
-            : section.id === 'funding-narrative'
-              ? 'Reframing the narrative so the ask is clear, measurable, and reviewer-friendly.'
-              : `Generating ${section.title.toLowerCase()}...`,
-      ])
-      const completed = await streamSection(currentRun, section.id, section.body)
-      if (!completed) {
+    if (!applicationId) {
+      const selectedProgram = findFundingProgramByName(programName)
+      setFormMessage('Creating your application before starting Strategic Report...')
+      try {
+        const createdApplication = await createApplicationViaApi({
+          programName,
+          programUrl,
+          provider: selectedProgram?.provider,
+          location: selectedProgram?.location,
+          fundingType: selectedProgram?.type ?? 'Grant',
+          amount: fundingNeed,
+          deadline: selectedProgram?.deadline ?? 'Open',
+          deadlineOrder: selectedProgram
+            ? selectedProgram.deadline === 'Rolling intake' || selectedProgram.deadline === 'Open'
+              ? 999
+              : 0
+            : 999,
+          company: businessName,
+          founderName: fullName,
+          businessSummary: businessIdea,
+          teamBackground: teamIntro,
+          language: locale,
+        })
+        const createdRecord: ApplicationRecord = {
+          id: createdApplication.id,
+          appId: createdApplication.appId,
+          title: createdApplication.title,
+          programName: createdApplication.programName,
+          programUrl: createdApplication.programUrl,
+          company: createdApplication.company,
+          fundingType: createdApplication.fundingType,
+          amount: createdApplication.amount,
+          status: 'Draft',
+          progress: 0,
+          deadline: createdApplication.deadline,
+          deadlineOrder: createdApplication.deadlineOrder,
+          owner: createdApplication.owner,
+          updatedAt: 'Created just now',
+          documentsComplete: 0,
+          documentsTotal: Math.max(1, advisoryHubSections.length),
+          nextAction: 'Complete the strategic report',
+          note: 'Created from Quick Build.',
+          strategicReviewReports: [],
+        }
+        const applications = loadApplications().filter(
+          (application) => application.id !== createdRecord.id,
+        )
+        saveApplications([createdRecord, ...applications])
+        applicationId = createdRecord.id
+        applicationPublicId = createdRecord.appId
+        setCurrentApplicationId(applicationId)
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : 'Unknown application error.'
+        setFormMessage(`Application could not be created: ${detail}`)
         return
       }
     }
 
-    setWorkspacePhase('reviewing')
-    setWorkspaceThoughts((previous) => [
-      ...previous,
-      'Running an AI reviewer pass to tighten tone, measurable outcomes, and confidence language.',
-      'Adding clearer KPIs, stronger use-of-funds framing, and a cleaner approval narrative.',
-    ])
-    await waitForWorkspace(850)
-    if (generationRun.current !== currentRun) {
-      return
-    }
-
-    setWorkspacePhase('complete')
-    const savedApplications = loadApplications()
-    const currentApplication = currentApplicationId
-      ? findApplicationRecord(savedApplications, currentApplicationId)
-      : null
-    if (!currentApplication) {
-      setWorkspacePhase('idle')
-      setActiveStep(3)
-      setFormMessage('The application is no longer available in this workspace.')
-      return
-    }
-
-    const nextApplicationId = currentApplication.id
-    const strategicReviewReport = createStrategicReviewReport(nextApplicationId, nextPackage)
-
-    const nextApplications = upsertGeneratedApplication(savedApplications, {
-      id: nextApplicationId,
-      title: `${nextPackage.programName} application`,
-      programName: nextPackage.programName,
-      programUrl: currentApplication.programUrl || programUrl,
-      company: nextPackage.businessName,
-      fundingType: currentApplication.fundingType,
-      amount: currentApplication.amount,
-      deadline: currentApplication.deadline,
-      owner: currentApplication.owner,
-      readinessScore: nextPackage.readinessScore,
-      documentCount: nextPackage.documents.length,
-      generatedAt: new Date(nextPackage.completedAt),
-      strategicReviewReport,
-    })
-    saveApplications(nextApplications)
-    setCurrentApplicationId(nextApplicationId)
-    setSelectedStrategicReviewReportId(strategicReviewReport.id)
-    setStrategicReviewReports(getStrategicReviewReports(nextApplications))
-    persistGeneratedPackage(
-      nextPackage,
-      nextApplicationId,
-      false,
-    )
-    setWorkspaceThoughts((previous) => [...previous, 'Funding package ready for editing, export, and sharing.'])
-    setSelectedSectionId(nextPackage.sections[0]?.id ?? null)
     removePersistentItem(draftStorageKey)
-    setFormMessage('Funding-ready workspace generated successfully from the saved application.')
-    navigate(getAdvisoryHubPath(nextApplicationId))
+    setFormMessage(`Application ${applicationId} created. Opening Strategic Reports...`)
+    navigate(
+      getStrategicReportsPathForApplication({
+        id: applicationId,
+        appId: applicationPublicId,
+      }),
+    )
+    return
+
   }
 
   function cancelGeneration() {
@@ -8049,7 +8513,7 @@ function QuickBuildPage({
                       )
                     ) : (
                       <div className="generator-ai-preview-body is-empty">
-                        <p>Launch Advisory Hub to begin streaming the funding package.</p>
+                        <p>Launch Strategic Report to begin streaming the funding package.</p>
                       </div>
                     )}
 
@@ -8515,7 +8979,7 @@ function OverviewPage() {
         <article className="dashboard-readiness-card">
           <div className="dashboard-card-topline">
             <span>Funding readiness</span>
-            <Link to="/funding-readiness">View assessment</Link>
+            <Link to="/discovery">View assessment</Link>
           </div>
           <div className="dashboard-readiness-content">
             <div className="dashboard-score-ring">
@@ -8525,7 +8989,7 @@ function OverviewPage() {
               <p>Almost application ready</p>
               <h2>Strengthen your financial story.</h2>
               <span>Complete two high-impact actions to reach the recommended score of 80.</span>
-              <Link to="/funding-readiness">
+              <Link to="/discovery">
                 Continue assessment <Glyph type="arrow" />
               </Link>
             </div>
@@ -8703,6 +9167,12 @@ export function DashboardPage() {
     workspaces.find((workspace) => workspace.id === activeWorkspaceId) ??
     workspaces[0]
   const [currentAuthUser, setCurrentAuthUser] = useState(() => getCurrentAuthUser())
+  const [notificationDismissed, setNotificationDismissed] = useState(false)
+  const notificationBar = config.notificationBar
+
+  useEffect(() => {
+    setNotificationDismissed(false)
+  }, [notificationBar.audience, notificationBar.enabled, notificationBar.message])
 
   const currentItem = useMemo(() => findDashboardItem(sectionId), [sectionId])
   const visibleGroups = dashboardGroups
@@ -8796,8 +9266,8 @@ export function DashboardPage() {
 
   const isOverview = !sectionId || sectionId === 'dashboard'
   const isQuickBuild = currentItem?.id === 'quick-build'
-  const isAiWorkspace = currentItem?.id === 'advisory-hub'
-  const isFundingReadiness = currentItem?.id === 'funding-readiness'
+  const isStrategicReports = currentItem?.id === 'strategic-reports'
+  const isDiscovery = currentItem?.id === 'discovery'
   const isMyCompany = currentItem?.id === 'my-company'
   const isGrantsLoans = currentItem?.id === 'grants-loans'
   const isSavedPrograms = currentItem?.id === 'saved-programs'
@@ -8807,6 +9277,12 @@ export function DashboardPage() {
   const isTools = currentItem?.id === 'tools'
   const isSettings = currentItem?.id === 'settings'
   const showsProgramPanels = false
+  const notificationUrl = getSafeNotificationUrl(notificationBar.actionUrl)
+  const showNotificationBar =
+    notificationBar.enabled &&
+    Boolean(notificationBar.message.trim()) &&
+    (notificationBar.audience === 'all' || hasAdminAccess()) &&
+    !notificationDismissed
 
   function signOut() {
     clearAuthSession()
@@ -9034,15 +9510,6 @@ export function DashboardPage() {
               </div>
             ) : null}
           </div>
-          <Link
-            to="/quick-build"
-            className="clone-sidebar-create"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <Glyph type="spark" />
-            <span>{t('navigation.createPackage')}</span>
-            <b>+</b>
-          </Link>
         </div>
 
         <div className="clone-sidebar-scroll" ref={sidebarScrollRef}>
@@ -9089,9 +9556,6 @@ export function DashboardPage() {
                         <Glyph type={item.icon} />
                       </span>
                       <span>{translateNavigationLabel(t, item.id, item.label)}</span>
-                      <span className="clone-nav-badge">
-                        <Glyph type={item.badgeIcon ?? 'user'} />
-                      </span>
                     </NavLink>
                   ))}
                 </div>
@@ -9133,9 +9597,6 @@ export function DashboardPage() {
                       <Glyph type={item.icon} />
                     </span>
                     <span>{translateNavigationLabel(t, item.id, item.label)}</span>
-                    <span className="clone-nav-badge">
-                      <Glyph type={item.badgeIcon ?? 'spark'} />
-                    </span>
                   </NavLink>
                 ))}
               </div>
@@ -9181,9 +9642,6 @@ export function DashboardPage() {
                 <Glyph type={item.icon} />
               </span>
               <span>{translateNavigationLabel(t, item.id, item.label)}</span>
-              <span className="clone-nav-badge">
-                <Glyph type={item.badgeIcon ?? 'user'} />
-              </span>
             </NavLink>
           ))}
           <NavLink
@@ -9200,24 +9658,50 @@ export function DashboardPage() {
               <Glyph type="settings" />
             </span>
             <span>{t('navigation.items.admin')}</span>
-            <span className="clone-nav-badge">
-              <Glyph type="spark" />
-            </span>
           </NavLink>
           <OpenBconAttribution variant="sidebar" />
         </div>
       </aside>
 
       <main className="clone-main">
+        {showNotificationBar ? (
+          <div className="dashboard-notification-bar" role="region" aria-label="Notification">
+            <span className="dashboard-notification-icon" aria-hidden="true">
+              <Glyph type="spark" />
+            </span>
+            <div className="dashboard-notification-content">
+              <p>{notificationBar.message}</p>
+              {notificationUrl && notificationBar.actionLabel.trim() ? (
+                notificationUrl.startsWith('/') || notificationUrl.startsWith('#') ? (
+                  <Link to={notificationUrl}>{notificationBar.actionLabel}</Link>
+                ) : (
+                  <a href={notificationUrl} target="_blank" rel="noreferrer">
+                    {notificationBar.actionLabel}
+                  </a>
+                )
+              ) : null}
+            </div>
+            {notificationBar.dismissible ? (
+              <button
+                type="button"
+                className="dashboard-notification-dismiss"
+                aria-label="Dismiss notification"
+                onClick={() => setNotificationDismissed(true)}
+              >
+                <Glyph type="close" />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="clone-main-inner">
           {isOverview ? (
             <OverviewPage />
-          ) : isFundingReadiness ? (
+          ) : isDiscovery ? (
             <FundingReadinessPage />
           ) : isQuickBuild ? (
             <QuickBuildPage initialView="form" />
-          ) : isAiWorkspace ? (
-            <QuickBuildPage initialView="workspace" />
+          ) : isStrategicReports ? (
+            <StrategicReportsPage />
           ) : isMyCompany ? (
             <MyCompanyPage />
           ) : isSavedPrograms ? (

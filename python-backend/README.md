@@ -9,10 +9,12 @@ This service is a focused Python backend for the Quick Build core workflow:
 5. run a LangGraph workflow using exactly those configured sections and agent instructions
 6. return and persist a generated business plan and complete strategic review trace
 
-All non-health endpoints require the Node-issued `bconomics_session` HttpOnly
-cookie. The Python service validates that session against PostgreSQL and checks
-the application's workspace before loading any generation context; it never
-accepts a missing session as a demo identity.
+In production, all non-health endpoints require the Node-issued
+`bconomics_session` HttpOnly cookie. The Python service validates that session
+against PostgreSQL and checks the application's workspace before loading any
+generation context. Development and test runs may use the configured demo
+identity when `OPENBCON_RUNTIME_ENV` is not `production`; production deployment
+sets `OPENBCON_RUNTIME_ENV=production` and never accepts a missing session.
 
 The frontend can keep progress animations, timeline rendering, and AI workspace
 UI states. This backend only owns the core data loading and generation logic.

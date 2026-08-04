@@ -503,6 +503,16 @@ export function findApplicationRecordByAppId(
   return applications.find((application) => application.appId === appId) ?? null
 }
 
+export function findApplicationRecordByPublicId(
+  applications: ApplicationRecord[],
+  publicId: string,
+) {
+  return (
+    findApplicationRecordByAppId(applications, publicId) ??
+    findApplicationRecord(applications, publicId)
+  )
+}
+
 export function getLatestGeneratedApplication(
   applications: ApplicationRecord[],
 ) {

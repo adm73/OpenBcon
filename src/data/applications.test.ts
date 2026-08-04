@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  findApplicationRecordByPublicId,
   getStrategicReviewReports,
   initialApplications,
   loadApplications,
@@ -47,6 +48,17 @@ describe('applications', () => {
       progress: 90,
     })
     expect(initialApplications[0].status).toBe('In Review')
+  })
+
+  it('resolves applications by public app_id and internal id', () => {
+    const applications = [{ ...initialApplications[0], appId: 'public-demo-123' }]
+
+    expect(findApplicationRecordByPublicId(applications, 'public-demo-123')?.id).toBe(
+      initialApplications[0].id,
+    )
+    expect(findApplicationRecordByPublicId(applications, initialApplications[0].id)?.id).toBe(
+      initialApplications[0].id,
+    )
   })
 
   it('adds a generated application record that My Applications can read', () => {

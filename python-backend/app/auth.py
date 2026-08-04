@@ -6,6 +6,7 @@ from hashlib import sha256
 from fastapi import HTTPException, Request, status
 from psycopg import Connection
 
+from .config import get_settings
 
 AUTH_SESSION_COOKIE = "bconomics_session"
 
@@ -24,6 +25,13 @@ def _hash_token(token: str) -> str:
 def require_authenticated(request: Request, connection: Connection) -> AuthContext:
     token = request.cookies.get(AUTH_SESSION_COOKIE)
     if not token:
+        settings = get_settings()
+        if settings.runtime_env != "production":
+            return AuthContext(
+                user_id=settings.demo_user_id,
+                workspace_id=settings.demo_workspace_id,
+                role="admin",
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="A valid authenticated session is required.",

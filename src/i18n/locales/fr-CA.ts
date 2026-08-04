@@ -11,9 +11,9 @@ const frCA = {
     },
     items: {
       dashboard: 'Tableau de bord',
-      fundingReadiness: 'Préparation au financement',
+      fundingReadiness: 'Découverte',
       quickBuild: 'Création rapide',
-      advisoryHub: 'Centre de conseil',
+      advisoryHub: 'Rapports stratégiques',
       myCompany: 'Mon entreprise',
       savedPrograms: 'Programmes enregistrés',
       myApplications: 'Mes demandes',

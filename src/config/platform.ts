@@ -4,7 +4,7 @@ import {
 } from '../data/fundingSources'
 
 export type PlatformModuleId =
-  | 'funding-readiness'
+  | 'discovery'
   | 'quick-build'
   | 'my-company'
   | 'saved-programs'
@@ -102,6 +102,7 @@ export type AdvisoryHubAgentConfig = {
 export type AdvisoryHubDocumentTypeConfig = {
   id: string
   name: string
+  prompt: string
 }
 
 export type AdvisoryHubSectionConfig = {
@@ -188,12 +189,25 @@ export type LandingPageConfig = {
   footer: LandingFooterConfig
 }
 
+export type NotificationBarConfig = {
+  enabled: boolean
+  audience: 'all' | 'admin'
+  message: string
+  actionLabel: string
+  actionUrl: string
+  dismissible: boolean
+}
+
+export type EnvironmentMode = 'test' | 'live'
+
 export type PlatformConfig = {
   platformName: string
   platformLogo: string
   supportEmail: string
+  environmentMode: EnvironmentMode
   primaryColor: string
   sidebarColor: string
+  notificationBar: NotificationBarConfig
   landingPage: LandingPageConfig
   commercialLicenseUrl: string
   commercialLicensePrice: string
@@ -213,6 +227,15 @@ export const commercialLicenseDefaults = {
   price: 'Contact sales',
   url: 'mailto:chenadm73@gmail.com',
 } as const
+
+export const defaultNotificationBar: NotificationBarConfig = {
+  enabled: false,
+  audience: 'all',
+  message: 'Your workspace has an important update.',
+  actionLabel: 'Learn more',
+  actionUrl: '',
+  dismissible: true,
+}
 
 function isEnvironmentReference(value: string) {
   return /^[A-Z][A-Z0-9_]*$/u.test(value.trim())
@@ -430,7 +453,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
   {
     id: 'executive-summary',
     title: 'Executive Summary',
-    documentTypeId: 'business-plan',
+    documentTypeId: 'business-analysis',
     prompt: 'Summarize the opportunity, business, funding ask, and reviewer case clearly.',
     agentId: 'grant-writer',
     enabled: true,
@@ -438,7 +461,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
   {
     id: 'company-overview',
     title: 'Company Overview',
-    documentTypeId: 'business-plan',
+    documentTypeId: 'business-analysis',
     prompt: 'Explain the company, operating model, team, and execution capability.',
     agentId: 'business-consultant',
     enabled: true,
@@ -446,7 +469,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
   {
     id: 'market-analysis',
     title: 'Market Analysis',
-    documentTypeId: 'business-plan',
+    documentTypeId: 'business-analysis',
     prompt: 'Describe the market, customers, competition, traction, and growth opportunity.',
     agentId: 'business-consultant',
     enabled: true,
@@ -454,7 +477,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
   {
     id: 'financial-model',
     title: 'Financial Model',
-    documentTypeId: 'cash-flow-forecast',
+    documentTypeId: 'financial-model',
     prompt: 'Build a credible forecast, use-of-funds logic, runway, and measurable financial assumptions.',
     agentId: 'financial-analyst',
     enabled: true,
@@ -462,7 +485,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
   {
     id: 'funding-narrative',
     title: 'Funding Narrative',
-    documentTypeId: 'funding-narrative',
+    documentTypeId: 'business-analysis',
     prompt: 'Turn the evidence into a focused funding narrative with milestones and reviewer-ready outcomes.',
     agentId: 'grant-writer',
     enabled: true,
@@ -470,7 +493,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
   {
     id: 'ai-review',
     title: 'AI Review & Improve',
-    documentTypeId: 'ai-review',
+    documentTypeId: 'business-analysis',
     prompt: 'Review the package for clarity, evidence, compliance, measurable outcomes, and approval confidence.',
     agentId: 'reviewer',
     enabled: true,
@@ -478,11 +501,47 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
 ]
 
 const defaultAdvisoryHubDocumentTypes: AdvisoryHubDocumentTypeConfig[] = [
-  { id: 'business-plan', name: 'Business Plan' },
-  { id: 'cash-flow-forecast', name: 'Cash Flow Forecast' },
-  { id: 'funding-narrative', name: 'Funding Narrative' },
-  { id: 'ai-review', name: 'AI Review' },
+  {
+    id: 'business-analysis',
+    name: 'Business Analysis',
+    prompt:
+      'Develop a clear, evidence-based business analysis covering the company, operating model, market position, and execution plan.',
+  },
+  {
+    id: 'technical-analysis',
+    name: 'Technical Analysis',
+    prompt:
+      'Assess the technology, digital capability, systems, implementation requirements, and operational risks connected to the opportunity.',
+  },
+  {
+    id: 'financial-model',
+    name: 'Financial Model',
+    prompt:
+      'Build a credible monthly financial forecast with transparent assumptions, revenue drivers, expenses, runway, and use-of-funds logic.',
+  },
 ]
+
+const legacyAdvisoryHubDocumentTypeIdMap: Record<string, string> = {
+  'business-plan': 'business-analysis',
+  'business plan': 'business-analysis',
+  'cash-flow-forecast': 'financial-model',
+  'cash flow forecast': 'financial-model',
+  'funding-narrative': 'business-analysis',
+  'funding narrative': 'business-analysis',
+  'ai-review': 'business-analysis',
+  'ai review': 'business-analysis',
+  'technology-analysis': 'technical-analysis',
+  'technology analysis': 'technical-analysis',
+  'technical-analysis': 'technical-analysis',
+  'technical analysis': 'technical-analysis',
+  'financial-model': 'financial-model',
+  'financial model': 'financial-model',
+}
+
+function resolveAdvisoryHubDocumentTypeId(value: string | undefined) {
+  const normalized = value?.trim().toLowerCase() || ''
+  return legacyAdvisoryHubDocumentTypeIdMap[normalized] || value?.trim() || ''
+}
 
 const defaultAdvisoryHubAgents: AdvisoryHubAgentConfig[] = [
   {
@@ -636,17 +695,44 @@ function normalizeAdvisoryHubDocumentTypes(
     return defaultAdvisoryHubDocumentTypes.map((documentType) => ({ ...documentType }))
   }
 
+  const legacyDefaultIds = new Set([
+    'business-plan',
+    'cash-flow-forecast',
+    'funding-narrative',
+    'ai-review',
+  ])
+  const isLegacyDefaultSet =
+    documentTypes.length === legacyDefaultIds.size &&
+    documentTypes.every((documentType) => legacyDefaultIds.has(documentType.id?.trim() || ''))
+
+  if (isLegacyDefaultSet) {
+    return defaultAdvisoryHubDocumentTypes.map((documentType) => ({ ...documentType }))
+  }
+
   const normalized = documentTypes
-    .map((documentType, index) => ({
-      id:
-        documentType.id?.trim() ||
+    .map((documentType, index) => {
+      const rawId = documentType.id?.trim() || ''
+      const id =
+        resolveAdvisoryHubDocumentTypeId(rawId) ||
         defaultAdvisoryHubDocumentTypes[index]?.id ||
-        `document-type-${index + 1}`,
-      name:
-        documentType.name?.trim() ||
-        defaultAdvisoryHubDocumentTypes[index]?.name ||
-        'Document type',
-    }))
+        `document-type-${index + 1}`
+      const fallback = defaultAdvisoryHubDocumentTypes.find(
+        (defaultType) => defaultType.id === id,
+      )
+      const wasLegacyId = Boolean(rawId && legacyAdvisoryHubDocumentTypeIdMap[rawId.toLowerCase()])
+
+      return {
+        id,
+        name:
+          (wasLegacyId ? fallback?.name : documentType.name?.trim()) ||
+          fallback?.name ||
+          'Document type',
+        prompt:
+          documentType.prompt?.trim() ||
+          fallback?.prompt ||
+          'Prepare this document type for reviewer-ready delivery.',
+      }
+    })
     .filter(
       (documentType, index, all) =>
         all.findIndex((item) => item.id === documentType.id) === index,
@@ -686,9 +772,11 @@ function normalizeAdvisoryHubSections(
         id: fallback.id,
         title: section.title?.trim() || fallback.title,
         documentTypeId:
-          section.documentTypeId?.trim() ||
+          resolveAdvisoryHubDocumentTypeId(section.documentTypeId) ||
           documentTypes.find(
-            (documentType) => documentType.name === section.documentLabel,
+            (documentType) =>
+              documentType.name === section.documentLabel ||
+              resolveAdvisoryHubDocumentTypeId(section.documentLabel) === documentType.id,
           )?.id ||
           fallback.documentTypeId,
         prompt: section.prompt?.trim() || fallback.prompt,
@@ -723,8 +811,10 @@ export const defaultPlatformConfig: PlatformConfig = {
   platformName: 'Bconomics.ai',
   platformLogo: '',
   supportEmail: 'chenadm73@gmail.com',
+  environmentMode: 'test',
   primaryColor: '#6257f2',
   sidebarColor: '#121c31',
+  notificationBar: defaultNotificationBar,
   landingPage: {
     header: {
       navItems: defaultLandingHeaderNavItems,
@@ -815,7 +905,7 @@ export const defaultPlatformConfig: PlatformConfig = {
   },
   dataSources: defaultFundingDataSources,
   modules: {
-    'funding-readiness': true,
+    discovery: true,
     'quick-build': true,
     'my-company': true,
     'saved-programs': true,
@@ -838,6 +928,8 @@ type LegacyPlatformConfig = Partial<PlatformConfig> & {
   productName?: string
   productSuffix?: string
 }
+
+type LegacyNotificationBarConfig = Partial<NotificationBarConfig>
 
 type LegacyLandingHeaderConfig = Partial<LandingHeaderConfig> & {
   homeLabel?: string
@@ -966,6 +1058,8 @@ export function loadPlatformConfig(): PlatformConfig {
 
   try {
     const parsedConfig = JSON.parse(savedConfig) as LegacyPlatformConfig
+    const parsedNotificationBar =
+      (parsedConfig.notificationBar ?? {}) as LegacyNotificationBarConfig
     const parsedLandingPage: Partial<LandingPageConfig> =
       parsedConfig.landingPage ?? {}
     const parsedLandingHeader = (parsedLandingPage.header ??
@@ -1089,6 +1183,27 @@ export function loadPlatformConfig(): PlatformConfig {
         defaultPlatformConfig.platformName,
       platformLogo:
         parsedConfig.platformLogo ?? defaultPlatformConfig.platformLogo,
+      environmentMode:
+        parsedConfig.environmentMode === 'live' ? 'live' : 'test',
+      notificationBar: {
+        ...defaultPlatformConfig.notificationBar,
+        ...parsedNotificationBar,
+        enabled:
+          parsedNotificationBar.enabled ??
+          defaultPlatformConfig.notificationBar.enabled,
+        audience:
+          parsedNotificationBar.audience === 'admin' ? 'admin' : 'all',
+        message:
+          parsedNotificationBar.message?.trim() ||
+          defaultPlatformConfig.notificationBar.message,
+        actionLabel:
+          parsedNotificationBar.actionLabel?.trim() ||
+          defaultPlatformConfig.notificationBar.actionLabel,
+        actionUrl: parsedNotificationBar.actionUrl?.trim() ?? '',
+        dismissible:
+          parsedNotificationBar.dismissible ??
+          defaultPlatformConfig.notificationBar.dismissible,
+      },
       commercialLicenseUrl: commercialLicenseDefaults.url,
       commercialLicensePrice: commercialLicenseDefaults.price,
       landingPage: {

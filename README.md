@@ -41,7 +41,7 @@ OpenBcon is designed for teams that help businesses secure funding:
 ## Core Capabilities
 
 - **AI business plan generation**: turn company and funding-program context into a structured funding-ready package
-- **Configurable Advisory Hub**: run section-by-section generation with admin-managed sections, document types, agents, roles, prompts, and ordering
+- **Configurable Strategic Report**: run section-by-section generation with admin-managed sections, document types, agents, roles, prompts, and ordering
 - **Funding readiness workflows**: assess strengths, risks, and missing inputs before submission
 - **Client and company management**: organize founder profiles, business details, and working records
 - **Funding program database**: manage grants, loans, and opportunity sources in one directory
@@ -57,9 +57,9 @@ The repository currently includes three product surfaces:
 
 - `/` - public landing page
 - `/dashboard` - user workspace
-- `/admin` - platform configuration console, including Advisory Hub setup
+- `/admin` - platform configuration console, including Strategic Report setup
 
-Every workspace module uses a flat route such as `/funding-readiness`, `/quick-build`, `/advisory-hub`, `/my-applications`, and `/grants-loans`.
+Every workspace module uses a flat route such as `/discovery`, `/quick-build`, `/strategic-reports`, `/my-applications`, and `/grants-loans`.
 
 Built-in auth entry flows are also included for `/login`, `/signup`, `/forgot-password`, and `/reset-password`.
 
@@ -91,8 +91,8 @@ The current repository snapshot includes the landing experience, dashboard works
 <table>
   <tr>
     <td align="center">
-      <img src="./public/images/openbcon-screenshot-04.png" alt="Funding Readiness page" width="100%" /><br />
-      <sub>Funding Readiness</sub>
+      <img src="./public/images/openbcon-screenshot-04.png" alt="Discovery page" width="100%" /><br />
+      <sub>Discovery</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-05.png" alt="My Company page" width="100%" /><br />
@@ -158,8 +158,8 @@ The current repository snapshot includes the landing experience, dashboard works
 - Module and Partner Portal feature flags
 - Searchable and filterable listing views with record details
 - Three-step Quick Build workflow with validation, company import, application restore, and generated previews
-- Dedicated Advisory Hub route (`/advisory-hub`) for reopening the latest generated package outside the form flow
-- Advisory Hub generation driven by configurable sections, document types, agents, roles, prompts, and workflow ordering
+- Dedicated Strategic Reports route (`/strategic-reports`) for reopening the latest generated package outside the form flow
+- Strategic Report generation driven by configurable sections, document types, agents, roles, prompts, and workflow ordering
 - Saved Programs materialized as applications with funding-program step data prefilled
 - My Applications and Quick Build use the unique external `app_id` in links and API requests
 - Google Sheets and Airtable funding data-source integrations
@@ -167,7 +167,7 @@ The current repository snapshot includes the landing experience, dashboard works
 - Dynamic Grants & Loans directory with source attribution and Quick Build import
 - PostgreSQL domain data plus MongoDB-backed dynamic configuration and workspace state
 - One Strategic Report per application, persisted in `strategic_reports` with LangGraph trace and final result data
-- Three-year, 36-month financial forecasts with monthly revenue and expense rows, annual summaries, and Advisory Hub visualizations
+- Three-year, 36-month financial forecasts with monthly revenue and expense rows, annual summaries, and Strategic Report visualizations
 - Database migrations, demo seed data, audit logs, and Docker Compose setup
 - Admin Console update checks compare the stamped build commit with the latest GitHub `main` commit
 - Route-specific titles, metadata, and a dedicated 404 page
@@ -376,6 +376,20 @@ Report for that application:
 /quick-build?app_id=3a819e8f5ce9f1d8
 ```
 
+Clicking `Start` creates the application first, then immediately navigates to
+`/strategic-reports?app_id=...`. Strategic Reports owns the generation step: it
+loads the application by its public `app_id`, runs the configured LangGraph
+workflow, persists the single report, and renders the completed business
+analysis and financial model. Quick Build does not run generation itself.
+
+In development and test mode, the Python service may use the configured demo
+identity when no session cookie is present. Production must set
+`OPENBCON_RUNTIME_ENV=production`; then the same-origin session cookie is
+required for generation and the application workspace is checked server-side.
+If generation fails or exceeds the two-minute client timeout, Strategic Reports
+shows the backend error and offers `Retry generation` instead of leaving an
+indefinite loading state.
+
 The public generation API uses the same identifier:
 
 ```http
@@ -395,7 +409,7 @@ Content-Type: application/json
 ```
 
 The backend loads the application, company, and funding-program records from
-PostgreSQL, then reads the current enabled Advisory Hub sections and assigned
+PostgreSQL, then reads the current enabled Strategic Report sections and assigned
 agents from MongoDB. Sections are generated in the configured order using each
 agent's current name, role, and prompt; there are no Python-side default section
 values. The LangGraph run trace and final result are stored in the application's
@@ -407,14 +421,14 @@ Users can change the workspace language from Settings. The choice is persisted
 locally and also controls locale-aware number, date, currency, and forecast formatting.
 
 The report page resolves that row from the application relationship, so the
-navigation URL can be `/advisory-hub?applicationId=<applications.id>`; the
+navigation URL can be `/strategic-reports?app_id=<applications.app_id>`; the
 stored Strategic Report ID is displayed by the page and does not need to be
 passed as a second query parameter.
 
 Financial forecasting is part of the Strategic Report. By default it produces
 three years of monthly periods (36 columns), with revenue rows first, expense
 rows second, and calculated total revenue, total expenses, and net cash flow.
-Advisory Hub renders the forecast with trend charts, net-cash-flow bars, annual
+Strategic Report renders the forecast with trend charts, net-cash-flow bars, annual
 summaries, and the detailed monthly table.
 
 ## Project structure
@@ -445,12 +459,12 @@ Workspace settings such as the profile, billing selections, default company,
 and Quick Build preferences are persisted for the active workspace. Payment
 gateway secrets are never written back to the remote state store in plaintext.
 
-Advisory Hub settings are also managed from the Admin Console and persisted with
+Strategic Report settings are also managed from the Admin Console and persisted with
 the platform configuration. Administrators can:
 
 - enable, rename, and reorder the sections shown during package generation
 - define the document types available to those sections
-- add, remove, and edit Advisory Hub agents, including their names, roles, and prompts
+- add, remove, and edit Strategic Report agents, including their names, roles, and prompts
 - assign a document type and agent to each section
 
 At least one section, one document type, and one agent remain available so the
@@ -471,7 +485,7 @@ Saved opportunities now bridge directly into the application workflow:
 - each application stores the Quick Build step-one funding context
 - `/quick-build?app_id=...` restores an existing application instead of starting a new one
 - the Step 2 business profile can automatically import the configured default company
-- generated packages can be reopened later from the dedicated `/advisory-hub` route
+- generated packages can be reopened later from the dedicated `/strategic-reports` route
 - each application maps to one Strategic Report through `strategic_reports.application_id`
 
 Payment settings under `/admin#payments` now focus on gateway configuration:
@@ -539,11 +553,12 @@ Platform state writes are server-authorized: only a database user with the
 rate-limited per IP and email, and payment resources are checked against the
 current workspace/user before Stripe portal access or session lookup.
 
-Local Node persistence routes may still use the configured demo context when no
-cookie is present. That fallback is disabled whenever `NODE_ENV=production`;
-production must use the login or registration API to establish a session. The
-Python generation and AI-test routes require a valid session in every
-environment. The browser-only demo password reset flow is disabled in
+Local Node persistence routes and the Python generation service may use the
+configured demo context when no cookie is present during development and test
+runs. Set `OPENBCON_RUNTIME_ENV=production` for the Python service in production;
+then both APIs require the login or registration API to establish a session and
+the Python service validates the session workspace before generation. The
+browser-only demo password reset flow is disabled in
 production; connect `/forgot-password` to a real email/reset-token service
 before advertising password recovery. Do not expose the Node API, Python AI API,
 PostgreSQL, MongoDB, payment routes, or model endpoints publicly without TLS,

@@ -11,9 +11,9 @@ const zhCN = {
     },
     items: {
       dashboard: '仪表盘',
-      fundingReadiness: '融资准备度',
+      fundingReadiness: '发现',
       quickBuild: '快速构建',
-      advisoryHub: '咨询中心',
+      advisoryHub: '战略报告',
       myCompany: '我的公司',
       savedPrograms: '已保存项目',
       myApplications: '我的申请',

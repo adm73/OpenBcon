@@ -73,6 +73,7 @@ services:
       OPENBCON_CORS_ORIGINS: https://${DOMAIN}
       OPENBCON_API_HOST: 0.0.0.0
       OPENBCON_API_PORT: 8010
+      OPENBCON_RUNTIME_ENV: production
     depends_on:
       postgres:
         condition: service_healthy

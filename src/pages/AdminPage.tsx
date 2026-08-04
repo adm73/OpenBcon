@@ -45,7 +45,7 @@ import {
 } from '../licensing/openBconAttribution'
 
 const moduleLabels: Array<{ id: PlatformModuleId; label: string; group: string }> = [
-  { id: 'funding-readiness', label: 'Funding Readiness', group: 'Funding Centre' },
+  { id: 'discovery', label: 'Discovery', group: 'Funding Centre' },
   { id: 'quick-build', label: 'Quick Build', group: 'Funding Centre' },
   { id: 'my-company', label: 'My Company', group: 'My Workspace' },
   { id: 'saved-programs', label: 'Saved Programs', group: 'My Workspace' },
@@ -773,7 +773,11 @@ export function AdminPage() {
   function addAdvisoryHubDocumentType() {
     updateAdvisoryHubField('documentTypes', [
       ...draft.advisoryHub.documentTypes,
-      { id: `custom-document-type-${Date.now()}`, name: 'New document type' },
+      {
+        id: `custom-document-type-${Date.now()}`,
+        name: 'New document type',
+        prompt: 'Describe how this document type should support the funding workflow.',
+      },
     ])
   }
 
@@ -1403,6 +1407,7 @@ export function AdminPage() {
         </Link>
         <nav>
           <a href="#general">General</a>
+          <a href="#notification-bar">Notification bar</a>
           <a href="#branding">Branding</a>
           <a href="#landing-page">Landing Page</a>
           <a href="#modules">Modules</a>
@@ -1410,9 +1415,9 @@ export function AdminPage() {
           <a href="#payments">Payments</a>
           <a href="#pricing">Pricing</a>
           <a href="#revenue">Revenue</a>
-          <a href="#advisory-hub">Advisory Hub</a>
-          <a href="#advisory-hub-document-types">Advisory Hub - Document Types</a>
-          <a href="#advisory-hub-agents">Advisory Hub - Agents</a>
+          <a href="#advisory-hub">Strategic Report - Sections</a>
+          <a href="#advisory-hub-document-types">Strategic Report - Document Types</a>
+          <a href="#advisory-hub-agents">Strategic Report - Agents</a>
           <a href="#ai-models">AI Models</a>
           <a href="#legal">Legal</a>
           {!commercialLicenseUnlocked && <a href="#licensing">Licensing</a>}
@@ -1481,6 +1486,48 @@ export function AdminPage() {
                     </small>
                     <strong>{platformName}</strong>
                   </div>
+                </div>
+              </div>
+              <div className="admin-environment-mode admin-field-wide">
+                <div className="admin-environment-mode-header">
+                  <div>
+                    <span>Environment mode</span>
+                    <small>Choose whether this workspace is configured for testing or production use.</small>
+                  </div>
+                  <div
+                    className="admin-environment-mode-switch"
+                    role="radiogroup"
+                    aria-label="Environment mode"
+                  >
+                    <button
+                      type="button"
+                      className={draft.environmentMode === 'test' ? 'is-active' : ''}
+                      aria-checked={draft.environmentMode === 'test'}
+                      role="radio"
+                      onClick={() => updateField('environmentMode', 'test')}
+                    >
+                      Test mode
+                    </button>
+                    <button
+                      type="button"
+                      className={draft.environmentMode === 'live' ? 'is-active' : ''}
+                      aria-checked={draft.environmentMode === 'live'}
+                      role="radio"
+                      onClick={() => updateField('environmentMode', 'live')}
+                    >
+                      Live mode
+                    </button>
+                  </div>
+                </div>
+                <div className="admin-environment-mode-notice" role="note">
+                  <strong>
+                    {draft.environmentMode === 'test' ? 'Test mode is selected' : 'Live mode is selected'}
+                  </strong>
+                  <p>
+                    Test mode uses mock data, does not call an LLM, writes to the test database,
+                    and uses test payment credentials. Live mode uses the real data path, calls
+                    the configured LLM, writes to the live database, and uses live payment credentials.
+                  </p>
                 </div>
               </div>
             </div>
@@ -2831,7 +2878,7 @@ export function AdminPage() {
           <section className="admin-card admin-management-card" id="advisory-hub">
             <div className="admin-section-copy">
               <p className="admin-section-number">09</p>
-              <h2>Advisory Hub</h2>
+              <h2>Strategic Report - Sections</h2>
               <p>
                 Configure the sections shown in the planning view and live
                 section generation stream.
@@ -2940,7 +2987,7 @@ export function AdminPage() {
                       <div className="admin-price-card-footer">
                         <small>
                           This controls the planning checklist and section cards
-                          inside Advisory Hub.
+                          inside Strategic Report.
                         </small>
                         <div className="admin-inline-actions">
                           <button
@@ -2974,7 +3021,7 @@ export function AdminPage() {
           >
             <div className="admin-section-copy">
               <p className="admin-section-number">10</p>
-              <h2>Advisory Hub - Document Types</h2>
+              <h2>Strategic Report - Document Types</h2>
               <p>Configure the document types available to sections.</p>
             </div>
             <div className="admin-management-content">
@@ -3015,6 +3062,20 @@ export function AdminPage() {
                             }
                           />
                         </label>
+                        <label className="admin-field-wide">
+                          <span>Prompt</span>
+                          <textarea
+                            value={documentType.prompt}
+                            onChange={(event) =>
+                              updateAdvisoryHubDocumentType(
+                                documentType.id,
+                                'prompt',
+                                event.target.value,
+                              )
+                            }
+                            rows={5}
+                          />
+                        </label>
                       </div>
                       <div className="admin-price-card-footer">
                         <small>
@@ -3039,7 +3100,7 @@ export function AdminPage() {
           <section className="admin-card admin-management-card" id="advisory-hub-agents">
             <div className="admin-section-copy">
               <p className="admin-section-number">11</p>
-              <h2>Advisory Hub - Agents</h2>
+              <h2>Strategic Report - Agents</h2>
               <p>Configure the agents available to section generation.</p>
             </div>
             <div className="admin-management-content">
@@ -3402,9 +3463,108 @@ export function AdminPage() {
             </div>
           </section>}
 
-          <section className="admin-card" id="updates">
+          <section className="admin-card" id="notification-bar">
             <div className="admin-section-copy">
               <p className="admin-section-number">15</p>
+              <h2>Notification bar</h2>
+              <p>
+                Show a configurable message at the top of every authenticated
+                workspace page.
+              </p>
+            </div>
+            <div className="admin-fields">
+              <label className="admin-switch-row admin-field-wide">
+                <span>
+                  <strong>Show notification bar</strong>
+                  <small>Changes appear across the dashboard after saving.</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={draft.notificationBar.enabled}
+                  onChange={(event) =>
+                    updateField('notificationBar', {
+                      ...draft.notificationBar,
+                      enabled: event.target.checked,
+                    })
+                  }
+                />
+              </label>
+              <label className="admin-field-wide">
+                <span>Message</span>
+                <textarea
+                  value={draft.notificationBar.message}
+                  onChange={(event) =>
+                    updateField('notificationBar', {
+                      ...draft.notificationBar,
+                      message: event.target.value,
+                    })
+                  }
+                  placeholder="Share an important workspace update"
+                />
+              </label>
+              <label>
+                <span>Who can see this message</span>
+                <select
+                  value={draft.notificationBar.audience}
+                  onChange={(event) =>
+                    updateField('notificationBar', {
+                      ...draft.notificationBar,
+                      audience: event.target.value === 'admin' ? 'admin' : 'all',
+                    })
+                  }
+                >
+                  <option value="all">Everyone</option>
+                  <option value="admin">Admins only</option>
+                </select>
+              </label>
+              <label>
+                <span>Action label</span>
+                <input
+                  value={draft.notificationBar.actionLabel}
+                  onChange={(event) =>
+                    updateField('notificationBar', {
+                      ...draft.notificationBar,
+                      actionLabel: event.target.value,
+                    })
+                  }
+                  placeholder="Learn more"
+                />
+              </label>
+              <label>
+                <span>Action URL</span>
+                <input
+                  value={draft.notificationBar.actionUrl}
+                  onChange={(event) =>
+                    updateField('notificationBar', {
+                      ...draft.notificationBar,
+                      actionUrl: event.target.value,
+                    })
+                  }
+                  placeholder="/strategic-reports or https://example.com"
+                />
+              </label>
+              <label className="admin-switch-row admin-field-wide">
+                <span>
+                  <strong>Allow users to dismiss</strong>
+                  <small>Users can hide the bar for the current page session.</small>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={draft.notificationBar.dismissible}
+                  onChange={(event) =>
+                    updateField('notificationBar', {
+                      ...draft.notificationBar,
+                      dismissible: event.target.checked,
+                    })
+                  }
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="admin-card" id="updates">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">16</p>
               <h2>Updates</h2>
               <p>
                 Check the OpenBcon repository for a newer application build.

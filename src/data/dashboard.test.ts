@@ -15,6 +15,15 @@ describe('dashboard navigation data', () => {
     expect(ids.every((id) => id.length > 0 && !id.includes('/'))).toBe(true)
   })
 
+  it('uses the public Discovery and Strategic Reports route identifiers', () => {
+    const ids = allDashboardItems.map((item) => item.id)
+
+    expect(ids).toContain('discovery')
+    expect(ids).toContain('strategic-reports')
+    expect(ids).not.toContain('funding-readiness')
+    expect(ids).not.toContain('advisory-hub')
+  })
+
   it('resolves every configured dashboard item', () => {
     for (const item of allDashboardItems) {
       expect(findDashboardItem(item.id)).toBe(item)

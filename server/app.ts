@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import cors from 'cors'
 import express, {
@@ -74,6 +75,20 @@ const registrationSchema = z.object({
   companyName: z.string().trim().min(1).max(160),
   email: z.string().trim().email(),
   password: z.string().min(8).max(200),
+})
+const applicationCreateSchema = z.object({
+  programName: z.string().trim().min(1).max(160),
+  programUrl: z.string().trim().max(2000).default(''),
+  provider: z.string().trim().max(160).default(''),
+  location: z.string().trim().max(160).default(''),
+  fundingType: z.enum(['Grant', 'Loan']),
+  amount: z.number().finite().nonnegative().max(1_000_000_000_000),
+  deadline: z.string().trim().max(160).default('Open'),
+  deadlineOrder: z.number().int().min(0).max(999).default(999),
+  company: z.string().trim().min(1).max(160),
+  founderName: z.string().trim().min(1).max(120),
+  businessSummary: z.string().trim().min(1).max(4000),
+  teamBackground: z.string().trim().max(4000).default(''),
 })
 
 function sendValidationError(response: Response, error: z.ZodError) {
@@ -371,6 +386,162 @@ export function createApp(
       response.status(204).end()
     } catch (error) {
       next(error)
+    }
+  })
+
+  app.post('/api/applications', async (request, response, next) => {
+    const parsed = applicationCreateSchema.safeParse(request.body)
+    if (!parsed.success) {
+      sendValidationError(response, parsed.error)
+      return
+    }
+
+    const context = await requireRequestContext(database, request, response)
+    if (!context) return
+
+    const client = await database.connect()
+    try {
+      await client.query('BEGIN')
+
+      const companyResult = await client.query<{ id: string }>(
+        `
+          INSERT INTO companies (
+            workspace_id,
+            owner_user_id,
+            created_by,
+            name,
+            founder_name,
+            business_summary,
+            team_background
+          )
+          VALUES ($1, $2, $2, $3, $4, $5, $6)
+          ON CONFLICT (workspace_id, name) DO UPDATE SET
+            owner_user_id = EXCLUDED.owner_user_id,
+            founder_name = EXCLUDED.founder_name,
+            business_summary = EXCLUDED.business_summary,
+            team_background = EXCLUDED.team_background,
+            updated_at = now()
+          RETURNING id::text
+        `,
+        [
+          context.workspaceId,
+          context.userId,
+          parsed.data.company,
+          parsed.data.founderName,
+          parsed.data.businessSummary,
+          parsed.data.teamBackground,
+        ],
+      )
+      const companyId = companyResult.rows[0]?.id
+      if (!companyId) {
+        throw new Error('The application company could not be created.')
+      }
+
+      const existingProgramResult = await client.query<{ id: string }>(
+        `
+          SELECT id::text
+          FROM funding_programs
+          WHERE workspace_id = $1 AND name = $2
+          ORDER BY updated_at DESC
+          LIMIT 1
+        `,
+        [context.workspaceId, parsed.data.programName],
+      )
+      let programId = existingProgramResult.rows[0]?.id
+      if (!programId) {
+        const programResult = await client.query<{ id: string }>(
+          `
+            INSERT INTO funding_programs (
+              workspace_id,
+              name,
+              provider,
+              category,
+              program_url,
+              funding_amount,
+              location,
+              created_by,
+              updated_by
+            )
+            VALUES ($1, $2, NULLIF($3, ''), $4, NULLIF($5, ''), $6, NULLIF($7, ''), $8, $8)
+            RETURNING id::text
+          `,
+          [
+            context.workspaceId,
+            parsed.data.programName,
+            parsed.data.provider,
+            parsed.data.fundingType,
+            parsed.data.programUrl,
+            parsed.data.amount,
+            parsed.data.location,
+            context.userId,
+          ],
+        )
+        programId = programResult.rows[0]?.id
+      }
+      if (!programId) {
+        throw new Error('The funding program could not be created.')
+      }
+
+      const title = `${parsed.data.programName} application`
+      const applicationResult = await client.query<{
+        id: string
+        app_id: string
+      }>(
+        `
+          INSERT INTO applications (
+            workspace_id,
+            funding_program_id,
+            company_id,
+            owner_user_id,
+            source_id,
+            title,
+            amount,
+            status,
+            progress,
+            deadline,
+            deadline_order,
+            documents_total,
+            next_action
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, 'Draft', 0, $8, $9, 0, 'Complete the strategic report')
+          RETURNING id::text, app_id
+        `,
+        [
+          context.workspaceId,
+          programId,
+          companyId,
+          context.userId,
+          `quick-build-${randomUUID()}`,
+          title,
+          parsed.data.amount,
+          parsed.data.deadline || 'Open',
+          parsed.data.deadlineOrder,
+        ],
+      )
+      const application = applicationResult.rows[0]
+      if (!application) {
+        throw new Error('The application could not be created.')
+      }
+
+      await client.query('COMMIT')
+      response.status(201).json({
+        id: application.id,
+        appId: application.app_id,
+        title,
+        programName: parsed.data.programName,
+        programUrl: parsed.data.programUrl,
+        company: parsed.data.company,
+        fundingType: parsed.data.fundingType,
+        amount: parsed.data.amount,
+        deadline: parsed.data.deadline || 'Open',
+        deadlineOrder: parsed.data.deadlineOrder,
+        owner: parsed.data.founderName,
+      })
+    } catch (error) {
+      await client.query('ROLLBACK')
+      next(error)
+    } finally {
+      client.release()
     }
   })
 
