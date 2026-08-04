@@ -174,6 +174,32 @@ The current repository snapshot includes the landing experience, dashboard works
 - Vitest checks and a GitHub Actions verification workflow
 - Dual-license foundation for open-source and commercial distribution
 
+## Roadmap
+
+This is a directional roadmap rather than a release commitment. Priorities may
+change as contributors, advisors, and self-hosting teams provide feedback.
+
+### Near term
+
+- [ ] Add release metadata and changelog links to the Admin Console update check
+- [ ] Improve production operations with backup verification, migration checks,
+  and expanded health monitoring
+- [ ] Add Strategic Report version history, retry controls, and clearer generation
+  diagnostics
+- [ ] Improve collaborative workspace permissions, invitations, and activity history
+- [ ] Expand automated tests for generation, persistence, authentication, and
+  responsive layouts
+
+### Later
+
+- [ ] Add more funding-catalog connectors and scheduled sync observability
+- [ ] Extend financial planning with editable assumptions, scenario comparisons,
+  and export-ready forecast formats
+- [ ] Add richer document editing, review comments, and package export workflows
+- [ ] Expand localization beyond English (Canada), French (Canada), and Simplified
+  Chinese
+- [ ] Publish stable integration APIs and webhooks for partner workflows
+
 ## Tech stack
 
 - React 19
