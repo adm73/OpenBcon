@@ -38,6 +38,7 @@ import {
   parseStripeCheckoutRequest,
   verifyStripeWebhookEvent,
 } from './payments'
+import { checkForOpenBconUpdates } from './updateCheck'
 
 const scopeSchema = z.enum(['platform', 'workspace', 'user'])
 const keySchema = z
@@ -384,6 +385,35 @@ export function createApp(
       })
     } catch (error) {
       next(error)
+    }
+  })
+
+  app.get('/api/updates', async (request, response) => {
+    try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
+
+      const currentCommit =
+        typeof request.query.currentCommit === 'string'
+          ? request.query.currentCommit
+          : undefined
+      if (currentCommit && !/^(unknown|[0-9a-f]{7,40})$/iu.test(currentCommit.trim())) {
+        response.status(400).json({
+          error: 'invalid_request',
+          message: 'The current commit identifier is invalid.',
+        })
+        return
+      }
+
+      response.json(await checkForOpenBconUpdates(currentCommit))
+    } catch (error) {
+      response.status(502).json({
+        error: 'update_check_failed',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'The update service could not be reached.',
+      })
     }
   })
 

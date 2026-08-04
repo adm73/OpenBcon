@@ -209,6 +209,11 @@ export type PlatformConfig = {
 
 export const secureConfigValuePlaceholder = '__stored_securely__'
 
+export const commercialLicenseDefaults = {
+  price: 'Contact sales',
+  url: 'mailto:chenadm73@gmail.com',
+} as const
+
 function isEnvironmentReference(value: string) {
   return /^[A-Z][A-Z0-9_]*$/u.test(value.trim())
 }
@@ -226,6 +231,8 @@ function sanitizeSecretLikeValue(value: string) {
 export function sanitizePlatformConfigForPersistence(config: PlatformConfig) {
   return {
     ...config,
+    commercialLicensePrice: commercialLicenseDefaults.price,
+    commercialLicenseUrl: commercialLicenseDefaults.url,
     ai: {
       ...config.ai,
       models: config.ai.models.map((model) => ({
@@ -764,8 +771,8 @@ export const defaultPlatformConfig: PlatformConfig = {
       },
     },
   },
-  commercialLicenseUrl: 'mailto:chenadm73@gmail.com',
-  commercialLicensePrice: 'Contact sales',
+  commercialLicenseUrl: commercialLicenseDefaults.url,
+  commercialLicensePrice: commercialLicenseDefaults.price,
   openBconAttributionVisible: true,
   privacyPolicy: {
     format: 'markdown',
@@ -1082,6 +1089,8 @@ export function loadPlatformConfig(): PlatformConfig {
         defaultPlatformConfig.platformName,
       platformLogo:
         parsedConfig.platformLogo ?? defaultPlatformConfig.platformLogo,
+      commercialLicenseUrl: commercialLicenseDefaults.url,
+      commercialLicensePrice: commercialLicenseDefaults.price,
       landingPage: {
         ...defaultPlatformConfig.landingPage,
         ...parsedLandingPage,

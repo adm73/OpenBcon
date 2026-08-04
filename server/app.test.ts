@@ -74,6 +74,31 @@ describe('persistence API', () => {
     expect(response.body.database).toBe('connected')
   })
 
+  it('returns the latest OpenBcon commit for the admin update check', async () => {
+    const latestCommit = 'd'.repeat(40)
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({
+      sha: latestCommit,
+      html_url: 'https://github.com/adm73/OpenBcon/commit/latest',
+      commit: {
+        message: 'chore: publish release',
+        author: { date: '2026-08-04T12:00:00.000Z' },
+      },
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetcher)
+
+    try {
+      const response = await request(createApp(createDatabaseStub())).get(
+        '/api/updates?currentCommit=eeeeeeeeeeee',
+      )
+
+      expect(response.status).toBe(200)
+      expect(response.body.latestShortCommit).toBe(latestCommit.slice(0, 12))
+      expect(response.body.updateAvailable).toBe(true)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('returns an empty bootstrap payload for a new workspace', async () => {
     const response = await request(createApp(createDatabaseStub())).get(
       '/api/bootstrap',

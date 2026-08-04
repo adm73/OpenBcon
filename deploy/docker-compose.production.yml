@@ -30,6 +30,8 @@ services:
       dockerfile: deploy/Dockerfile.api
       args:
         VITE_BUSINESS_PLAN_API_URL: /ai-api
+        VITE_COMMERCIAL_LICENSED: ${VITE_COMMERCIAL_LICENSED:-false}
+        VITE_APP_COMMIT: ${VITE_APP_COMMIT:-unknown}
     env_file:
       - .env.production
     environment:

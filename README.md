@@ -169,6 +169,7 @@ The current repository snapshot includes the landing experience, dashboard works
 - One Strategic Report per application, persisted in `strategic_reports` with LangGraph trace and final result data
 - Three-year, 36-month financial forecasts with monthly revenue and expense rows, annual summaries, and Advisory Hub visualizations
 - Database migrations, demo seed data, audit logs, and Docker Compose setup
+- Admin Console update checks compare the stamped build commit with the latest GitHub `main` commit
 - Route-specific titles, metadata, and a dedicated 404 page
 - Vitest checks and a GitHub Actions verification workflow
 - Dual-license foundation for open-source and commercial distribution
@@ -240,6 +241,12 @@ troubleshooting steps are documented here:
 - [Hostinger VPS deployment](./docs/deployment/hostinger-vps.md)
 - [Deployment troubleshooting FAQ](./docs/troubleshooting/deployment-faq.md)
 
+The AGPL community build keeps the Commercial licensing section visible and
+read-only in Admin Console. A paid commercial deployment can hide that section
+by setting the build-time variable `VITE_COMMERCIAL_LICENSED=true` and
+rebuilding the API image. This flag controls the compiled UI only; licensing
+rights remain governed by the applicable commercial agreement.
+
 For a VPS where Caddy can use ports 80 and 443 directly:
 
 ```bash
@@ -266,6 +273,27 @@ For updates:
 git pull --ff-only
 ./deploy/deploy.sh
 ```
+
+`deploy/deploy.sh` stamps the frontend image with the current Git commit. In
+Admin Console, open **Updates** and select **Check updates** to compare that
+build with the latest public OpenBcon commit. The check reports availability
+only; it never installs code automatically.
+
+### Update checks
+
+The Admin Console update check is intentionally read-only:
+
+- the authenticated Node API queries the fixed OpenBcon GitHub `main` commit
+- the frontend compares that commit with the build's `VITE_APP_COMMIT` value
+- `deploy/deploy.sh` sets `VITE_APP_COMMIT` automatically from `git rev-parse`
+- local builds without a commit stamp show the latest commit but cannot report
+  whether the current build is behind
+- GitHub failures and timeouts are shown as a check error; they do not affect
+  the running application
+
+The endpoint is `GET /api/updates?currentCommit=<commit>` and requires an
+authenticated session. It does not accept a user-provided upstream URL and it
+does not pull, install, or restart application code.
 
 Always supply `--env-file deploy/.env.production` when running Compose commands
 directly, including `logs` and `ps`. Never run `docker compose down --volumes`

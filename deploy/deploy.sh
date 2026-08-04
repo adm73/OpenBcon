@@ -18,6 +18,13 @@ fi
 
 cd "$ROOT_DIR"
 
+# Stamp the frontend with the source commit so Admin Console can compare the
+# running build with the latest commit on GitHub.
+if [ -z "${VITE_APP_COMMIT:-}" ]; then
+  VITE_APP_COMMIT="$(git rev-parse --short=12 HEAD 2>/dev/null || printf 'unknown')"
+  export VITE_APP_COMMIT
+fi
+
 compose=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 "${compose[@]}" config >/dev/null
 "${compose[@]}" up -d --build

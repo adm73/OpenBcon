@@ -181,6 +181,26 @@ type PaymentDescriptionEditorProps = {
   onChange: (value: string) => void
 }
 
+type UpdateCheckState = {
+  status: 'idle' | 'checking' | 'current' | 'available' | 'unknown' | 'error'
+  currentCommit: string
+  latestShortCommit: string
+  latestMessage: string
+  latestUrl: string
+  latestCommittedAt: string
+  error: string
+}
+
+const initialUpdateCheckState: UpdateCheckState = {
+  status: 'idle',
+  currentCommit: String(import.meta.env.VITE_APP_COMMIT ?? '').trim() || 'unknown',
+  latestShortCommit: '',
+  latestMessage: '',
+  latestUrl: '',
+  latestCommittedAt: '',
+  error: '',
+}
+
 const descriptionEditorActions = [
   { id: 'bold', label: 'B', title: 'Bold', command: 'bold' },
   { id: 'italic', label: 'I', title: 'Italic', command: 'italic' },
@@ -415,6 +435,9 @@ export function AdminPage() {
   const [syncingSourceId, setSyncingSourceId] = useState('')
   const [deleteSourceId, setDeleteSourceId] = useState('')
   const [sourceNotice, setSourceNotice] = useState('')
+  const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>(
+    initialUpdateCheckState,
+  )
   const commercialLicenseUnlocked = hasCommercialLicenseAccess()
   const platformName = getPlatformDisplayName(draft)
   const platformInitial = getPlatformInitial(draft)
@@ -1329,6 +1352,49 @@ export function AdminPage() {
     window.location.reload()
   }
 
+  async function checkForUpdates() {
+    setUpdateCheck((current) => ({
+      ...current,
+      status: 'checking',
+      error: '',
+    }))
+
+    try {
+      const response = await fetch(
+        `/api/updates?currentCommit=${encodeURIComponent(updateCheck.currentCommit)}`,
+        { credentials: 'include' },
+      )
+      const payload = (await response.json()) as Partial<UpdateCheckState> & {
+        message?: string
+        updateAvailable?: boolean | null
+      }
+      if (!response.ok) {
+        throw new Error(payload.message || 'The update check failed.')
+      }
+
+      setUpdateCheck({
+        status:
+          payload.updateAvailable === true
+            ? 'available'
+            : payload.updateAvailable === false
+              ? 'current'
+              : 'unknown',
+        currentCommit: payload.currentCommit || updateCheck.currentCommit,
+        latestShortCommit: payload.latestShortCommit || '',
+        latestMessage: payload.latestMessage || '',
+        latestUrl: payload.latestUrl || '',
+        latestCommittedAt: payload.latestCommittedAt || '',
+        error: '',
+      })
+    } catch (error) {
+      setUpdateCheck((current) => ({
+        ...current,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'The update check failed.',
+      }))
+    }
+  }
+
   return (
     <div className="admin-shell">
       <aside className="admin-rail">
@@ -1349,7 +1415,8 @@ export function AdminPage() {
           <a href="#advisory-hub-agents">Advisory Hub - Agents</a>
           <a href="#ai-models">AI Models</a>
           <a href="#legal">Legal</a>
-          <a href="#licensing">Licensing</a>
+          {!commercialLicenseUnlocked && <a href="#licensing">Licensing</a>}
+          <a href="#updates">Updates</a>
         </nav>
         <Link className="admin-back-link" to="/dashboard">
           Back to workspace
@@ -3270,61 +3337,41 @@ export function AdminPage() {
             </div>
           </section>
 
-          <section className="admin-card" id="licensing">
+          {!commercialLicenseUnlocked && <section className="admin-card" id="licensing">
             <div className="admin-section-copy">
               <p className="admin-section-number">14</p>
               <h2>Commercial licensing</h2>
               <p>
-                Configure the paid alternative for organizations that cannot use
-                the AGPL edition.
+                Commercial licensing terms are fixed for the community edition
+                and cannot be changed from Admin Console.
               </p>
             </div>
             <div className="admin-fields">
               <label>
                 <span>License price label</span>
                 <input
+                  className="admin-license-readonly"
                   value={draft.commercialLicensePrice}
-                  onChange={(event) =>
-                    updateField('commercialLicensePrice', event.target.value)
-                  }
+                  readOnly
                 />
               </label>
               <label>
                 <span>Purchase or contact URL</span>
                 <input
+                  className="admin-license-readonly"
                   value={draft.commercialLicenseUrl}
-                  onChange={(event) =>
-                    updateField('commercialLicenseUrl', event.target.value)
-                  }
+                  readOnly
                 />
               </label>
-              {commercialLicenseUnlocked ? (
-                <label className="admin-field-wide">
-                  <span>OpenBcon footer attribution</span>
-                  <select
-                    value={draft.openBconAttributionVisible ? 'visible' : 'hidden'}
-                    onChange={(event) =>
-                      updateField(
-                        'openBconAttributionVisible',
-                        event.target.value === 'visible',
-                      )
-                    }
-                  >
-                    <option value="visible">Visible</option>
-                    <option value="hidden">Hidden</option>
-                  </select>
-                </label>
-              ) : (
-                <div className="admin-license-lock admin-field-wide">
-                  <strong>Community edition lock</strong>
-                  <p>
-                    OpenBcon attribution is required in the landing page and
-                    dashboard footer. Purchase a commercial license and set
-                    <code> VITE_COMMERCIAL_LICENSED=true </code>
-                    to unlock visibility control.
-                  </p>
-                </div>
-              )}
+              <div className="admin-license-lock admin-field-wide">
+                <strong>Community edition lock</strong>
+                <p>
+                  OpenBcon attribution is required in the landing page and
+                  dashboard footer. A paid commercial license can hide this
+                  section and unlock attribution controls in a licensed build
+                  with <code> VITE_COMMERCIAL_LICENSED=true </code>.
+                </p>
+              </div>
               <div className="admin-license-preview admin-field-wide">
                 <span>Community edition</span>
                 <strong>AGPL-3.0</strong>
@@ -3352,6 +3399,63 @@ export function AdminPage() {
                   .
                 </p>
               </div>
+            </div>
+          </section>}
+
+          <section className="admin-card" id="updates">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">15</p>
+              <h2>Updates</h2>
+              <p>
+                Check the OpenBcon repository for a newer application build.
+                This check does not install updates automatically.
+              </p>
+            </div>
+            <div className="admin-update-panel">
+              <div className="admin-update-summary">
+                <span>Current build</span>
+                <strong>{updateCheck.currentCommit}</strong>
+                <p>
+                  {updateCheck.status === 'idle'
+                    ? 'Check GitHub when you are ready.'
+                    : updateCheck.status === 'checking'
+                      ? 'Checking the latest OpenBcon commit...'
+                      : updateCheck.status === 'current'
+                        ? 'This build is up to date.'
+                        : updateCheck.status === 'available'
+                          ? 'A newer build is available.'
+                          : updateCheck.status === 'unknown'
+                            ? 'This build was not stamped with a Git commit.'
+                            : updateCheck.error}
+                </p>
+              </div>
+              <div className="admin-update-result">
+                {updateCheck.latestShortCommit && (
+                  <div>
+                    <span>Latest on main</span>
+                    <strong>{updateCheck.latestShortCommit}</strong>
+                    <p>{updateCheck.latestMessage}</p>
+                  </div>
+                )}
+                {updateCheck.latestUrl && (
+                  <a href={updateCheck.latestUrl} target="_blank" rel="noreferrer">
+                    View commit on GitHub
+                  </a>
+                )}
+                {updateCheck.latestCommittedAt && (
+                  <time dateTime={updateCheck.latestCommittedAt}>
+                    Checked commit: {new Date(updateCheck.latestCommittedAt).toLocaleString()}
+                  </time>
+                )}
+              </div>
+              <button
+                type="button"
+                className="admin-button-secondary"
+                onClick={checkForUpdates}
+                disabled={updateCheck.status === 'checking'}
+              >
+                {updateCheck.status === 'checking' ? 'Checking...' : 'Check updates'}
+              </button>
             </div>
           </section>
 
