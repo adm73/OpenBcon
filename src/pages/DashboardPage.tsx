@@ -87,7 +87,12 @@ function getQuickBuildPath(applicationId: string) {
     return `/quick-build?app_id=${encodeURIComponent(application.appId)}`
   }
 
-  return `/quick-build?applicationId=${encodeURIComponent(applicationId)}`
+  return `/quick-build?app_id=${encodeURIComponent(applicationId)}`
+}
+
+function getAdvisoryHubPath(applicationId: string) {
+  const application = findApplicationRecord(loadApplications(), applicationId)
+  return `/advisory-hub?app_id=${encodeURIComponent(application?.appId ?? applicationId)}`
 }
 
 const navigationItemTranslationKeys: Record<string, string> = {
@@ -6147,9 +6152,7 @@ function QuickBuildPage({
   const generationRun = useRef(0)
   const appIdFromQuery =
     new URLSearchParams(location.search).get('app_id')?.trim() ?? ''
-  const applicationIdFromQuery =
-    new URLSearchParams(location.search).get('applicationId')?.trim() ?? ''
-  const hasApplicationQuery = Boolean(appIdFromQuery || applicationIdFromQuery)
+  const hasApplicationQuery = Boolean(appIdFromQuery)
   const fundingProgramCatalog = useMemo(
     () =>
       loadFundingPrograms(
@@ -6214,38 +6217,12 @@ function QuickBuildPage({
   }, [])
 
   useEffect(() => {
-    if (location.pathname !== '/advisory-hub' || !hasApplicationQuery) return
-
-    const application = appIdFromQuery
-      ? findApplicationRecordByAppId(loadApplications(), appIdFromQuery)
-      : null
-    const canonicalSearch = `?applicationId=${encodeURIComponent(
-      application?.id ?? applicationIdFromQuery,
-    )}`
-    if (application?.id && location.search !== canonicalSearch) {
-      navigate(`/advisory-hub${canonicalSearch}`, { replace: true })
-    }
-  }, [appIdFromQuery, applicationIdFromQuery, hasApplicationQuery, location.pathname, location.search, navigate])
-
-  useEffect(() => {
-    if (location.pathname !== '/quick-build' || !applicationIdFromQuery) return
-
-    const application = findApplicationRecord(loadApplications(), applicationIdFromQuery)
-    if (!application?.appId) return
-
-    const canonicalSearch = `?app_id=${encodeURIComponent(application.appId)}`
-    if (location.search !== canonicalSearch) {
-      navigate(`/quick-build${canonicalSearch}`, { replace: true })
-    }
-  }, [applicationIdFromQuery, location.pathname, location.search, navigate])
-
-  useEffect(() => {
     if (!hasApplicationQuery) return
 
     const applications = loadApplications()
-    const matchingApplication = appIdFromQuery
-      ? findApplicationRecordByAppId(applications, appIdFromQuery)
-      : findApplicationRecord(applications, applicationIdFromQuery)
+    const matchingApplication =
+      findApplicationRecordByAppId(applications, appIdFromQuery) ??
+      findApplicationRecord(applications, appIdFromQuery)
 
     if (!matchingApplication) {
       setFormMessage('This application could not be found in My Applications.')
@@ -6261,7 +6238,7 @@ function QuickBuildPage({
         : `${matchingApplication.title} restored from My Applications.`,
       matchingReport,
     )
-  }, [appIdFromQuery, applicationIdFromQuery, hasApplicationQuery])
+  }, [appIdFromQuery, hasApplicationQuery])
 
   useEffect(() => {
     if (hasApplicationQuery) return
@@ -6744,9 +6721,7 @@ function QuickBuildPage({
       return
     }
 
-    navigate(
-      `/advisory-hub?applicationId=${encodeURIComponent(application.id)}`,
-    )
+    navigate(getAdvisoryHubPath(application.id))
   }
 
   function returnToStrategicReviewReports() {
@@ -7130,9 +7105,7 @@ function QuickBuildPage({
     setSelectedSectionId(nextPackage.sections[0]?.id ?? null)
     removePersistentItem(draftStorageKey)
     setFormMessage('Funding-ready workspace generated successfully from the saved application.')
-    navigate(
-      `/advisory-hub?applicationId=${encodeURIComponent(nextApplicationId)}`,
-    )
+    navigate(getAdvisoryHubPath(nextApplicationId))
   }
 
   function cancelGeneration() {

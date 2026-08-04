@@ -8,6 +8,13 @@ import express, {
 import helmet from 'helmet'
 import type { Pool } from 'pg'
 import { z } from 'zod'
+import {
+  clearSessionCookie,
+  createSession,
+  requireRequestContext,
+  revokeSession,
+  setSessionCookie,
+} from './auth'
 import { environment } from './config'
 import { databasePool } from './db/pool'
 import {
@@ -18,8 +25,8 @@ import {
 import {
   applyStateMutation,
   applyStateBatch,
+  AuthorizationError,
   readBootstrapState,
-  type RequestContext,
 } from './stateRepository'
 import { isPersistentStateKey } from './stateScope'
 import {
@@ -61,12 +68,12 @@ const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1),
 })
-function getRequestContext(): RequestContext {
-  return {
-    userId: environment.DEMO_USER_ID,
-    workspaceId: environment.DEMO_WORKSPACE_ID,
-  }
-}
+const registrationSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  companyName: z.string().trim().min(1).max(160),
+  email: z.string().trim().email(),
+  password: z.string().min(8).max(200),
+})
 
 function sendValidationError(response: Response, error: z.ZodError) {
   response.status(400).json({
@@ -84,11 +91,13 @@ export function createApp(
       : createDocumentStore(),
 ) {
   const app = express()
+  const failedLoginAttempts = new Map<string, { count: number; resetAt: number }>()
   const allowedOrigins = environment.CORS_ORIGIN.split(',').map((origin) =>
     origin.trim(),
   )
 
   app.disable('x-powered-by')
+  app.set('trust proxy', 1)
   app.use(
     helmet({
       contentSecurityPolicy: false,
@@ -175,6 +184,26 @@ export function createApp(
     }
 
     try {
+      const loginKey = `${request.ip}:${parsed.data.email.toLowerCase()}`
+      const now = Date.now()
+      if (failedLoginAttempts.size > 10000) {
+        for (const [key, attempt] of failedLoginAttempts) {
+          if (attempt.resetAt <= now) failedLoginAttempts.delete(key)
+        }
+      }
+      const previousAttempt = failedLoginAttempts.get(loginKey)
+      if (previousAttempt && previousAttempt.resetAt > now && previousAttempt.count >= 10) {
+        response.setHeader(
+          'Retry-After',
+          String(Math.ceil((previousAttempt.resetAt - now) / 1000)),
+        )
+        response.status(429).json({
+          error: 'too_many_attempts',
+          message: 'Too many login attempts. Try again later.',
+        })
+        return
+      }
+
       const result = await database.query<{
         id: string
         email: string
@@ -196,12 +225,48 @@ export function createApp(
 
       const user = result.rows[0]
       if (!user) {
+        const nextAttempt = previousAttempt && previousAttempt.resetAt > now
+          ? previousAttempt
+          : { count: 0, resetAt: now + 15 * 60 * 1000 }
+        nextAttempt.count += 1
+        failedLoginAttempts.set(loginKey, nextAttempt)
         response.status(401).json({
           error: 'invalid_credentials',
           message: 'The email or password is incorrect.',
         })
         return
       }
+
+      failedLoginAttempts.delete(loginKey)
+
+      const workspaceResult = await database.query<{ workspace_id: string }>(
+        `
+          SELECT members.workspace_id
+          FROM workspace_members AS members
+          JOIN workspaces
+            ON workspaces.id = members.workspace_id
+           AND workspaces.status = 'active'
+          WHERE members.user_id = $1
+          ORDER BY members.created_at ASC
+          LIMIT 1
+        `,
+        [user.id],
+      )
+      const workspaceId =
+        workspaceResult.rows[0]?.workspace_id ?? environment.DEMO_WORKSPACE_ID
+      if (
+        environment.NODE_ENV === 'production' &&
+        !workspaceResult.rows[0]?.workspace_id
+      ) {
+        response.status(403).json({
+          error: 'workspace_required',
+          message: 'The account is not assigned to an active workspace.',
+        })
+        return
+      }
+
+      const sessionToken = await createSession(database, user.id, workspaceId)
+      setSessionCookie(response, sessionToken)
 
       response.json({
         user: {
@@ -212,15 +277,106 @@ export function createApp(
           role: user.role,
           createdAt: user.created_at.toISOString(),
         },
+        context: {
+          userId: String(user.id),
+          workspaceId,
+        },
       })
     } catch (error) {
       next(error)
     }
   })
 
-  app.get('/api/bootstrap', async (_request, response, next) => {
+  app.post('/api/auth/register', async (request, response, next) => {
+    const parsed = registrationSchema.safeParse(request.body)
+    if (!parsed.success) {
+      sendValidationError(response, parsed.error)
+      return
+    }
+
     try {
-      const context = getRequestContext()
+      const result = await database.query<{
+        id: string
+        email: string
+        display_name: string
+        workspace_id: string
+        role: string
+        created_at: Date
+      }>(
+        `
+          WITH new_user AS (
+            INSERT INTO app_users (email, display_name, role, password_hash)
+            VALUES (lower($1), $2, 'owner', crypt($3, gen_salt('bf')))
+            RETURNING id, email, display_name, role, created_at
+          ), new_workspace AS (
+            INSERT INTO workspaces (name, slug, kind, created_by)
+            SELECT $4, 'workspace-' || encode(digest(random()::text || $1, 'sha256'), 'hex'), 'founder', id
+            FROM new_user
+            RETURNING id, created_by
+          ), new_member AS (
+            INSERT INTO workspace_members (workspace_id, user_id, role)
+            SELECT id, created_by, 'owner'
+            FROM new_workspace
+          )
+          SELECT
+            new_user.id,
+            new_user.email,
+            new_user.display_name,
+            new_user.role,
+            new_user.created_at,
+            new_workspace.id AS workspace_id
+          FROM new_user
+          JOIN new_workspace ON new_workspace.created_by = new_user.id
+        `,
+        [parsed.data.email, parsed.data.fullName, parsed.data.password, parsed.data.companyName],
+      )
+      const user = result.rows[0]
+      if (!user) {
+        throw new Error('The account could not be created.')
+      }
+
+      const sessionToken = await createSession(database, user.id, user.workspace_id)
+      setSessionCookie(response, sessionToken)
+      response.status(201).json({
+        user: {
+          id: user.id,
+          fullName: user.display_name,
+          email: user.email,
+          companyName: parsed.data.companyName,
+          role: user.role,
+          createdAt: user.created_at.toISOString(),
+        },
+        context: {
+          userId: String(user.id),
+          workspaceId: user.workspace_id,
+        },
+      })
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === '23505') {
+        response.status(409).json({
+          error: 'account_exists',
+          message: 'An account with this email already exists.',
+        })
+        return
+      }
+      next(error)
+    }
+  })
+
+  app.post('/api/auth/logout', async (request, response, next) => {
+    try {
+      await revokeSession(database, request)
+      clearSessionCookie(response)
+      response.status(204).end()
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  app.get('/api/bootstrap', async (request, response, next) => {
+    try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
       const state = await readBootstrapState(database, documentStore, context)
       response.json({
         ...state,
@@ -239,7 +395,8 @@ export function createApp(
     }
 
     try {
-      const context = getRequestContext()
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
       await applyStateBatch(database, documentStore, context, parsed.data.mutations)
       response.status(202).json({
         saved: parsed.data.mutations.length,
@@ -251,10 +408,14 @@ export function createApp(
 
   app.post('/api/payments/stripe/checkout-session', async (request, response, next) => {
     try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
       const payload = parseStripeCheckoutRequest(request.body)
       const session = await createStripeCheckoutSession(
         request,
         database,
+        documentStore,
+        context,
         payload,
       )
       response.status(201).json(session)
@@ -269,10 +430,14 @@ export function createApp(
 
   app.post('/api/payments/stripe/billing-portal', async (request, response, next) => {
     try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
       const payload = parseStripeBillingPortalRequest(request.body)
       const session = await createStripeBillingPortalSession(
         request,
         database,
+        documentStore,
+        context,
         payload,
       )
       response.status(201).json(session)
@@ -287,8 +452,15 @@ export function createApp(
 
   app.post('/api/payments/stripe/checkout-session/lookup', async (request, response, next) => {
     try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
       const payload = parseStripeCheckoutLookupRequest(request.body)
-      const session = await lookupStripeCheckoutSession(database, payload)
+      const session = await lookupStripeCheckoutSession(
+        database,
+        documentStore,
+        context,
+        payload,
+      )
       response.json(session)
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -312,7 +484,9 @@ export function createApp(
     }
 
     try {
-      await applyStateMutation(database, documentStore, getRequestContext(), {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
+      await applyStateMutation(database, documentStore, context, {
         operation: 'upsert',
         key: keyResult.data,
         scope: bodyResult.data.scope,
@@ -337,7 +511,9 @@ export function createApp(
     }
 
     try {
-      await applyStateMutation(database, documentStore, getRequestContext(), {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
+      await applyStateMutation(database, documentStore, context, {
         operation: 'delete',
         key: keyResult.data,
         scope: scopeResult.data,
@@ -373,6 +549,14 @@ export function createApp(
     response,
     _next,
   ) => {
+    if (error instanceof AuthorizationError) {
+      response.status(403).json({
+        error: 'forbidden',
+        message: error.message,
+      })
+      return
+    }
+
     const message =
       environment.NODE_ENV === 'production'
         ? 'The server could not complete the request.'

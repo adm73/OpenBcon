@@ -20,7 +20,7 @@ export function SignupPage() {
     document.title = `Create account | ${platformName}`
   }, [platformName])
 
-  function submitSignup(event: FormEvent<HTMLFormElement>) {
+  async function submitSignup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (password.length < 8) {
@@ -34,7 +34,7 @@ export function SignupPage() {
     }
 
     try {
-      registerUser({
+      await registerUser({
         fullName,
         companyName,
         email,

@@ -20,7 +20,16 @@ class FundingPlanRepository:
     def __init__(self, connection: Connection):
         self.connection = connection
 
-    def load_generation_context(self, request: GeneratePlanRequest) -> GenerationContext:
+    def load_generation_context(
+        self,
+        request: GeneratePlanRequest,
+        workspace_id: str | None = None,
+    ) -> GenerationContext:
+        workspace_clause = ""
+        query_values: tuple[object, ...] = (request.app_id, request.app_id, request.app_id)
+        if workspace_id:
+            workspace_clause = " AND applications.workspace_id = %s"
+            query_values += (workspace_id,)
         application_row = self.connection.execute(
             """
             SELECT
@@ -65,12 +74,15 @@ class FundingPlanRepository:
             FROM applications
             JOIN companies ON companies.id = applications.company_id
             JOIN funding_programs ON funding_programs.id = applications.funding_program_id
-            WHERE applications.app_id = %s
-               OR applications.id::text = %s
-               OR applications.source_id = %s
+            WHERE (
+                applications.app_id = %s
+                OR applications.id::text = %s
+                OR applications.source_id = %s
+            )
+            """ + workspace_clause + """
             LIMIT 1
             """,
-            (request.app_id, request.app_id, request.app_id),
+            query_values,
         ).fetchone()
         if not application_row:
             raise ValueError(f"Application {request.app_id} was not found.")
@@ -261,7 +273,7 @@ class FundingPlanRepository:
               metadata
             )
             VALUES (
-              %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb
+              %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb
             )
             ON CONFLICT (id) DO UPDATE SET
               name = EXCLUDED.name,

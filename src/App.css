@@ -3367,6 +3367,7 @@
   --generator-blue: #4f6ff0;
   --generator-mint: #2faf80;
   --generator-border: #dde3ef;
+  container: generator-page / inline-size;
   position: relative;
   padding-bottom: 70px;
   isolation: isolate;
@@ -3625,6 +3626,8 @@
   position: sticky;
   top: 18px;
   display: grid;
+  width: 280px;
+  max-width: 280px;
   gap: 14px;
   align-self: start;
 }
@@ -4910,7 +4913,7 @@
 }
 
 .generator-shell.is-workspace {
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) 280px;
 }
 
 .generator-workspace.is-ai-workspace {
@@ -4930,6 +4933,10 @@
   grid-template-columns: minmax(0, 1fr) 260px;
   gap: 16px;
   align-items: start;
+}
+
+.generator-ai-hero > * {
+  min-width: 0;
 }
 
 .generator-ai-hero-copy {
@@ -5100,7 +5107,7 @@
 
 .generator-ai-grid {
   display: grid;
-  grid-template-columns: minmax(300px, 0.9fr) minmax(420px, 1.1fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: 16px;
   min-width: 0;
 }
@@ -7324,34 +7331,16 @@
 
 @media (max-width: 1280px) {
   .generator-shell {
-    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 280px;
+  }
+}
+
+@media (max-width: 980px) {
+  .generator-shell {
+    grid-template-columns: 1fr;
   }
 
-  .generator-summary {
-    position: static;
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: 170px minmax(0, 1fr) minmax(0, 1fr);
-    gap: 18px;
-    align-items: center;
-  }
-
-  .generator-summary-heading {
-    padding: 0;
-    border: 0;
-  }
-
-  .generator-summary dl {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin: 0;
-  }
-
-  .generator-summary-checks {
-    padding: 0;
-    border: 0;
-  }
-
-  .generator-summary > p {
+  .generator-sidebar {
     display: none;
   }
 }
@@ -16940,5 +16929,34 @@
   .settings-plan-heading > b {
     grid-column: 2;
     width: fit-content;
+  }
+}
+
+/* Use the actual content width because the fixed app navigation reduces the available canvas. */
+@container generator-page (max-width: 1120px) {
+  .generator-shell,
+  .generator-shell.is-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .generator-sidebar {
+    display: none;
+  }
+}
+
+@container generator-page (max-width: 900px) {
+  .generator-ai-hero,
+  .generator-ai-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container generator-page (max-width: 620px) {
+  .generator-ai-stage {
+    padding: 20px;
+  }
+
+  .generator-ai-status-metrics {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

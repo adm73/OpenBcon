@@ -1,0 +1,12 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+node_modules
+dist
+python-backend/.venv
+__pycache__
+*.pyc
+*.log
+deploy/.env.production

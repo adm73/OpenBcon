@@ -137,11 +137,53 @@ function normalizeSensitiveValueForClient(nextValue: string | undefined) {
   return secureConfigValuePlaceholder
 }
 
+function secureAIModelKeysForPersistence(
+  nextConfig: JsonRecord,
+  existingConfig: unknown,
+) {
+  const models = nextConfig.aiModels
+  if (!Array.isArray(models)) return
+
+  const existingModels = isJsonRecord(existingConfig) && Array.isArray(existingConfig.aiModels)
+    ? existingConfig.aiModels
+    : []
+
+  nextConfig.aiModels = models.map((model, index) => {
+    if (!isJsonRecord(model)) return model
+    const existingModel = isJsonRecord(existingModels[index]) ? existingModels[index] : undefined
+    return {
+      ...model,
+      apiKey: normalizeSensitiveValueForStorage(
+        typeof model.apiKey === 'string' ? model.apiKey : undefined,
+        typeof existingModel?.apiKey === 'string' ? existingModel.apiKey : undefined,
+      ),
+    }
+  })
+}
+
+function redactAIModelKeysForClient(nextConfig: JsonRecord) {
+  if (!Array.isArray(nextConfig.aiModels)) return
+
+  nextConfig.aiModels = nextConfig.aiModels.map((model) => {
+    if (!isJsonRecord(model)) return model
+    return {
+      ...model,
+      apiKey: normalizeSensitiveValueForClient(
+        typeof model.apiKey === 'string' ? model.apiKey : undefined,
+      ),
+    }
+  })
+}
+
 export function securePlatformConfigForPersistence(
   nextValue: unknown,
   existingValue: unknown,
 ) {
   const nextConfig = cloneJson(nextValue)
+
+  if (isJsonRecord(nextConfig)) {
+    secureAIModelKeysForPersistence(nextConfig, existingValue)
+  }
 
   for (const path of sensitivePlatformConfigPaths) {
     const current = getNestedString(nextConfig, path)
@@ -158,6 +200,10 @@ export function securePlatformConfigForPersistence(
 
 export function redactPlatformConfigForClient(value: unknown) {
   const nextConfig = cloneJson(value)
+
+  if (isJsonRecord(nextConfig)) {
+    redactAIModelKeysForClient(nextConfig)
+  }
 
   for (const path of sensitivePlatformConfigPaths) {
     const current = getNestedString(nextConfig, path)

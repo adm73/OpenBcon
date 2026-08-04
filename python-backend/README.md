@@ -9,6 +9,11 @@ This service is a focused Python backend for the Quick Build core workflow:
 5. run a LangGraph workflow using exactly those configured sections and agent instructions
 6. return and persist a generated business plan and complete strategic review trace
 
+All non-health endpoints require the Node-issued `bconomics_session` HttpOnly
+cookie. The Python service validates that session against PostgreSQL and checks
+the application's workspace before loading any generation context; it never
+accepts a missing session as a demo identity.
+
 The frontend can keep progress animations, timeline rendering, and AI workspace
 UI states. This backend only owns the core data loading and generation logic.
 
@@ -86,6 +91,7 @@ OPENBCON_MONGODB_URL=mongodb://localhost:27017
 OPENBCON_MONGODB_DATABASE=bconomics
 OPENBCON_API_HOST=0.0.0.0
 OPENBCON_API_PORT=8010
+OPENBCON_RUNTIME_ENV=production
 OPENBCON_ALLOWED_AI_ENDPOINT_HOSTS=api.openai.com,api.anthropic.com,generativelanguage.googleapis.com
 OPENBCON_ALLOW_PRIVATE_AI_ENDPOINTS=false
 ```

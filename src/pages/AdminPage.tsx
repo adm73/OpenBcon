@@ -1201,7 +1201,7 @@ export function AdminPage() {
     try {
       const pythonBackendBaseUrl =
         (import.meta.env.VITE_BUSINESS_PLAN_API_URL as string | undefined)?.replace(/\/$/u, '') ||
-        'http://localhost:8010'
+        '/ai-api'
       const controller = new AbortController()
       const timeout = window.setTimeout(() => controller.abort(), 15000)
 
@@ -1209,6 +1209,7 @@ export function AdminPage() {
         const response = await fetch(`${pythonBackendBaseUrl}/api/ai/test-connection`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             model_name: model.id,
             provider_id: model.providerId,

@@ -8,7 +8,9 @@ import { AuthShell } from './AuthShell'
 function getNextPath(search: string) {
   const params = new URLSearchParams(search)
   const next = params.get('next')
-  return next && next.startsWith('/') ? next : '/dashboard'
+  return next && next.startsWith('/') && !next.startsWith('//') && !next.includes('\\')
+    ? next
+    : '/dashboard'
 }
 
 export function LoginPage() {

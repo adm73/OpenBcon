@@ -1,0 +1,20 @@
+{$DOMAIN} {
+    encode gzip
+
+    # Strip /ai-api before forwarding to FastAPI, whose routes start at /api.
+    handle_path /ai-api/* {
+        reverse_proxy python:8010
+    }
+
+    handle /api/* {
+        reverse_proxy api:8787
+    }
+
+    handle /api {
+        reverse_proxy api:8787
+    }
+
+    handle {
+        reverse_proxy api:8787
+    }
+}

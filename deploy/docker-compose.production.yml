@@ -1,0 +1,113 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bconomics}
+      POSTGRES_USER: ${POSTGRES_USER:-bconomics}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env.production}
+    volumes:
+      - bconomics-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mongodb:
+    image: mongo:8
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-bconomics}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-bconomics}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:?Set MONGODB_ROOT_PASSWORD in deploy/.env.production}
+    volumes:
+      - bconomics-mongodb-data:/data/db
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+      args:
+        VITE_BUSINESS_PLAN_API_URL: /ai-api
+    env_file:
+      - .env.production
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bconomics}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bconomics}
+      MONGODB_URL: mongodb://${MONGODB_ROOT_USERNAME:-bconomics}:${MONGODB_ROOT_PASSWORD}@mongodb:27017/?authSource=admin
+      API_HOST: 0.0.0.0
+      API_PORT: 8787
+      NODE_ENV: production
+      CORS_ORIGIN: https://${DOMAIN}
+      AUTO_MIGRATE: "true"
+      SEED_DEMO_DATA: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+    expose:
+      - "8787"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8787/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  python:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.python
+    env_file:
+      - .env.production
+    environment:
+      OPENBCON_DB_DSN: postgresql://${POSTGRES_USER:-bconomics}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bconomics}
+      OPENBCON_MONGODB_URL: mongodb://${MONGODB_ROOT_USERNAME:-bconomics}:${MONGODB_ROOT_PASSWORD}@mongodb:27017/?authSource=admin
+      OPENBCON_MONGODB_DATABASE: ${MONGODB_DATABASE:-bconomics}
+      OPENBCON_CORS_ORIGINS: https://${DOMAIN}
+      OPENBCON_API_HOST: 0.0.0.0
+      OPENBCON_API_PORT: 8010
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+    expose:
+      - "8010"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8010/api/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN=open.bconomics.ai in deploy/.env.production}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      python:
+        condition: service_healthy
+
+volumes:
+  bconomics-postgres-data:
+  bconomics-mongodb-data:
+  caddy-data:
+  caddy-config:

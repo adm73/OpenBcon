@@ -10,6 +10,11 @@ export default defineConfig({
         target: process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8787',
         changeOrigin: true,
       },
+      '/ai-api': {
+        target: process.env.VITE_BUSINESS_PLAN_API_PROXY_TARGET ?? 'http://localhost:8010',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/ai-api/u, ''),
+      },
     },
   },
 })

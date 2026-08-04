@@ -107,6 +107,7 @@ async function sendMutations(mutations: PendingMutation[]) {
     headers: {
       'content-type': 'application/json',
     },
+    credentials: 'include',
     body: JSON.stringify({ mutations }),
     keepalive: true,
   })
@@ -186,6 +187,7 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
   try {
     const response = await fetch(`${apiBaseUrl}/bootstrap`, {
       signal: AbortSignal.timeout(3_000),
+      credentials: 'include',
     })
     if (!response.ok) return 'local'
 

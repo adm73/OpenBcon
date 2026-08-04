@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 :root {
   --bg: #f6f4ef;
@@ -14,9 +14,9 @@
     0 20px 50px rgba(56, 42, 25, 0.08),
     0 8px 18px rgba(56, 42, 25, 0.05);
   --sans:
-    'Manrope', 'Avenir Next', 'Segoe UI', sans-serif;
+    'Inter', 'Avenir Next', 'Segoe UI', sans-serif;
   --display:
-    'Instrument Serif', Georgia, serif;
+    Helvetica, Arial, sans-serif;
 
   font-family: var(--sans);
   line-height: 1.55;

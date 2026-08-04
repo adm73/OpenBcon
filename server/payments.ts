@@ -1,7 +1,14 @@
 import type { Request } from 'express'
 import Stripe from 'stripe'
 import { z } from 'zod'
-import type { QueryClient } from './stateRepository'
+import { environment } from './config'
+import type { DocumentStore } from './documentStore'
+import { readPlatformStateValue } from './stateRepository'
+import {
+  AuthorizationError,
+  type QueryClient,
+  type RequestContext,
+} from './stateRepository'
 import { decryptStoredConfigValue } from './secureState'
 
 const paymentCatalogItemSchema = z.object({
@@ -90,6 +97,48 @@ export type StripeCheckoutLookupRequest = z.infer<
 type ResolvedPlatformPayments = {
   platformName: string
   payments: StripePaymentConfig
+}
+
+type BillingContext = Pick<RequestContext, 'userId' | 'workspaceId'>
+
+async function assertOwnedBillingResource(
+  database: QueryClient,
+  context: BillingContext,
+  resourceType: 'checkout_session' | 'customer',
+  resourceId: string,
+) {
+  const result = await database.query<{ resource_id: string }>(
+    `
+      SELECT resource_id
+      FROM billing_resource_bindings
+      WHERE resource_type = $1
+        AND resource_id = $2
+        AND workspace_id = $3
+        AND user_id = $4
+      LIMIT 1
+    `,
+    [resourceType, resourceId, context.workspaceId, context.userId],
+  )
+  if (!result.rows[0]) {
+    throw new AuthorizationError('The billing resource is not owned by this workspace.')
+  }
+}
+
+async function bindBillingResource(
+  database: QueryClient,
+  context: BillingContext,
+  resourceType: 'checkout_session' | 'customer',
+  resourceId: string,
+) {
+  await database.query(
+    `
+      INSERT INTO billing_resource_bindings
+        (resource_type, resource_id, workspace_id, user_id)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (resource_type, resource_id) DO NOTHING
+    `,
+    [resourceType, resourceId, context.workspaceId, context.userId],
+  )
 }
 
 function normalizeReference(
@@ -286,35 +335,62 @@ export function parseStripeCheckoutLookupRequest(body: unknown) {
 
 export async function readResolvedPlatformPayments(
   _database: QueryClient,
+  documentStore: DocumentStore,
   overrides?: {
     platformName?: string
     payments?: StripePaymentConfig
   },
 ) {
-  const platformName = overrides?.platformName?.trim() || 'Bconomics.ai'
-  const payments = overrides?.payments
+  const storedConfig = await readPlatformStateValue(
+    documentStore,
+    'bconomics-platform-config-v1',
+  )
 
-  if (!payments) {
-    throw new Error('Stripe settings have not been configured yet.')
+  if (storedConfig && typeof storedConfig === 'object' && !Array.isArray(storedConfig)) {
+    const config = storedConfig as Record<string, unknown>
+    const storedPayments = config.payments
+    if (!storedPayments || typeof storedPayments !== 'object' || Array.isArray(storedPayments)) {
+      throw new Error('Stripe settings have not been configured yet.')
+    }
+
+    return {
+      platformName:
+        typeof config.platformName === 'string' && config.platformName.trim()
+          ? config.platformName.trim()
+          : 'Bconomics.ai',
+      payments: paymentConfigSchema.parse(storedPayments),
+    } satisfies ResolvedPlatformPayments
   }
 
-  return {
-    platformName,
-    payments,
-  } satisfies ResolvedPlatformPayments
+  // Unit tests may inject a payment payload without a Mongo document store.
+  // Never allow this fallback in a real environment.
+  if (environment.NODE_ENV === 'test' && overrides?.payments) {
+    return {
+      platformName: overrides.platformName?.trim() || 'Bconomics.ai',
+      payments: overrides.payments,
+    } satisfies ResolvedPlatformPayments
+  }
+
+  throw new Error('Platform payment settings have not been configured yet.')
 }
 
 export async function createStripeCheckoutSession(
   request: Request,
   database: QueryClient,
+  documentStore: DocumentStore,
+  context: BillingContext,
   payload: StripeCheckoutRequest,
 ) {
-  const resolved = await readResolvedPlatformPayments(database, {
+  const resolved = await readResolvedPlatformPayments(database, documentStore, {
     platformName: payload.platformName,
     payments: payload.payments,
   })
   const { platformName, payments } = resolved
   ensureStripeEnabled(payments)
+
+  if (payload.customerId) {
+    await assertOwnedBillingResource(database, context, 'customer', payload.customerId)
+  }
 
   const stripe = createStripeClient(payments)
   const selectedItem = payload.priceItemId
@@ -382,6 +458,8 @@ export async function createStripeCheckoutSession(
       price_item_name: selectedItem?.name ?? `${platformName} Partner Pro`,
       platform_name: platformName,
       test_mode: String(payments.testMode),
+      workspace_id: context.workspaceId,
+      user_id: context.userId,
     },
     ...(checkoutMode === 'subscription'
       ? {
@@ -392,6 +470,8 @@ export async function createStripeCheckoutSession(
               price_item_name: selectedItem?.name ?? `${platformName} Partner Pro`,
               platform_name: platformName,
               test_mode: String(payments.testMode),
+              workspace_id: context.workspaceId,
+              user_id: context.userId,
             },
           },
         }
@@ -403,6 +483,8 @@ export async function createStripeCheckoutSession(
               price_item_name: selectedItem?.name ?? `${platformName} purchase`,
               platform_name: platformName,
               test_mode: String(payments.testMode),
+              workspace_id: context.workspaceId,
+              user_id: context.userId,
             },
           },
         }),
@@ -410,6 +492,11 @@ export async function createStripeCheckoutSession(
 
   if (!session.url) {
     throw new Error('Stripe did not return a hosted Checkout URL.')
+  }
+
+  await bindBillingResource(database, context, 'checkout_session', session.id)
+  if (typeof session.customer === 'string') {
+    await bindBillingResource(database, context, 'customer', session.customer)
   }
 
   return {
@@ -421,13 +508,16 @@ export async function createStripeCheckoutSession(
 export async function createStripeBillingPortalSession(
   request: Request,
   database: QueryClient,
+  documentStore: DocumentStore,
+  context: BillingContext,
   payload: StripeBillingPortalRequest,
 ) {
-  const { payments } = await readResolvedPlatformPayments(database, {
+  const { payments } = await readResolvedPlatformPayments(database, documentStore, {
     platformName: payload.platformName,
     payments: payload.payments,
   })
   ensureStripeEnabled(payments)
+  await assertOwnedBillingResource(database, context, 'customer', payload.customerId)
 
   const stripe = createStripeClient(payments)
   const session = await stripe.billingPortal.sessions.create({
@@ -442,15 +532,27 @@ export async function createStripeBillingPortalSession(
 
 export async function lookupStripeCheckoutSession(
   database: QueryClient,
+  documentStore: DocumentStore,
+  context: BillingContext,
   payload: StripeCheckoutLookupRequest,
 ) {
-  const { payments } = await readResolvedPlatformPayments(database, {
+  const { payments } = await readResolvedPlatformPayments(database, documentStore, {
     payments: payload.payments,
   })
   ensureStripeEnabled(payments)
 
   const stripe = createStripeClient(payments)
+  await assertOwnedBillingResource(
+    database,
+    context,
+    'checkout_session',
+    payload.sessionId,
+  )
   const session = await stripe.checkout.sessions.retrieve(payload.sessionId)
+
+  if (typeof session.customer === 'string') {
+    await bindBillingResource(database, context, 'customer', session.customer)
+  }
 
   return {
     customerId: typeof session.customer === 'string' ? session.customer : null,

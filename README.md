@@ -223,6 +223,52 @@ Chinese. Change the language from Settings; the preference is persisted for the
 current browser profile and is used for workspace labels, dates, numbers,
 currency formatting, and generated forecast language.
 
+## One-click production deployment
+
+The repository includes a Docker deployment for `open.bconomics.ai`:
+
+- `api`: the built React application and Express API on the private Docker network
+- `python`: the FastAPI/LangGraph generation service on the private Docker network
+- `postgres` and `mongodb`: persistent application data services
+- `caddy`: automatic HTTPS plus `/api` and `/ai-api` reverse proxying
+
+On a VPS with Docker Compose installed, point the DNS `A`/`AAAA` record for
+`open.bconomics.ai` to the server and allow inbound TCP ports `80` and `443`,
+then run:
+
+```bash
+cp deploy/.env.production.example deploy/.env.production
+openssl rand -hex 32
+# Edit deploy/.env.production with the database password, generated encryption
+# key, and server-side OPENBCON_OPENAI_API_KEY.
+./deploy/deploy.sh
+```
+
+The first deployment runs all PostgreSQL migrations, including
+`025_auth_sessions.sql` and `026_billing_resource_bindings.sql`, and does not
+seed demo data. After the first setup, register the first account, then promote
+it to a platform administrator before changing platform settings:
+
+```bash
+docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
+  exec postgres psql -U bconomics -d bconomics \
+  -c "UPDATE app_users SET role = 'admin' WHERE lower(email) = lower('admin@example.com');"
+```
+
+Replace the email and database user/database values if you changed them in the
+production environment file. After the first setup, updates are:
+
+```bash
+git pull --ff-only
+./deploy/deploy.sh
+```
+
+The deployment keeps PostgreSQL, MongoDB, port `8787`, and port `8010` off the
+public network. Caddy obtains and renews the certificate automatically. Use
+`docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml logs -f`
+to inspect the services. Never run `docker compose down --volumes` unless the
+production data is intentionally being deleted.
+
 ### Stripe setup
 
 The billing flow now supports Stripe Checkout and the Stripe customer portal.
@@ -238,10 +284,11 @@ The billing flow now supports Stripe Checkout and the Stripe customer portal.
    - `testSecretKeyReference` -> `STRIPE_TEST_SECRET_KEY`
    - `liveSecretKeyReference` -> `STRIPE_LIVE_SECRET_KEY`
    - `webhookSecretReference` -> `STRIPE_WEBHOOK_SECRET`
-5. Save the Admin Console configuration in the browser.
-   Platform settings now stay local-only and are not synchronized into PostgreSQL.
-   Raw payment secrets are stored locally in encrypted browser storage rather than
-   plaintext localStorage.
+5. Save the Admin Console configuration in the browser. Platform configuration is
+   stored in MongoDB. Raw payment secrets are encrypted by the Node API before
+   persistence; browsers receive placeholders instead of plaintext secrets. Keep
+   `APP_STATE_ENCRYPTION_KEY` stable so existing secrets remain decryptable after
+   restarts.
 6. In the Stripe Dashboard, register your webhook endpoint, for example:
    - `http://localhost:8787/api/webhooks/stripe`
 
@@ -331,17 +378,16 @@ server/
 
 ## Admin configuration
 
-The Admin Console now keeps platform settings in local browser storage only.
-Those settings are not synchronized to the API or PostgreSQL. Sensitive payment
-fields are stored in encrypted browser storage, while synced data-source records
-continue to use the API-backed persistence layer. The server validates a strict
-state-key allowlist so session tokens and local-only settings cannot be written
-to the state database.
+The Admin Console reads and writes platform settings through the authenticated
+API and MongoDB-backed dynamic state. Sensitive payment and AI model fields are
+redacted in bootstrap responses and encrypted by the server before persistence.
+The browser may keep an encrypted local copy for editing continuity, but it is
+not the security boundary. The server validates a strict state-key allowlist and
+requires the database `admin` role for platform writes.
 
 Workspace settings such as the profile, billing selections, default company,
-and Quick Build preferences are persisted locally for the active browser
-session profile. Payment gateway secrets are never written back to the remote
-state store in plaintext.
+and Quick Build preferences are persisted for the active workspace. Payment
+gateway secrets are never written back to the remote state store in plaintext.
 
 Advisory Hub settings are also managed from the Admin Console and persisted with
 the platform configuration. Administrators can:
@@ -387,9 +433,9 @@ for secret and mode management.
 
 Before production deployment:
 
-1. Replace the demo auth flow and seeded development identity with production authentication and user provisioning.
-2. Add role-based authorization for founder, advisor, admin, and partner workflows.
-3. Add row-level workspace authorization before accepting user-supplied IDs.
+1. Set `NODE_ENV=production`, `SEED_DEMO_DATA=false`, and `CORS_ORIGIN` to the exact public origin.
+2. Run migrations `025_auth_sessions.sql` and `026_billing_resource_bindings.sql` through `npm run db:migrate` or with `AUTO_MIGRATE=true` during the release.
+3. Put the Node API behind the same origin as the frontend at `/api`, and proxy `/ai-api` to the private Python service at `http://127.0.0.1:8010`.
 4. Keep production secrets in a secret manager and use Admin only for references or encrypted-at-rest secure storage.
 5. Configure TLS and a managed PostgreSQL backup policy.
 
@@ -407,10 +453,12 @@ in the `dynamic_state` collection using three scopes:
 - `workspace` for saved-program preferences and Quick Build drafts
 - `user` for personal settings, pinned resources, and active workspace selection
 
-Sensitive payment keys inside `bconomics-platform-config-v1` are not returned to
-the browser in plaintext. The API redacts them in bootstrap payloads, encrypts
-raw values before saving them to MongoDB, and decrypts them only for
-server-side payment operations.
+Sensitive payment keys and AI model API keys inside
+`bconomics-platform-config-v1` are not returned to the browser in plaintext. The
+API redacts them in bootstrap payloads, encrypts raw values before saving them to
+MongoDB, and decrypts payment references only for server-side payment
+operations. Stripe checkout sessions and customer IDs are also bound to the
+authenticated workspace and user in `billing_resource_bindings`.
 
 On first migration, existing `app_state` JSON documents are copied to MongoDB.
 The PostgreSQL `app_state` table is no longer used. On later visits, MongoDB and
@@ -423,18 +471,44 @@ guidance, and migration path toward fully normalized domain tables.
 
 ## Security and Deployment Notes
 
-This repository is currently a development/demo workspace. The visible login
-pages are present, but server-side authentication and workspace authorization are
-not implemented yet; API routes currently use the configured demo user and
-workspace context. Do not expose the Node API, Python AI API, PostgreSQL,
-MongoDB, payment routes, or model endpoints publicly until authentication,
-authorization, production CORS, secret management, TLS, and database network
-controls are configured.
+Browser authentication uses a server-side `auth_sessions` table and an
+HttpOnly `bconomics_session` cookie. In production, missing or expired sessions
+are rejected by the Node API and Python generation API. The generation, forecast,
+and AI connection-test endpoints resolve the session workspace and filter the
+requested application by that workspace, so a user-supplied `app_id` cannot
+cross workspace boundaries.
+
+Platform state writes are server-authorized: only a database user with the
+`admin` role can update or delete platform configuration. Login failures are
+rate-limited per IP and email, and payment resources are checked against the
+current workspace/user before Stripe portal access or session lookup.
+
+Local Node persistence routes may still use the configured demo context when no
+cookie is present. That fallback is disabled whenever `NODE_ENV=production`;
+production must use the login or registration API to establish a session. The
+Python generation and AI-test routes require a valid session in every
+environment. The browser-only demo password reset flow is disabled in
+production; connect `/forgot-password` to a real email/reset-token service
+before advertising password recovery. Do not expose the Node API, Python AI API,
+PostgreSQL, MongoDB, payment routes, or model endpoints publicly without TLS,
+secret management, and
+database network controls.
+
+The frontend calls the Python service through the same-origin `/ai-api` path.
+Vite proxies that path to port `8010` during development; a production reverse
+proxy must provide the equivalent route and must not expose port `8010` directly.
 
 Keep `.env` and provider keys out of Git. Use a secret manager in production and
 never place raw AI or payment credentials in frontend configuration. Review and
 back up the database before applying destructive historical migrations, including
 the migration that removes the legacy funding-package tables.
+
+The production dependency audit currently reports only React Router's RSC-mode
+CSRF advisory. This application uses `BrowserRouter` only and does not enable
+React Server Components, server actions, or SSR action endpoints. Keep React
+Router pinned to the current tested version and re-audit before enabling any RSC
+features; do not apply `npm audit fix --force`, which selects an older release
+with additional advisories.
 
 ## Workspace data sources
 

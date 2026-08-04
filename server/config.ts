@@ -26,7 +26,7 @@ const environmentSchema = z.object({
   API_HOST: z.string().default('0.0.0.0'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   STATE_BODY_LIMIT: z.string().default('12mb'),
-  APP_STATE_ENCRYPTION_KEY: z.string().optional(),
+  APP_STATE_ENCRYPTION_KEY: z.string().min(32).optional(),
   AUTO_MIGRATE: booleanFromEnvironment(true),
   SEED_DEMO_DATA: booleanFromEnvironment(true),
   DEMO_USER_ID: z
@@ -38,8 +38,35 @@ const environmentSchema = z.object({
     .string()
     .uuid()
     .default('00000000-0000-4000-8000-000000000002'),
+  AUTH_SESSION_TTL_DAYS: z.coerce.number().int().positive().max(365).default(30),
 })
 
-export const environment = environmentSchema.parse(process.env)
+export const environment = environmentSchema
+  .superRefine((values, context) => {
+    if (values.NODE_ENV !== 'production') return
+
+    if (!values.APP_STATE_ENCRYPTION_KEY || values.APP_STATE_ENCRYPTION_KEY.startsWith('replace_')) {
+      context.addIssue({
+        code: 'custom',
+        path: ['APP_STATE_ENCRYPTION_KEY'],
+        message: 'A production encryption key is required.',
+      })
+    }
+    if (values.CORS_ORIGIN.includes('*') || /localhost|127\.0\.0\.1/iu.test(values.CORS_ORIGIN)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['CORS_ORIGIN'],
+        message: 'Production CORS_ORIGIN must use the public HTTPS origin.',
+      })
+    }
+    if (values.SEED_DEMO_DATA) {
+      context.addIssue({
+        code: 'custom',
+        path: ['SEED_DEMO_DATA'],
+        message: 'Demo data seeding must be disabled in production.',
+      })
+    }
+  })
+  .parse(process.env)
 
 export const platformOwnerId = 'platform'

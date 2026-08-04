@@ -7,11 +7,12 @@ from urllib.request import Request as URLRequest
 from urllib.request import build_opener
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from .config import get_settings
 from .db import get_connection
 from .advisory_config import load_advisory_hub_configuration
+from .auth import require_application_access, require_authenticated
 from .forecast import build_financial_forecast
 from .graph import build_plan_graph
 from .llm import build_model_gateway
@@ -39,10 +40,17 @@ class _NoRedirectHandler(HTTPRedirectHandler):
     response_model=FinancialForecast,
     responses={400: {"model": ErrorResponse}},
 )
-def generate_financial_forecast(request: GeneratePlanRequest) -> FinancialForecast:
+def generate_financial_forecast(
+    request: Request,
+    payload: GeneratePlanRequest,
+) -> FinancialForecast:
     with get_connection() as connection:
         try:
-            context = FundingPlanRepository(connection).load_generation_context(request)
+            workspace = require_application_access(request, connection, payload.app_id)
+            context = FundingPlanRepository(connection).load_generation_context(
+                payload,
+                workspace.workspace_id,
+            )
             return build_financial_forecast(context)
         except ValueError as error:
             raise HTTPException(
@@ -145,7 +153,13 @@ def _build_ai_request(
         504: {"model": ErrorResponse},
     },
 )
-def test_ai_connection(request: AIConnectionTestRequest) -> AIConnectionTestResponse:
+def test_ai_connection(
+    request: Request,
+    payload: AIConnectionTestRequest,
+) -> AIConnectionTestResponse:
+    with get_connection() as connection:
+        require_authenticated(request, connection)
+
     settings = get_settings()
     allowed_hosts = {
         host.strip().lower().rstrip(".")
@@ -153,7 +167,7 @@ def test_ai_connection(request: AIConnectionTestRequest) -> AIConnectionTestResp
         if host.strip()
     }
     upstream_request = _build_ai_request(
-        request,
+        payload,
         allowed_hosts,
         settings.allow_private_ai_endpoints,
     )
@@ -192,7 +206,10 @@ def test_ai_connection(request: AIConnectionTestRequest) -> AIConnectionTestResp
         500: {"model": ErrorResponse},
     },
 )
-def generate_business_plan(request: GeneratePlanRequest) -> GenerationRunResult:
+def generate_business_plan(
+    request: Request,
+    payload: GeneratePlanRequest,
+) -> GenerationRunResult:
     settings = get_settings()
     strategic_report_id: UUID | None = None
     graph_trace: dict = {}
@@ -201,7 +218,8 @@ def generate_business_plan(request: GeneratePlanRequest) -> GenerationRunResult:
         repository = FundingPlanRepository(connection)
 
         try:
-            context = repository.load_generation_context(request)
+            workspace = require_application_access(request, connection, payload.app_id)
+            context = repository.load_generation_context(payload, workspace.workspace_id)
             gateway = build_model_gateway(settings)
             graph = build_plan_graph(PlanNodes(gateway))
             context = repository.ensure_context_records(context)
@@ -215,7 +233,7 @@ def generate_business_plan(request: GeneratePlanRequest) -> GenerationRunResult:
             )
             strategic_report_id = repository.create_strategic_report(
                 context,
-                request,
+                payload,
                 gateway.model_name,
             )
             graph_result = {"context": context}

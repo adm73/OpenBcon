@@ -2,7 +2,10 @@ import type { Pool } from 'pg'
 import { platformOwnerId } from './config'
 import type { DocumentStore } from './documentStore'
 import { readApplicationsForWorkspace, syncApplicationsSnapshot } from './applicationRepository'
-import { redactPlatformConfigForClient } from './secureState'
+import {
+  redactPlatformConfigForClient,
+  securePlatformConfigForPersistence,
+} from './secureState'
 import { persistentStateKeys, type StateScope } from './stateScope'
 
 export type QueryClient = Pick<Pool, 'query'>
@@ -10,6 +13,14 @@ export type QueryClient = Pick<Pool, 'query'>
 export type RequestContext = {
   userId: string
   workspaceId: string
+  role: string
+}
+
+export class AuthorizationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AuthorizationError'
+  }
 }
 
 export type StateMutation =
@@ -104,16 +115,30 @@ export async function applyStateMutation(
   context: RequestContext,
   mutation: StateMutation,
 ) {
+  if (mutation.scope === 'platform' && context.role !== 'admin') {
+    throw new AuthorizationError(
+      'Only platform administrators can change platform settings.',
+    )
+  }
+
   const ownerId = getOwnerId(mutation.scope, context)
 
   if (mutation.operation === 'delete') {
     await documentStore.deleteState(mutation.scope, ownerId, mutation.key)
   } else {
+    const value =
+      mutation.scope === 'platform' &&
+      mutation.key === 'bconomics-platform-config-v1'
+        ? securePlatformConfigForPersistence(
+            mutation.value,
+            await documentStore.findStateValue('platform', platformOwnerId, mutation.key),
+          )
+        : mutation.value
     await documentStore.upsertState({
       scope: mutation.scope,
       ownerId,
       key: mutation.key,
-      value: mutation.value,
+      value,
       updatedAt: new Date(),
     })
     if (mutation.key === 'bconomics-applications-v1') {
@@ -130,6 +155,12 @@ export async function applyStateBatch(
   context: RequestContext,
   mutations: StateMutation[],
 ) {
+  if (context.role !== 'admin' && mutations.some((mutation) => mutation.scope === 'platform')) {
+    throw new AuthorizationError(
+      'Only platform administrators can change platform settings.',
+    )
+  }
+
   for (const mutation of mutations) {
     await applyStateMutation(database, documentStore, context, mutation)
   }

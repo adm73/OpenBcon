@@ -32,6 +32,9 @@ const passwordResetStorageKey = 'bconomics-password-resets-v1'
 const defaultResetLifetimeMs = 30 * 60 * 1000
 export const authUserUpdatedEvent = 'bconomics-auth-user-updated'
 const authApiBaseUrl = import.meta.env.VITE_API_URL ?? '/api'
+const allowLocalAuthFallback =
+  import.meta.env.DEV || import.meta.env.VITE_ALLOW_LOCAL_AUTH_FALLBACK === 'true'
+export const localAuthFallbackEnabled = allowLocalAuthFallback
 
 const seededUsers: AuthUser[] = []
 
@@ -168,7 +171,7 @@ function persistSession(user: AuthUser) {
   })
 }
 
-export function registerUser(input: {
+function registerUserLocally(input: {
   fullName: string
   email: string
   password: string
@@ -196,6 +199,49 @@ export function registerUser(input: {
   return nextUser
 }
 
+export async function registerUser(input: {
+  fullName: string
+  email: string
+  password: string
+  companyName: string
+}) {
+  try {
+    const response = await fetch(`${authApiBaseUrl}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify(input),
+    })
+
+    if (response.ok) {
+      const payload = (await response.json()) as DatabaseLoginResponse
+      const user: AuthUser = {
+        ...payload.user,
+        password: '',
+      }
+      const users = loadAuthUsers().filter((item) => item.id !== user.id)
+      saveAuthUsers([...users, user])
+      persistSession(user)
+      return user
+    }
+
+    const payload = (await response.json().catch(() => null)) as
+      | { message?: string }
+      | null
+    if (!allowLocalAuthFallback || response.status !== 404) {
+      throw new Error(payload?.message ?? 'Unable to create the account.')
+    }
+  } catch (error) {
+    if (!allowLocalAuthFallback || !(error instanceof TypeError)) {
+      throw error
+    }
+  }
+
+  return registerUserLocally(input)
+}
+
 function loginUserLocally(input: { email: string; password: string }) {
   const email = normalizeEmail(input.email)
   const user = loadAuthUsers().find((item) => normalizeEmail(item.email) === email)
@@ -215,6 +261,7 @@ export async function loginUser(input: { email: string; password: string }) {
       headers: {
         'content-type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify(input),
     })
 
@@ -230,14 +277,16 @@ export async function loginUser(input: { email: string; password: string }) {
       return user
     }
 
-    if (response.status !== 404) {
-      throw new Error('The email or password is incorrect.')
+    if (!allowLocalAuthFallback || response.status !== 404) {
+      const payload = (await response.json().catch(() => null)) as
+        | { message?: string }
+        | null
+      throw new Error(payload?.message ?? 'The email or password is incorrect.')
     }
   } catch (error) {
-    if (error instanceof Error && error.message === 'The email or password is incorrect.') {
+    if (!allowLocalAuthFallback || !(error instanceof TypeError)) {
       throw error
     }
-    // Keep local-only demo accounts usable when the API is not running.
   }
 
   return loginUserLocally(input)
@@ -247,6 +296,11 @@ export function clearAuthSession() {
   if (!canUseStorage()) {
     return
   }
+
+  void fetch(`${authApiBaseUrl}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  }).catch(() => undefined)
 
   window.localStorage.removeItem(authSessionStorageKey)
   window.localStorage.removeItem(authUserStorageKey)
@@ -265,6 +319,10 @@ function savePasswordResets(value: Record<string, PasswordResetRecord>) {
 
 export function requestPasswordReset(emailInput: string) {
   const email = normalizeEmail(emailInput)
+  if (!allowLocalAuthFallback) {
+    return { email, token: null }
+  }
+
   const user = loadAuthUsers().find((item) => normalizeEmail(item.email) === email)
   const token = `reset-${Math.random().toString(36).slice(2, 10)}`
 
@@ -305,6 +363,10 @@ export function validatePasswordResetToken(token: string) {
 }
 
 export function resetPassword(input: { token: string; password: string }) {
+  if (!allowLocalAuthFallback) {
+    throw new Error('Password reset is not enabled for this deployment.')
+  }
+
   const record = validatePasswordResetToken(input.token)
   if (!record) {
     throw new Error('This reset link is invalid or has expired.')

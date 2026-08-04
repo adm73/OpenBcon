@@ -33,7 +33,7 @@ export type BusinessPlanGenerateResponse = {
 
 const defaultApiBaseUrl =
   (import.meta.env.VITE_BUSINESS_PLAN_API_URL as string | undefined)?.replace(/\/$/u, '') ||
-  'http://localhost:8010'
+  '/ai-api'
 
 export async function generateBusinessPlanViaApi(
   payload: BusinessPlanGenerateRequest,
@@ -43,6 +43,7 @@ export async function generateBusinessPlanViaApi(
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
     body: JSON.stringify(payload),
   })
 
@@ -70,6 +71,7 @@ export async function generateFinancialForecastViaApi(
     headers: {
       'Content-Type': 'application/json',
     },
+    credentials: 'include',
     body: JSON.stringify(payload),
   })
 
