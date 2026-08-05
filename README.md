@@ -196,10 +196,13 @@ change as contributors, advisors, and self-hosting teams provide feedback.
 - [ ] Add more funding-catalog connectors and scheduled sync observability
 - [ ] Extend financial planning with editable assumptions, scenario comparisons,
   and export-ready forecast formats
-- [ ] Add structured Strategic Report cover-page templates with logo, brand,
-  alignment, and metadata controls
+- [x] Add structured Strategic Report cover-page rendering with report metadata,
+  centered layout, and brand accent
 - [ ] Add richer document editing, review comments, and package export workflows
-- [ ] Render matching cover pages and page breaks in DOCX and PDF exports
+- [x] Render matching cover pages and page breaks in the web preview, DOCX, and
+  PDF exports
+- [ ] Add administrator controls for cover logos, backgrounds, themes, and
+  alignment options
 - [ ] Expand localization beyond English (Canada), French (Canada), and Simplified
   Chinese
 - [ ] Publish stable integration APIs and webhooks for partner workflows
@@ -465,17 +468,18 @@ each year without scanning all 36 columns at once.
 
 ### Structured cover pages
 
-Strategic Report cover pages are planned as structured document sections rather
-than free-form LLM HTML. A cover page can contain the business name, report
-title, funding program, subtitle, date, logo, contact details, and brand theme
-settings such as accent color and alignment. The application should keep those
-values separate from presentation so the same cover-page data can be rendered
-consistently in the web report, DOCX export, and PDF export.
+Strategic Report cover pages are structured document sections rather than
+free-form LLM HTML. Business Analysis and Technology Analysis each recognize
+their configured Cover Page section and render a consistent cover with the
+report title, business name, funding program, structured subtitle, date, bold
+typography, centered alignment, and a brand-colored accent.
 
-The default presentation is a centered, polished business-plan cover with a
-large bold title, brand-colored accent, supporting metadata, and a deliberate
-page break before the first analysis section. Administrators can edit the
-content and configuration without allowing generated text to break the layout.
+Clicking an analysis download action or a Table of Contents item opens a
+scrollable document preview that mirrors the downloaded document: the cover is
+shown first, followed by the configured sections in order. DOCX and PDF exports
+use the same cover data and insert a page break before the first analysis
+section. Generated prompts are not rendered as cover-page copy, so the cover
+remains suitable for a client-facing business plan.
 
 ## Project structure
 
