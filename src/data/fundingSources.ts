@@ -12,6 +12,10 @@ export type FundingProgramRecord = {
   location: string
   sourceId?: string
   sourceName?: string
+  eligibility?: string
+  eligibleUses?: string
+  targetCompanyTypes?: string
+  requiredEvidence?: string
 }
 
 export type SyncedResourceRecord = {
@@ -166,6 +170,10 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     url: 'https://feddev-ontario.canada.ca/en/funding',
     location: 'Ontario',
     sourceName: 'Bconomics catalog',
+    eligibility: 'Ontario-based incorporated businesses with a scalable growth project.',
+    eligibleUses: 'Productivity improvements, commercialization, market expansion, and equipment.',
+    targetCompanyTypes: 'Revenue-generating Ontario businesses pursuing growth.',
+    requiredEvidence: 'Financial statements, project plan, vendor quotes, and milestones.',
   },
   {
     id: 'digital-adoption',
@@ -178,6 +186,10 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     url: 'https://ised-isde.canada.ca/site/canada-digital-adoption-program/en',
     location: 'Canada',
     sourceName: 'Bconomics catalog',
+    eligibility: 'Canadian-owned small and medium-sized businesses adopting digital tools.',
+    eligibleUses: 'Digital tools, e-commerce, cybersecurity, and technology advisory support.',
+    targetCompanyTypes: 'Canadian small and medium-sized businesses ready to improve digital capability.',
+    requiredEvidence: 'Business profile, digital plan, vendor estimates, and financial information.',
   },
   {
     id: 'ontario-expansion',
@@ -190,6 +202,10 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     url: 'https://www.ontario.ca/page/business-and-economy',
     location: 'Ontario',
     sourceName: 'Bconomics catalog',
+    eligibility: 'Ontario businesses expanding operations, markets, or production capacity.',
+    eligibleUses: 'Expansion costs, equipment, hiring, market development, and implementation.',
+    targetCompanyTypes: 'Ontario businesses with an operating history and a documented growth plan.',
+    requiredEvidence: 'Growth plan, financial statements, project budget, and measurable outcomes.',
   },
   {
     id: 'bdc-small-business',
@@ -202,6 +218,10 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     url: 'https://www.bdc.ca/en/financing/small-business-loan',
     location: 'Canada',
     sourceName: 'Bconomics catalog',
+    eligibility: 'Canadian businesses with a viable plan and demonstrated ability to repay financing.',
+    eligibleUses: 'Working capital, equipment, inventory, hiring, and business expansion.',
+    targetCompanyTypes: 'Established Canadian businesses seeking flexible growth financing.',
+    requiredEvidence: 'Financial statements, cash flow forecast, ownership details, and business plan.',
   },
   {
     id: 'futurpreneur-financing',
@@ -214,6 +234,10 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     url: 'https://futurpreneur.ca/en/offering/financing/',
     location: 'Canada',
     sourceName: 'Bconomics catalog',
+    eligibility: 'Canadian founders building an early-stage business with a credible launch plan.',
+    eligibleUses: 'Startup costs, working capital, equipment, and early customer acquisition.',
+    targetCompanyTypes: 'Early-stage Canadian businesses and founders under the program age threshold.',
+    requiredEvidence: 'Founder profile, business plan, budget, and startup assumptions.',
   },
   {
     id: 'women-enterprise-loan',
@@ -226,6 +250,10 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     url: 'https://weoc.ca/',
     location: 'Canada',
     sourceName: 'Bconomics catalog',
+    eligibility: 'Canadian women-led businesses seeking growth or operating capital.',
+    eligibleUses: 'Working capital, equipment, hiring, marketing, and business development.',
+    targetCompanyTypes: 'Women-led Canadian businesses with a clear financing need.',
+    requiredEvidence: 'Ownership details, financial information, business plan, and use-of-funds budget.',
   },
 ]
 
@@ -300,6 +328,30 @@ export function normalizeFundingRecords(
           'Canada',
         sourceId: source.id,
         sourceName: source.name,
+        eligibility: readField(row, [
+          'eligibility',
+          'eligibility requirements',
+          'requirements',
+          'who is eligible',
+        ]),
+        eligibleUses: readField(row, [
+          'eligible uses',
+          'eligible use',
+          'use of funds',
+          'funding uses',
+        ]),
+        targetCompanyTypes: readField(row, [
+          'target company types',
+          'company types',
+          'target businesses',
+          'ideal applicant',
+        ]),
+        requiredEvidence: readField(row, [
+          'required evidence',
+          'required documents',
+          'supporting documents',
+          'evidence required',
+        ]),
       }
     })
     .filter((record): record is FundingProgramRecord => record !== null)

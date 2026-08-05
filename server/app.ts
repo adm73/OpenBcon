@@ -91,6 +91,57 @@ const registrationSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(8).max(200),
 })
+const fundingUsageValueSchema = z.enum([
+  'equipment',
+  'inventory',
+  'hiring',
+  'advertising',
+  'rent',
+  'payroll',
+])
+const sectorValueSchema = z.enum([
+  'Primary',
+  'Secondary',
+  'Tertiary',
+  'Quaternary',
+])
+const industryValueSchema = z.enum([
+  '11 Agriculture, forestry, fishing and hunting',
+  '21 Mining, quarrying, and oil and gas extraction',
+  '22 Utilities',
+  '23 Construction',
+  '31-33 Manufacturing',
+  '41 Wholesale trade',
+  '44-45 Retail trade',
+  '48-49 Transportation and warehousing',
+  '51 - Information and cultural industries',
+  '52 - Finance and insurance',
+  '53 - Real estate and rental and leasing',
+  '54 - Professional, scientific and technical services',
+  '55 - Management of companies and enterprises',
+  '56 - Administrative and support, waste management and remediation services',
+  '61 - Educational services',
+  '62 - Health care and social assistance',
+  '71 - Arts, entertainment and recreation',
+  '72 - Accommodation and food services',
+  '81 - Other services (except public administration)',
+  '91 - Public administration',
+])
+const companyPeriodValueSchema = z.enum([
+  'all-year',
+  'january',
+  'february',
+  'march',
+  'april',
+  'may',
+  'june',
+  'july',
+  'august',
+  'september',
+  'october',
+  'november',
+  'december',
+])
 const applicationCreateSchema = z.object({
   programName: z.string().trim().min(1).max(160),
   programUrl: z.string().trim().max(2000).default(''),
@@ -108,18 +159,28 @@ const applicationCreateSchema = z.object({
 const companySaveSchema = z.object({
   name: z.string().trim().min(1).max(160),
   legalName: z.string().trim().max(240).default(''),
+  corporationDate: z.string().trim().max(7).default(''),
+  legalStructure: z.string().trim().max(120).default(''),
+  sector: sectorValueSchema.or(z.literal('')).default(''),
   founderName: z.string().trim().min(1).max(120),
   email: z.string().trim().email().or(z.literal('')).default(''),
+  emailVerified: z.boolean().default(false),
   phone: z.string().trim().max(80).default(''),
-  registrationNumber: z.string().trim().max(120).default(''),
-  industry: z.string().trim().max(160).default(''),
-  stage: z.string().trim().max(80).default(''),
+  industry: industryValueSchema.or(z.literal('')).default(''),
+  stage: z.enum(['Launch', 'Growth', 'Maturity', 'Decline']).default('Launch'),
   location: z.string().trim().max(160).default(''),
   website: z.string().trim().max(2000).default(''),
   description: z.string().trim().min(1).max(4000),
+  productsOrServices: z.string().trim().max(4000).default(''),
+  busyPeriods: z.array(companyPeriodValueSchema).max(13).default([]),
+  slowPeriods: z.array(companyPeriodValueSchema).max(13).default([]),
+  mission: z.string().trim().max(4000).default(''),
+  vision: z.string().trim().max(4000).default(''),
+  values: z.string().trim().max(4000).default(''),
   teamBackground: z.string().trim().max(4000).default(''),
   employees: z.string().trim().max(40).default(''),
   monthlyRevenue: z.string().trim().max(40).default(''),
+  fundingUsage: z.array(fundingUsageValueSchema).max(6).default([]),
   teamMembers: z
     .array(
       z.object({
@@ -182,6 +243,29 @@ function asCompanyTeamMembers(value: unknown) {
   })
 }
 
+function asCompanyPeriods(value: unknown) {
+  const allowedPeriods = new Set([
+    'all-year',
+    'january',
+    'february',
+    'march',
+    'april',
+    'may',
+    'june',
+    'july',
+    'august',
+    'september',
+    'october',
+    'november',
+    'december',
+  ])
+  if (!Array.isArray(value)) return []
+  return value.filter(
+    (period): period is string =>
+      typeof period === 'string' && allowedPeriods.has(period),
+  )
+}
+
 function mapCompanyRow(row: CompanyApiRow) {
   const metadata = asCompanyMetadata(row.metadata)
   return {
@@ -189,21 +273,37 @@ function mapCompanyRow(row: CompanyApiRow) {
     logo: typeof metadata.logo === 'string' ? metadata.logo : '',
     name: row.name,
     legalName: row.legal_name ?? '',
-    registrationNumber:
-      typeof metadata.registrationNumber === 'string'
-        ? metadata.registrationNumber
-        : '',
+    corporationDate:
+      typeof metadata.corporationDate === 'string' ? metadata.corporationDate : '',
+    legalStructure:
+      typeof metadata.legalStructure === 'string' ? metadata.legalStructure : '',
+    sector: typeof metadata.sector === 'string' ? metadata.sector : '',
     industry: row.industry ?? '',
-    stage: row.stage ?? 'Pre-revenue',
+    stage: row.stage ?? 'Launch',
     location: row.location ?? '',
     website: row.website ?? '',
     description: row.business_summary,
+    productsOrServices:
+      typeof metadata.productsOrServices === 'string'
+        ? metadata.productsOrServices
+        : '',
+    busyPeriods: asCompanyPeriods(metadata.busyPeriods),
+    slowPeriods: asCompanyPeriods(metadata.slowPeriods),
+    mission: typeof metadata.mission === 'string' ? metadata.mission : '',
+    vision: typeof metadata.vision === 'string' ? metadata.vision : '',
+    values: typeof metadata.values === 'string' ? metadata.values : '',
     owner: row.founder_name,
     email: typeof metadata.email === 'string' ? metadata.email : '',
+    emailVerified: metadata.emailVerified === true,
     phone: typeof metadata.phone === 'string' ? metadata.phone : '',
     employees: row.employee_count === null ? '' : String(row.employee_count),
     monthlyRevenue:
       row.monthly_revenue === null ? '' : String(row.monthly_revenue),
+    fundingUsage: Array.isArray(metadata.fundingUsage)
+      ? metadata.fundingUsage.filter(
+          (value): value is string => typeof value === 'string',
+        )
+      : [],
     teamIntro: row.team_background ?? '',
     teamMembers: asCompanyTeamMembers(metadata.teamMembers),
     fundingTarget:
@@ -608,7 +708,7 @@ export function createApp(
       ) {
         response.status(400).json({
           error: 'invalid_request',
-          message: 'Team size and monthly revenue must be valid numbers.',
+          message: 'Number of full-time employees and monthly revenue must be valid numbers.',
         })
         return
       }
@@ -684,9 +784,19 @@ export function createApp(
           company.website,
           JSON.stringify({
             logo: company.logo,
-            registrationNumber: company.registrationNumber,
+            corporationDate: company.corporationDate,
+            legalStructure: company.legalStructure,
+            sector: company.sector,
             email: company.email,
+            emailVerified: company.emailVerified,
             phone: company.phone,
+            productsOrServices: company.productsOrServices,
+            busyPeriods: company.busyPeriods,
+            slowPeriods: company.slowPeriods,
+            mission: company.mission,
+            vision: company.vision,
+            values: company.values,
+            fundingUsage: company.fundingUsage,
             fundingTarget: company.fundingTarget,
             teamMembers: company.teamMembers,
             readiness: company.readiness,

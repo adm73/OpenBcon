@@ -44,6 +44,7 @@ OpenBcon is designed for teams that help businesses secure funding:
 - **Configurable Strategic Report**: run section-by-section generation with admin-managed sections, document types, agents, roles, prompts, and ordering
 - **Reusable report layouts**: configure cover-page and main-content CSS declarations in Admin Console with a live preview, then assign those layouts to Strategic Report sections
 - **Funding readiness workflows**: assess strengths, risks, and missing inputs before submission
+- **Discovery scouting reports**: compare each funding program against a selected company with fit scoring, positive signals, reviewer concerns, and a recommended next move
 - **Client and company management**: organize founder profiles, business details, and working records
 - **Funding program database**: manage grants, loans, and opportunity sources in one directory
 - **Partner and admin workspace**: configure modules, branding, landing-page content, legal links, data sources, models, payment settings, and workspace behavior
@@ -159,6 +160,8 @@ The current repository snapshot includes the landing experience, dashboard works
 - Module and Partner Portal feature flags
 - Searchable and filterable listing views with record details
 - Three-step Quick Build workflow with validation, company import, application restore, and generated previews
+- Discovery presents one program-matching scouting report card at a time, with company switching, program profiles, match indicators, and non-circular Previous/Next navigation
+- Discovery cards expose the company profile used for matching, including legal structure, sector, industry, stage, products or services, funding usage, seasonal periods, mission, vision, values, and team information
 - Dedicated Strategic Reports route (`/strategic-reports`) for reopening the latest generated package outside the form flow
 - Strategic Report generation driven by configurable sections, document types, agents, roles, prompts, and workflow ordering
 - Admin-managed Strategic Report layouts with editable names, descriptions, CSS declarations, and live previews

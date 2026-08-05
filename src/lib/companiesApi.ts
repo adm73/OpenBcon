@@ -12,17 +12,27 @@ export type CompanyApiRecord = {
   logo: string
   name: string
   legalName: string
-  registrationNumber: string
+  corporationDate: string
+  legalStructure: string
+  sector: string
   industry: string
   stage: string
   location: string
   website: string
   description: string
+  productsOrServices: string
+  busyPeriods: string[]
+  slowPeriods: string[]
+  mission: string
+  vision: string
+  values: string
   owner: string
   email: string
+  emailVerified: boolean
   phone: string
   employees: string
   monthlyRevenue: string
+  fundingUsage: string[]
   teamIntro: string
   teamMembers: CompanyTeamMember[]
   fundingTarget: string

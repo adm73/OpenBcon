@@ -49,6 +49,7 @@ import {
   type PlatformModuleId,
 } from '../config/platform'
 import { persistLocalPlatformSecureConfig } from '../config/localSecureConfig'
+import { getClientEnvironmentMode } from '../lib/environmentMode'
 import {
   findFundingProgramByName,
   loadFundingPrograms,
@@ -93,13 +94,23 @@ import {
   type ApplicationStatus,
 } from '../data/applications'
 
-function getQuickBuildPath(applicationId: string) {
+function getQuickBuildPath(applicationId: string, companyId?: string) {
   const application = findApplicationRecord(loadApplications(), applicationId)
-  if (application?.appId) {
-    return `/quick-build?app_id=${encodeURIComponent(application.appId)}`
+  const params = new URLSearchParams({
+    app_id: application?.appId ?? applicationId,
+  })
+  if (companyId) {
+    params.set('company_id', companyId)
   }
+  return `/quick-build?${params.toString()}`
+}
 
-  return `/quick-build?app_id=${encodeURIComponent(applicationId)}`
+function getQuickBuildMatchPath(programId: string, companyId: string) {
+  const params = new URLSearchParams({
+    program_id: programId,
+    company_id: companyId,
+  })
+  return `/quick-build?${params.toString()}`
 }
 
 function getStrategicReportsPath(applicationId: string) {
@@ -716,24 +727,145 @@ function SectionListing({ item }: { item: DashboardItem }) {
 
 type CompanyRecord = CompanyApiRecord
 
+const fundingUsageOptions = [
+  { value: 'equipment', label: 'Buy equipment' },
+  { value: 'inventory', label: 'Stock inventory' },
+  { value: 'hiring', label: 'Hire staff' },
+  { value: 'advertising', label: 'Advertise' },
+  { value: 'rent', label: 'Pay rent' },
+  { value: 'payroll', label: 'Pay wages' },
+] as const
+
+const sectorOptions = ['Primary', 'Secondary', 'Tertiary', 'Quaternary'] as const
+
+const industryOptions = [
+  '11 Agriculture, forestry, fishing and hunting',
+  '21 Mining, quarrying, and oil and gas extraction',
+  '22 Utilities',
+  '23 Construction',
+  '31-33 Manufacturing',
+  '41 Wholesale trade',
+  '44-45 Retail trade',
+  '48-49 Transportation and warehousing',
+  '51 - Information and cultural industries',
+  '52 - Finance and insurance',
+  '53 - Real estate and rental and leasing',
+  '54 - Professional, scientific and technical services',
+  '55 - Management of companies and enterprises',
+  '56 - Administrative and support, waste management and remediation services',
+  '61 - Educational services',
+  '62 - Health care and social assistance',
+  '71 - Arts, entertainment and recreation',
+  '72 - Accommodation and food services',
+  '81 - Other services (except public administration)',
+  '91 - Public administration',
+] as const
+
+const companyPeriodOptions = [
+  { value: 'all-year', label: 'All Year' },
+  { value: 'january', label: 'January' },
+  { value: 'february', label: 'February' },
+  { value: 'march', label: 'March' },
+  { value: 'april', label: 'April' },
+  { value: 'may', label: 'May' },
+  { value: 'june', label: 'June' },
+  { value: 'july', label: 'July' },
+  { value: 'august', label: 'August' },
+  { value: 'september', label: 'September' },
+  { value: 'october', label: 'October' },
+  { value: 'november', label: 'November' },
+  { value: 'december', label: 'December' },
+] as const
+
+function createMockCompanyLogo(mark: string, background: string) {
+  return `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="30" fill="${background}"/><circle cx="64" cy="48" r="24" fill="#ffffff" opacity=".92"/><path d="M32 92c8-18 20-27 32-27s24 9 32 27" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round"/><text x="64" y="116" fill="#ffffff" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle">${mark}</text></svg>`,
+  )}`
+}
+
+function createGenericCompanyMockData(company: CompanyRecord): Partial<CompanyRecord> {
+  const words = company.name.trim().split(/\s+/u).filter(Boolean)
+  const mark = words.map((word) => word[0]).join('').slice(0, 2).toUpperCase() || 'CO'
+  const slug =
+    company.name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gu, '-')
+      .replace(/^-|-$/gu, '') || 'sample-company'
+
+  return {
+    logo: createMockCompanyLogo(mark, '#5570c8'),
+    legalName: `${company.name || 'Sample Company'} Ltd.`,
+    corporationDate: '2020-01',
+    legalStructure: 'Corporation',
+    sector: 'Tertiary',
+    industry: '54 - Professional, scientific and technical services',
+    stage: 'Growth',
+    location: 'Toronto, Ontario',
+    website: `${slug}.example.com`,
+    description:
+      'Mockup company profile for testing discovery, applications, strategic reports, and financial planning workflows.',
+    productsOrServices:
+      'Professional products and services with project-based pricing, recurring customer support, and a planning gross margin of 40%.',
+    busyPeriods: ['all-year'],
+    slowPeriods: ['december'],
+    mission: 'Deliver practical solutions that help customers operate and grow with confidence.',
+    vision: 'Become a trusted partner for measurable, sustainable business improvement.',
+    values: 'Clarity, reliability, customer focus, and responsible growth.',
+    owner: 'Alex Morgan',
+    email: `${slug}@example.com`,
+    emailVerified: false,
+    phone: '+1 416 555 0199',
+    employees: '5',
+    monthlyRevenue: '25,000',
+    fundingUsage: ['hiring', 'advertising'],
+    teamIntro:
+      'A small cross-functional team combining customer insight, delivery expertise, and disciplined operations.',
+    teamMembers: [
+      {
+        id: `${slug}-alex-morgan`,
+        name: 'Alex Morgan',
+        title: 'Founder and Managing Director',
+        responsibilities:
+          'Leads strategy, customer relationships, and operating performance.',
+      },
+    ],
+    fundingTarget: '100,000',
+    readiness: 68,
+    status: 'Active',
+    updatedAt: 'Mock data updated',
+  }
+}
+
 const initialCompanies: CompanyRecord[] = [
   {
     id: 'northstar-foods',
-    logo: '',
+    logo: createMockCompanyLogo('NF', '#1b6c63'),
     name: 'Northstar Foods',
     legalName: 'Northstar Foods Inc.',
-    registrationNumber: 'ON-7459218',
-    industry: 'Food manufacturing',
-    stage: 'Revenue generating',
+    corporationDate: '2019-06',
+    legalStructure: 'Corporation',
+    sector: 'Secondary',
+    industry: '31-33 Manufacturing',
+    stage: 'Growth',
     location: 'Toronto, Ontario',
     website: 'northstarfoods.ca',
     description:
       'Locally sourced functional snacks for busy families, sold through retail pilots and a recurring subscription model.',
+    productsOrServices:
+      'Functional snack boxes and wholesale snack packs. Average order value is CAD 42 with an estimated gross margin of 58%.',
+    busyPeriods: ['november', 'december'],
+    slowPeriods: ['january', 'february'],
+    mission: 'Make better everyday nutrition accessible to busy families.',
+    vision: 'Build the most trusted locally sourced snack brand in Canada.',
+    values: 'Practicality, transparency, customer care, and responsible growth.',
     owner: 'Ava Lin',
     email: 'ava@northstarfoods.ca',
+    emailVerified: true,
     phone: '+1 416 555 0184',
     employees: '4',
     monthlyRevenue: '18,000',
+    fundingUsage: ['inventory', 'advertising', 'payroll'],
     teamIntro:
       'A hands-on food manufacturing team focused on reliable production, customer insight, and disciplined growth.',
     teamMembers: [
@@ -751,21 +883,32 @@ const initialCompanies: CompanyRecord[] = [
   },
   {
     id: 'greenline-hvac',
-    logo: '',
+    logo: createMockCompanyLogo('GH', '#286a8d'),
     name: 'Greenline HVAC',
     legalName: 'Greenline Mechanical Solutions Ltd.',
-    registrationNumber: 'ON-8824106',
-    industry: 'Clean technology',
+    corporationDate: '2017-03',
+    legalStructure: 'Corporation',
+    sector: 'Secondary',
+    industry: '23 Construction',
     stage: 'Growth',
     location: 'Mississauga, Ontario',
     website: 'greenlinehvac.ca',
     description:
       'Commercial heat-pump installation and energy retrofit services for small and mid-sized buildings.',
+    productsOrServices:
+      'Heat-pump installation, retrofit planning, and maintenance services. Typical projects range from CAD 18,000 to CAD 75,000 with a 32% gross margin.',
+    busyPeriods: ['march', 'april', 'may', 'june'],
+    slowPeriods: ['december', 'january'],
+    mission: 'Help commercial buildings lower energy costs through practical electrification.',
+    vision: 'Make efficient building systems the default across small and mid-sized properties.',
+    values: 'Reliability, measurable impact, safety, and long-term partnerships.',
     owner: 'Morgan Chen',
     email: 'morgan@greenlinehvac.ca',
+    emailVerified: true,
     phone: '+1 905 555 0142',
     employees: '11',
     monthlyRevenue: '86,000',
+    fundingUsage: ['equipment', 'hiring', 'advertising'],
     teamIntro:
       'An experienced retrofit delivery team combining field installation, energy analysis, and customer success.',
     teamMembers: [
@@ -783,23 +926,48 @@ const initialCompanies: CompanyRecord[] = [
   },
   {
     id: 'fieldnote-ai',
-    logo: '',
+    logo: createMockCompanyLogo('FA', '#654aa5'),
     name: 'Fieldnote AI',
     legalName: 'Fieldnote Intelligence Corp.',
-    registrationNumber: '',
-    industry: 'Software',
-    stage: 'Pre-revenue',
+    corporationDate: '2024-09',
+    legalStructure: 'Corporation',
+    sector: 'Quaternary',
+    industry: '51 - Information and cultural industries',
+    stage: 'Launch',
     location: 'Waterloo, Ontario',
     website: 'fieldnote.ai',
     description:
       'AI-assisted field reporting for construction and infrastructure inspection teams.',
+    productsOrServices:
+      'Subscription software for field reporting, priced per active seat with implementation support and usage-based expansion.',
+    busyPeriods: ['all-year'],
+    slowPeriods: ['december'],
+    mission: 'Turn field observations into clear, actionable project intelligence.',
+    vision: 'Help every infrastructure team make faster decisions from better field data.',
+    values: 'Clarity, useful automation, trust, and customer-led learning.',
     owner: 'Jordan Smith',
     email: 'jordan@fieldnote.ai',
-    phone: '',
+    emailVerified: false,
+    phone: '+1 519 555 0168',
     employees: '2',
     monthlyRevenue: '0',
-    teamIntro: '',
-    teamMembers: [],
+    fundingUsage: ['hiring', 'advertising', 'payroll'],
+    teamIntro:
+      'A compact product and engineering team focused on practical automation for infrastructure inspection workflows.',
+    teamMembers: [
+      {
+        id: 'fieldnote-jordan-smith',
+        name: 'Jordan Smith',
+        title: 'Co-founder and CEO',
+        responsibilities: 'Leads customer discovery, product direction, and commercial partnerships.',
+      },
+      {
+        id: 'fieldnote-priya-nair',
+        name: 'Priya Nair',
+        title: 'Co-founder and CTO',
+        responsibilities: 'Owns platform architecture, AI quality, and secure product delivery.',
+      },
+    ],
     fundingTarget: '150,000',
     readiness: 46,
     status: 'Draft',
@@ -811,21 +979,128 @@ const companyStorageKey = 'bconomics-company-portfolio-v1'
 
 function loadCompanyRecords(): CompanyRecord[] {
   if (typeof window === 'undefined') {
-    return initialCompanies
+    return initialCompanies.map(normalizeCompanyRecord)
   }
 
   const savedCompanies = window.localStorage.getItem(companyStorageKey)
   if (!savedCompanies) {
-    return initialCompanies
+    return initialCompanies.map(normalizeCompanyRecord)
   }
 
   try {
     const parsedCompanies = JSON.parse(savedCompanies) as CompanyRecord[]
     return Array.isArray(parsedCompanies) && parsedCompanies.length > 0
-      ? parsedCompanies
-      : initialCompanies
+      ? parsedCompanies.map(normalizeCompanyRecord)
+      : initialCompanies.map(normalizeCompanyRecord)
   } catch {
-    return initialCompanies
+    return initialCompanies.map(normalizeCompanyRecord)
+  }
+}
+
+function normalizeCompanyStage(value: string) {
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'pre-revenue' || normalized === 'pre revenue') return 'Launch'
+  if (normalized === 'revenue generating' || normalized === 'revenue-generating') return 'Growth'
+  if (normalized === 'expansion') return 'Maturity'
+  if (normalized === 'decline') return 'Decline'
+  if (normalized === 'maturity') return 'Maturity'
+  if (normalized === 'growth') return 'Growth'
+  return 'Launch'
+}
+
+function normalizeCompanySector(value: string) {
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'primary') return 'Primary'
+  if (normalized === 'secondary') return 'Secondary'
+  if (normalized === 'tertiary') return 'Tertiary'
+  if (normalized === 'quaternary') return 'Quaternary'
+  if (/farm|agricultur|fishing|forestry|mining/iu.test(normalized)) return 'Primary'
+  if (/manufactur|construction|production|food|hvac|clean technolog/iu.test(normalized)) return 'Secondary'
+  if (/service|retail|consult|health|hospitality|education/iu.test(normalized)) return 'Tertiary'
+  if (/software|technology|ai|research|information/iu.test(normalized)) return 'Quaternary'
+  return ''
+}
+
+function normalizeCompanyIndustry(value: string) {
+  const normalized = value.trim().toLowerCase()
+  const exactMatch = industryOptions.find(
+    (industry) => industry.toLowerCase() === normalized,
+  )
+  if (exactMatch) return exactMatch
+  if (/food|manufactur/iu.test(normalized)) return '31-33 Manufacturing'
+  if (/hvac|construction|building|retrofit/iu.test(normalized)) return '23 Construction'
+  if (/software|technology|ai|information/iu.test(normalized)) {
+    return '51 - Information and cultural industries'
+  }
+  if (/health|medical|clinical/iu.test(normalized)) {
+    return '62 - Health care and social assistance'
+  }
+  return ''
+}
+
+function normalizeCompanyPeriods(value: string[] | undefined, fallback: string[] = []) {
+  const validPeriods = new Set<string>(
+    companyPeriodOptions.map((option) => option.value),
+  )
+  const normalized = Array.isArray(value)
+    ? value.filter((period) => validPeriods.has(period))
+    : []
+  return normalized.length ? normalized : fallback
+}
+
+function normalizeCompanyRecord(company: CompanyRecord): CompanyRecord {
+  const baseline = initialCompanies.find(
+    (candidate) => candidate.name.trim().toLowerCase() === company.name.trim().toLowerCase(),
+  )
+  const mockDefaults = baseline ?? createGenericCompanyMockData(company)
+  const normalizedFundingUsage = Array.isArray(company.fundingUsage)
+    ? company.fundingUsage.filter((value): value is string =>
+        fundingUsageOptions.some((option) => option.value === value),
+      )
+    : []
+
+  return {
+    ...company,
+    logo: company.logo || mockDefaults.logo || '',
+    legalName: company.legalName || mockDefaults.legalName || '',
+    corporationDate: company.corporationDate || mockDefaults.corporationDate || '',
+    legalStructure: company.legalStructure || mockDefaults.legalStructure || '',
+    sector: normalizeCompanySector(company.sector || mockDefaults.sector || ''),
+    industry: normalizeCompanyIndustry(company.industry || mockDefaults.industry || ''),
+    stage: normalizeCompanyStage(company.stage || mockDefaults.stage || ''),
+    location: company.location || mockDefaults.location || '',
+    website: company.website || mockDefaults.website || '',
+    description: company.description || mockDefaults.description || '',
+    productsOrServices:
+      company.productsOrServices || mockDefaults.productsOrServices || '',
+    busyPeriods: normalizeCompanyPeriods(
+      company.busyPeriods,
+      mockDefaults.busyPeriods ?? [],
+    ),
+    slowPeriods: normalizeCompanyPeriods(
+      company.slowPeriods,
+      mockDefaults.slowPeriods ?? [],
+    ),
+    mission: company.mission || mockDefaults.mission || '',
+    vision: company.vision || mockDefaults.vision || '',
+    values: company.values || mockDefaults.values || '',
+    owner: company.owner || mockDefaults.owner || '',
+    email: company.email || mockDefaults.email || '',
+    emailVerified: company.emailVerified ?? mockDefaults.emailVerified ?? false,
+    phone: company.phone || mockDefaults.phone || '',
+    employees: company.employees || mockDefaults.employees || '',
+    monthlyRevenue: company.monthlyRevenue || mockDefaults.monthlyRevenue || '',
+    fundingUsage: normalizedFundingUsage.length
+      ? normalizedFundingUsage
+      : mockDefaults.fundingUsage ?? [],
+    teamIntro: company.teamIntro || mockDefaults.teamIntro || '',
+    teamMembers: company.teamMembers?.length
+      ? company.teamMembers
+      : mockDefaults.teamMembers ?? [],
+    fundingTarget: company.fundingTarget || mockDefaults.fundingTarget || '',
+    readiness: company.readiness || mockDefaults.readiness || 20,
+    status: company.status || mockDefaults.status || 'Draft',
+    updatedAt: company.updatedAt || mockDefaults.updatedAt || 'Mock data',
   }
 }
 
@@ -835,17 +1110,27 @@ function createEmptyCompany(): CompanyRecord {
     logo: '',
     name: '',
     legalName: '',
-    registrationNumber: '',
+    corporationDate: '',
+    legalStructure: '',
+    sector: '',
     industry: '',
-    stage: 'Pre-revenue',
+    stage: 'Launch',
     location: '',
     website: '',
     description: '',
+    productsOrServices: '',
+    busyPeriods: [],
+    slowPeriods: [],
+    mission: '',
+    vision: '',
+    values: '',
     owner: '',
     email: '',
+    emailVerified: false,
     phone: '',
     employees: '',
     monthlyRevenue: '',
+    fundingUsage: [],
     teamIntro: '',
     teamMembers: [],
     fundingTarget: '',
@@ -862,17 +1147,24 @@ function MyCompanyPage() {
   const [draft, setDraft] = useState<CompanyRecord | null>(null)
   const [isNew, setIsNew] = useState(false)
   const [notice, setNotice] = useState('')
+  const [remoteCompaniesLoaded, setRemoteCompaniesLoaded] = useState(false)
 
   useEffect(() => {
     let cancelled = false
 
     void loadCompaniesViaApi()
       .then((remoteCompanies) => {
-        if (cancelled || remoteCompanies.length === 0) return
+        if (cancelled) return
+        if (remoteCompanies.length === 0) {
+          setRemoteCompaniesLoaded(true)
+          return
+        }
+
+        const normalizedRemoteCompanies = remoteCompanies.map(normalizeCompanyRecord)
 
         setCompanies((currentCompanies) => {
           const remoteByName = new Map(
-            remoteCompanies.map((company) => [company.name.trim().toLowerCase(), company]),
+            normalizedRemoteCompanies.map((company) => [company.name.trim().toLowerCase(), company]),
           )
           const merged = currentCompanies.map((localCompany) => {
             const key = localCompany.name.trim().toLowerCase()
@@ -883,6 +1175,24 @@ function MyCompanyPage() {
               ...localCompany,
               ...remoteCompany,
               logo: remoteCompany.logo || localCompany.logo,
+              corporationDate: remoteCompany.corporationDate || localCompany.corporationDate,
+              legalStructure: remoteCompany.legalStructure || localCompany.legalStructure,
+              sector: remoteCompany.sector || localCompany.sector,
+              productsOrServices:
+                remoteCompany.productsOrServices || localCompany.productsOrServices,
+              busyPeriods: remoteCompany.busyPeriods.length
+                ? remoteCompany.busyPeriods
+                : localCompany.busyPeriods,
+              slowPeriods: remoteCompany.slowPeriods.length
+                ? remoteCompany.slowPeriods
+                : localCompany.slowPeriods,
+              mission: remoteCompany.mission || localCompany.mission,
+              vision: remoteCompany.vision || localCompany.vision,
+              values: remoteCompany.values || localCompany.values,
+              emailVerified: remoteCompany.emailVerified || localCompany.emailVerified,
+              fundingUsage: remoteCompany.fundingUsage.length
+                ? remoteCompany.fundingUsage
+                : localCompany.fundingUsage,
               teamIntro: remoteCompany.teamIntro || localCompany.teamIntro,
               teamMembers: remoteCompany.teamMembers.length
                 ? remoteCompany.teamMembers
@@ -892,12 +1202,16 @@ function MyCompanyPage() {
 
           return [
             ...merged,
-            ...remoteCompanies.filter((company) => remoteByName.has(company.name.trim().toLowerCase())),
+            ...normalizedRemoteCompanies.filter((company) =>
+              remoteByName.has(company.name.trim().toLowerCase()),
+            ),
           ]
         })
+        setRemoteCompaniesLoaded(true)
       })
       .catch(() => {
         // The local cache remains the source of truth when the API is unavailable.
+        setRemoteCompaniesLoaded(true)
       })
 
     return () => {
@@ -913,8 +1227,47 @@ function MyCompanyPage() {
     setPersistentItem(companyStorageKey, JSON.stringify(companies))
   }, [companies])
 
+  useEffect(() => {
+    if (!remoteCompaniesLoaded || typeof window === 'undefined' || companies.length === 0) {
+      return
+    }
+
+    const mode = getClientEnvironmentMode()
+    const migrationKey = `bconomics-company-portfolio-latest-fields-v4-${mode}`
+    let migratedCompanyIds: string[] = []
+    try {
+      const stored = window.localStorage.getItem(migrationKey)
+      const parsed = stored ? JSON.parse(stored) : []
+      migratedCompanyIds = Array.isArray(parsed)
+        ? parsed.filter((value): value is string => typeof value === 'string')
+        : []
+    } catch {
+      migratedCompanyIds = []
+    }
+
+    const migratedIdSet = new Set(migratedCompanyIds)
+    const pendingCompanies = companies.filter((company) => !migratedIdSet.has(company.id))
+    if (pendingCompanies.length === 0) return
+
+    void Promise.all(pendingCompanies.map((company) => saveCompanyViaApi(company)))
+      .then(() => {
+        setPersistentItem(
+          migrationKey,
+          JSON.stringify([
+            ...new Set([
+              ...migratedCompanyIds,
+              ...pendingCompanies.map((company) => company.id),
+            ]),
+          ]),
+        )
+      })
+      .catch(() => {
+        // Keep the migration retryable when the selected database is unavailable.
+      })
+  }, [companies, remoteCompaniesLoaded])
+
   const visibleCompanies = companies.filter((company) => {
-    const matchesQuery = `${company.name} ${company.legalName} ${company.industry} ${company.owner}`
+    const matchesQuery = `${company.name} ${company.legalName} ${company.sector} ${company.industry} ${company.owner}`
       .toLowerCase()
       .includes(query.trim().toLowerCase())
     return matchesQuery && (filter === 'All' || company.status === filter)
@@ -936,6 +1289,32 @@ function MyCompanyPage() {
     value: CompanyRecord[Key],
   ) {
     setDraft((current) => (current ? { ...current, [field]: value } : current))
+    setNotice('')
+  }
+
+  function toggleCompanyPeriod(
+    field: 'busyPeriods' | 'slowPeriods',
+    period: string,
+    checked: boolean,
+  ) {
+    setDraft((current) => {
+      if (!current) return current
+      const selectedPeriods = current[field] ?? []
+      let nextPeriods: string[]
+      if (!checked) {
+        nextPeriods = selectedPeriods.filter((value) => value !== period)
+      } else if (period === 'all-year') {
+        nextPeriods = ['all-year']
+      } else {
+        nextPeriods = [
+          ...new Set([
+            ...selectedPeriods.filter((value) => value !== 'all-year'),
+            period,
+          ]),
+        ]
+      }
+      return { ...current, [field]: nextPeriods }
+    })
     setNotice('')
   }
 
@@ -1003,14 +1382,23 @@ function MyCompanyPage() {
 
     const completedFields = [
       draft.legalName,
-      draft.registrationNumber,
+      draft.corporationDate,
+      draft.legalStructure,
+      draft.sector,
       draft.industry,
       draft.location,
       draft.website,
       draft.description,
+      draft.productsOrServices,
+      draft.busyPeriods?.length ? 'busy periods' : '',
+      draft.slowPeriods?.length ? 'slow periods' : '',
+      draft.mission,
+      draft.vision,
+      draft.values,
       draft.phone,
       draft.employees,
       draft.monthlyRevenue,
+      draft.fundingUsage?.length ? 'funding usage' : '',
       draft.teamIntro ?? '',
       draft.teamMembers?.length ? 'team members' : '',
     ].filter((value) => value.trim()).length
@@ -1166,6 +1554,8 @@ function MyCompanyPage() {
             </div>
             <dl>
               <div><dt>Industry</dt><dd>{draft.industry || 'Not set'}</dd></div>
+              <div><dt>Sector</dt><dd>{draft.sector || 'Not set'}</dd></div>
+              <div><dt>Legal structure</dt><dd>{draft.legalStructure || 'Not set'}</dd></div>
               <div><dt>Stage</dt><dd>{draft.stage}</dd></div>
               <div><dt>Location</dt><dd>{draft.location || 'Not set'}</dd></div>
               <div><dt>Last activity</dt><dd>{draft.updatedAt}</dd></div>
@@ -1191,24 +1581,50 @@ function MyCompanyPage() {
                   <input value={draft.legalName} onChange={(event) => updateDraft('legalName', event.target.value)} />
                 </label>
                 <label>
-                  <span>Registration number</span>
-                  <input value={draft.registrationNumber} onChange={(event) => updateDraft('registrationNumber', event.target.value)} />
+                  <span>Corporation Date (year and month)</span>
+                  <input type="month" value={draft.corporationDate} onChange={(event) => updateDraft('corporationDate', event.target.value)} />
                 </label>
                 <label>
                   <span>Website</span>
                   <input value={draft.website} onChange={(event) => updateDraft('website', event.target.value)} />
                 </label>
                 <label>
+                  <span>Legal structure</span>
+                  <select value={draft.legalStructure} onChange={(event) => updateDraft('legalStructure', event.target.value)}>
+                    <option value="">Choose a structure...</option>
+                    <option>Corporation</option>
+                    <option>Sole proprietorship</option>
+                    <option>Partnership</option>
+                    <option>Co-operative</option>
+                    <option>Non-profit</option>
+                    <option>Other</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Sector</span>
+                  <select value={draft.sector} onChange={(event) => updateDraft('sector', event.target.value)}>
+                    <option value="">Choose a sector...</option>
+                    {sectorOptions.map((sector) => (
+                      <option key={sector} value={sector}>{sector}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
                   <span>Industry</span>
-                  <input value={draft.industry} onChange={(event) => updateDraft('industry', event.target.value)} />
+                  <select value={draft.industry} onChange={(event) => updateDraft('industry', event.target.value)}>
+                    <option value="">Choose an industry...</option>
+                    {industryOptions.map((industry) => (
+                      <option key={industry} value={industry}>{industry}</option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   <span>Business stage</span>
                   <select value={draft.stage} onChange={(event) => updateDraft('stage', event.target.value)}>
-                    <option>Pre-revenue</option>
-                    <option>Revenue generating</option>
+                    <option>Launch</option>
                     <option>Growth</option>
-                    <option>Expansion</option>
+                    <option>Maturity</option>
+                    <option>Decline</option>
                   </select>
                 </label>
                 <label className="company-field-wide">
@@ -1226,24 +1642,117 @@ function MyCompanyPage() {
                   <p>Describe what the company does and why it is different.</p>
                 </div>
               </div>
-              <label className="company-description-field">
-                <span>Company description</span>
-                <textarea
-                  value={draft.description}
-                  onChange={(event) => updateDraft('description', event.target.value)}
-                  placeholder="Products, customers, business model, and competitive advantage."
-                />
-                <small>{draft.description.length} characters</small>
-              </label>
-              <div className="company-form-grid company-profile-fields">
-                <label className="company-field-wide">
-                  <span>Monthly revenue (CAD)</span>
-                  <input
-                    inputMode="numeric"
-                    value={draft.monthlyRevenue}
-                    onChange={(event) => updateDraft('monthlyRevenue', event.target.value)}
+              <div className="company-form-content">
+                <label className="company-description-field">
+                  <span>Company description</span>
+                  <textarea
+                    value={draft.description}
+                    onChange={(event) => updateDraft('description', event.target.value)}
+                    placeholder="Products, customers, business model, and competitive advantage."
                   />
+                  <small>{draft.description.length} characters</small>
                 </label>
+                <label className="company-description-field company-products-field">
+                  <span>Products or services</span>
+                  <textarea
+                    value={draft.productsOrServices}
+                    onChange={(event) => updateDraft('productsOrServices', event.target.value)}
+                    placeholder="Describe what you sell, pricing, delivery model, and estimated margin."
+                  />
+                  <small>{draft.productsOrServices.length} characters</small>
+                </label>
+                <div className="company-seasonality-grid">
+                  {(['busyPeriods', 'slowPeriods'] as const).map((field) => {
+                    const selectedPeriods = draft[field] ?? []
+                    const label = field === 'busyPeriods' ? 'Busy periods' : 'Slow periods'
+                    return (
+                      <div className="company-seasonality-field" key={field}>
+                        <span>{label}</span>
+                        <p>Select all that apply.</p>
+                      <div className="company-period-options">
+                        {companyPeriodOptions.map((option) => {
+                          const isSelected = selectedPeriods.includes(option.value)
+                          const hasAllYear = selectedPeriods.includes('all-year')
+                          const hasMonthSelection = selectedPeriods.some(
+                            (period) => period !== 'all-year',
+                          )
+                          const isDisabled = option.value === 'all-year'
+                            ? hasMonthSelection
+                            : hasAllYear
+                          return (
+                            <label
+                              className={`${isSelected ? 'is-selected' : ''} ${isDisabled ? 'is-disabled' : ''}`.trim()}
+                              key={option.value}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                disabled={isDisabled}
+                                onChange={(event) =>
+                                  toggleCompanyPeriod(field, option.value, event.target.checked)
+                                }
+                                />
+                                <span>{option.label}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+                <div className="company-form-grid company-profile-fields">
+                  <label className="company-description-field company-field-wide">
+                    <span>Mission</span>
+                    <textarea value={draft.mission} onChange={(event) => updateDraft('mission', event.target.value)} placeholder="What the company exists to do." />
+                  </label>
+                  <label className="company-description-field company-field-wide">
+                    <span>Vision</span>
+                    <textarea value={draft.vision} onChange={(event) => updateDraft('vision', event.target.value)} placeholder="The future the company is working to create." />
+                  </label>
+                  <label className="company-description-field company-field-wide">
+                    <span>Values</span>
+                    <textarea value={draft.values} onChange={(event) => updateDraft('values', event.target.value)} placeholder="The principles that guide decisions and behaviour." />
+                  </label>
+                </div>
+                <div className="company-form-grid company-profile-fields">
+                  <label className="company-field-wide">
+                    <span>Monthly revenue</span>
+                    <input
+                      inputMode="numeric"
+                      value={draft.monthlyRevenue}
+                      onChange={(event) => updateDraft('monthlyRevenue', event.target.value)}
+                    />
+                  </label>
+                  <div className="company-funding-usage company-field-wide" role="group" aria-labelledby="funding-usage-label">
+                    <span id="funding-usage-label">Funding usage</span>
+                    <p>Select all planned uses of funding.</p>
+                    <div className="company-funding-usage-options">
+                      {fundingUsageOptions.map((option) => {
+                        const isSelected = (draft.fundingUsage ?? []).includes(option.value)
+                        return (
+                          <label
+                            className={isSelected ? 'is-selected' : ''}
+                            key={option.value}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(event) => {
+                                const currentUsage = draft.fundingUsage ?? []
+                                const nextUsage = event.target.checked
+                                  ? [...new Set([...currentUsage, option.value])]
+                                  : currentUsage.filter((value) => value !== option.value)
+                                updateDraft('fundingUsage', nextUsage)
+                              }}
+                            />
+                            <span>{option.label}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -1260,10 +1769,18 @@ function MyCompanyPage() {
                   <span>Full name *</span>
                   <input value={draft.owner} onChange={(event) => updateDraft('owner', event.target.value)} />
                 </label>
-                <label>
-                  <span>Email address *</span>
-                  <input type="email" value={draft.email} onChange={(event) => updateDraft('email', event.target.value)} />
-                </label>
+                <div className="company-email-field">
+                  <label>
+                    <span>Email address *</span>
+                    <input type="email" value={draft.email} onChange={(event) => updateDraft('email', event.target.value)} />
+                  </label>
+                  <span
+                    className={`company-email-status ${draft.emailVerified ? 'is-verified' : 'is-unverified'}`}
+                    role="status"
+                  >
+                    {draft.emailVerified ? 'Verified' : 'Verify'}
+                  </span>
+                </div>
                 <label className="company-field-wide">
                   <span>Phone number</span>
                   <input value={draft.phone} onChange={(event) => updateDraft('phone', event.target.value)} />
@@ -1282,7 +1799,7 @@ function MyCompanyPage() {
               <div className="company-team-editor">
                 <div className="company-form-grid">
                   <label>
-                    <span>Team size</span>
+                    <span>Number of full-time employees</span>
                     <input
                       inputMode="numeric"
                       value={draft.employees}
@@ -1479,330 +1996,570 @@ function MyCompanyPage() {
   )
 }
 
-function FundingReadinessPage() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'actions' | 'history'>(
-    'overview',
-  )
-  const [completedTasks, setCompletedTasks] = useState<string[]>([
-    'business-registration',
-  ])
+type ScoutingScore = {
+  label: string
+  score: number
+  weight: number
+  explanation: string
+}
 
-  const readinessAreas = [
+function splitScoutingList(value: string | undefined, fallback: string) {
+  const normalized = value?.trim()
+  return normalized ? [normalized] : [fallback]
+}
+
+function parseCompanyRevenue(company: CompanyRecord) {
+  const value = Number(company.monthlyRevenue.replace(/[^0-9.-]/gu, ''))
+  return Number.isFinite(value) ? Math.max(0, value) : 0
+}
+
+const scoutingFundingUsageLabels = new Map<string, string>(
+  fundingUsageOptions.map((option) => [option.value, option.label]),
+)
+
+function formatCompanyPeriods(periods: string[]) {
+  if (periods.includes('all-year')) return 'All year'
+  return periods
+    .map((period) => period.charAt(0).toUpperCase() + period.slice(1))
+    .join(', ')
+}
+
+function calculateProgramCompanyMatch(program: FundingProgramRecord, company: CompanyRecord) {
+  const programText = [
+    program.eligibility,
+    program.eligibleUses,
+    program.targetCompanyTypes,
+    program.requiredEvidence,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  const companyText = [
+    company.industry,
+    company.sector,
+    company.stage,
+    company.description,
+    company.productsOrServices,
+    company.mission,
+    company.vision,
+    company.values,
+    company.teamIntro,
+    company.fundingUsage.join(' '),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  const companyLocation = company.location.trim().toLowerCase()
+  const programLocation = program.location.trim().toLowerCase()
+  const locationScore =
+    programLocation === 'canada' ||
+    (programLocation.length > 0 && companyLocation.includes(programLocation))
+      ? 100
+      : 45
+  const incorporationScore = programText.includes('incorporated')
+    ? company.legalStructure.trim() ? 100 : 45
+    : 75
+  const stageScore =
+    (/(startup|early-stage|launch)/u.test(programText) && company.stage === 'Launch') ||
+    (/(revenue-generating|established|operating history|growth)/u.test(programText) &&
+      (company.stage === 'Growth' || company.stage === 'Maturity'))
+      ? 100
+      : 72
+  const digitalProgram = /(digital|technology|cybersecurity|software)/u.test(programText)
+  const digitalCompany = /(information|technology|software|ai|digital|engineering)/u.test(companyText)
+  const industrialProgram = /(equipment|production|manufactur|construction|expansion)/u.test(programText)
+  const industrialCompany = /(manufactur|construction|hvac|food|production|equipment)/u.test(companyText)
+  const industryScore = digitalProgram && digitalCompany
+    ? 100
+    : industrialProgram && industrialCompany
+      ? 100
+      : 72
+  const usageTerms: Record<string, RegExp> = {
+    equipment: /(equipment|capital|tools)/u,
+    inventory: /(inventory|working capital|stock)/u,
+    hiring: /(hiring|hire|staff|employee|talent)/u,
+    advertising: /(marketing|advertis|customer acquisition|market development)/u,
+    rent: /(rent|operating cost|working capital)/u,
+    payroll: /(payroll|salary|wage|working capital)/u,
+  }
+  const matchedUsageCount = company.fundingUsage.filter(
+    (usage) => usageTerms[usage]?.test(program.eligibleUses?.toLowerCase() ?? ''),
+  ).length
+  const usageScore = company.fundingUsage.length === 0
+    ? 45
+    : matchedUsageCount > 0
+      ? Math.min(100, 70 + matchedUsageCount * 15)
+      : 55
+  const evidenceFields = [
+    company.legalName,
+    company.corporationDate,
+    company.legalStructure,
+    company.industry,
+    company.description,
+    company.productsOrServices,
+    company.mission,
+    company.teamIntro,
+    company.teamMembers.length ? 'team' : '',
+  ]
+  const evidenceScore = Math.round(
+    (evidenceFields.filter((field) => field.trim()).length / evidenceFields.length) * 100,
+  )
+
+  return Math.round(
+    locationScore * 0.25 +
+      incorporationScore * 0.15 +
+      stageScore * 0.15 +
+      industryScore * 0.2 +
+      usageScore * 0.15 +
+      evidenceScore * 0.1,
+  )
+}
+
+function calculateScoutingScores(
+  program: FundingProgramRecord,
+  company: CompanyRecord,
+  application: ApplicationRecord | null,
+) {
+  const programLocation = program.location.trim().toLowerCase()
+  const companyLocation = company.location.trim().toLowerCase()
+  const locationScore =
+    programLocation === 'canada' ||
+    (programLocation.length > 0 && companyLocation.includes(programLocation))
+      ? 100
+      : 55
+  const revenue = parseCompanyRevenue(company)
+  const financialScore = revenue > 0 ? Math.min(100, 60 + Math.round(revenue / 5000)) : 35
+  const companyProgramMatch = calculateProgramCompanyMatch(program, company)
+  const profileFields = [
+    company.description,
+    company.mission,
+    company.vision,
+    company.values,
+    company.legalStructure,
+    company.sector,
+    company.corporationDate,
+    company.teamIntro,
+    company.owner,
+  ]
+  const profileEvidenceScore = Math.round(
+    (profileFields.filter((field) => field.trim()).length / profileFields.length) * 100,
+  )
+  const evidenceScore = application?.progress ?? profileEvidenceScore
+  const scores: ScoutingScore[] = [
     {
-      label: 'Business profile',
-      score: 84,
-      change: '+6',
-      tone: 'strong',
-      description: 'Ownership, operations, market, and team information.',
-    },
-    {
-      label: 'Financial capacity',
-      score: 62,
-      change: '+2',
-      tone: 'developing',
-      description: 'Historical statements, assumptions, and cash flow.',
+      label: 'Eligibility fit',
+      score: locationScore,
+      weight: 30,
+      explanation:
+        locationScore >= 80
+          ? `${company.location || 'Company location'} aligns with ${program.location}.`
+          : `Program coverage is ${program.location}; confirm location eligibility before applying.`,
     },
     {
       label: 'Program fit',
-      score: 76,
-      change: '+9',
-      tone: 'strong',
-      description: 'Eligibility, use of funds, and measurable outcomes.',
+      score: companyProgramMatch,
+      weight: 25,
+      explanation: `Program requirements and company profile align at ${companyProgramMatch}%.`,
     },
     {
-      label: 'Application evidence',
-      score: 49,
-      change: '0',
-      tone: 'attention',
-      description: 'Quotes, contracts, policies, and supporting files.',
+      label: 'Company readiness',
+      score: company.readiness,
+      weight: 20,
+      explanation: `${company.name} profile readiness is ${company.readiness}%.`,
+    },
+    {
+      label: 'Financial capacity',
+      score: financialScore,
+      weight: 15,
+      explanation:
+        revenue > 0
+          ? `Monthly revenue is CAD ${revenue.toLocaleString('en-CA')}.`
+          : 'Monthly revenue has not been provided.',
+    },
+    {
+      label: 'Evidence readiness',
+      score: evidenceScore,
+      weight: 10,
+      explanation: application
+        ? `Linked application is ${application.progress}% complete.`
+        : `Company profile evidence is ${profileEvidenceScore}% complete.`,
     },
   ]
+  const overall = Math.round(
+    scores.reduce((total, item) => total + item.score * (item.weight / 100), 0),
+  )
 
-  const actionItems = [
-    {
-      id: 'financial-statements',
-      title: 'Upload the last two years of financial statements',
-      detail: 'Required by 8 of your 10 strongest funding matches.',
-      impact: '+8 pts',
-      priority: 'High priority',
-      due: 'This week',
-    },
-    {
-      id: 'cash-flow',
-      title: 'Complete a 12-month cash flow forecast',
-      detail: 'Add monthly revenue, payroll, and working-capital assumptions.',
-      impact: '+7 pts',
-      priority: 'High priority',
-      due: 'This week',
-    },
-    {
-      id: 'business-registration',
-      title: 'Confirm business registration details',
-      detail: 'Registration number and incorporation document verified.',
-      impact: '+4 pts',
-      priority: 'Complete',
-      due: 'Completed today',
-    },
-    {
-      id: 'project-quotes',
-      title: 'Add two vendor quotes for the proposed project',
-      detail: 'Quotes strengthen cost validation and procurement readiness.',
-      impact: '+5 pts',
-      priority: 'Recommended',
-      due: 'Next week',
-    },
-  ]
+  return { scores, overall }
+}
 
-  const history = [
-    { date: 'May 4', score: 68, label: 'Evidence review' },
-    { date: 'Apr 21', score: 61, label: 'Financial update' },
-    { date: 'Apr 8', score: 55, label: 'Company profile' },
-    { date: 'Mar 25', score: 42, label: 'First assessment' },
-  ]
+function getScoutingTone(score: number) {
+  if (score >= 85) return 'excellent'
+  if (score >= 70) return 'strong'
+  if (score >= 55) return 'watch'
+  return 'weak'
+}
 
-  function toggleTask(taskId: string) {
-    setCompletedTasks((current) =>
-      current.includes(taskId)
-        ? current.filter((id) => id !== taskId)
-        : [...current, taskId],
+function getScoutingConclusion(score: number) {
+  if (score >= 85) return 'Strong fit'
+  if (score >= 70) return 'Promising fit'
+  if (score >= 55) return 'Needs evidence'
+  return 'Weak fit'
+}
+
+function FundingReadinessPage() {
+  const { config } = usePlatformConfig()
+  const location = useLocation()
+  const enabledSourceIds = config.dataSources
+    .filter((source) => source.enabled && source.module === 'grants-loans')
+    .map((source) => source.id)
+  const programs = loadFundingPrograms(enabledSourceIds)
+  const companies = loadCompanyRecords()
+  const applications = loadApplications()
+  const settings = loadUserSettings()
+  const query = new URLSearchParams(location.search)
+  const [selectedProgramId, setSelectedProgramId] = useState(
+    query.get('program_id') ?? programs[0]?.id ?? '',
+  )
+  const [programTransitionDirection, setProgramTransitionDirection] = useState<
+    'next' | 'previous'
+  >('next')
+  const [selectedCompanyId, setSelectedCompanyId] = useState(
+    query.get('company_id') ?? settings.defaultCompanyId ?? companies[0]?.id ?? '',
+  )
+
+  useEffect(() => {
+    if (!programs.some((program) => program.id === selectedProgramId)) {
+      setSelectedProgramId(programs[0]?.id ?? '')
+    }
+  }, [programs, selectedProgramId])
+
+  useEffect(() => {
+    if (!companies.some((company) => company.id === selectedCompanyId)) {
+      setSelectedCompanyId(companies[0]?.id ?? '')
+    }
+  }, [companies, selectedCompanyId])
+
+  const selectedProgram =
+    programs.find((program) => program.id === selectedProgramId) ?? programs[0] ?? null
+  const selectedCompany =
+    companies.find((company) => company.id === selectedCompanyId) ?? companies[0] ?? null
+  const matchingApplication = selectedProgram && selectedCompany
+    ? applications.find(
+        (application) =>
+          application.programName === selectedProgram.name &&
+          application.company === selectedCompany.name,
+      ) ?? null
+    : null
+
+  if (!selectedProgram || !selectedCompany) {
+    return (
+      <section className="scouting-page">
+        <header className="scouting-header">
+          <div>
+            <p className="scouting-eyebrow">Funding Centre</p>
+            <h1>Funding Match Scouting Report</h1>
+            <p>Add a funding program and company before starting a match report.</p>
+          </div>
+          <Link className="scouting-header-action" to="/grants-loans">
+            Browse funding programs <Glyph type="arrow" />
+          </Link>
+        </header>
+        <div className="scouting-empty-state">
+          <Glyph type="search" />
+          <strong>Not enough data to scout a match</strong>
+          <p>Make sure the funding catalog and My Companies both have records.</p>
+        </div>
+      </section>
     )
   }
 
+  const scouting = calculateScoutingScores(
+    selectedProgram,
+    selectedCompany,
+    matchingApplication,
+  )
+  const tone = getScoutingTone(scouting.overall)
+  const conclusion = getScoutingConclusion(scouting.overall)
+  const strengths = [
+    scouting.scores[0].score >= 80 ? `${selectedCompany.location} is inside the program's coverage area.` : '',
+    scouting.scores[1].score >= 85 ? `The catalog identifies ${selectedProgram.name} as a strong program match.` : '',
+    scouting.scores[2].score >= 80 ? `${selectedCompany.name} has a strong company profile.` : '',
+    parseCompanyRevenue(selectedCompany) > 0 ? 'The company has reported operating revenue.' : '',
+    matchingApplication && matchingApplication.progress >= 80 ? 'A linked application is already close to submission readiness.' : '',
+  ].filter(Boolean)
+  const gaps = [
+    scouting.scores[0].score < 80 ? `Confirm that the company is eligible in ${selectedProgram.location}.` : '',
+    !selectedCompany.corporationDate ? 'Add the corporation date and incorporation evidence.' : '',
+    parseCompanyRevenue(selectedCompany) === 0 ? 'Add monthly revenue and financial assumptions.' : '',
+    !selectedCompany.teamIntro ? 'Add a team introduction so the reviewer can assess execution capacity.' : '',
+    matchingApplication && matchingApplication.progress < 85
+      ? `Complete the linked application, currently at ${matchingApplication.progress}%.`
+      : !matchingApplication
+        ? 'No application evidence is linked to this program and company yet.'
+        : '',
+  ].filter(Boolean)
+  const nextPath = matchingApplication
+    ? getQuickBuildPath(matchingApplication.id, selectedCompany.id)
+    : getQuickBuildMatchPath(selectedProgram.id, selectedCompany.id)
+  const programRequirements = splitScoutingList(
+    selectedProgram.eligibility,
+    'Detailed eligibility requirements have not been provided by this program source.',
+  )
+  const eligibleUses = splitScoutingList(
+    selectedProgram.eligibleUses,
+    'Eligible uses have not been provided by this program source.',
+  )
+  const targetCompanyTypes = splitScoutingList(
+    selectedProgram.targetCompanyTypes,
+    'Target company types have not been provided by this program source.',
+  )
+  const requiredEvidence = splitScoutingList(
+    selectedProgram.requiredEvidence,
+    'Required evidence has not been provided by this program source.',
+  )
+  const programMatchRows = programs.map((program) => {
+    const application = applications.find(
+      (candidate) =>
+        candidate.programName === program.name &&
+        candidate.company === selectedCompany.name,
+    ) ?? null
+    const matchScore = calculateScoutingScores(program, selectedCompany, application).overall
+    return {
+      program,
+      matchScore,
+      isMatch: matchScore >= 70,
+    }
+  })
+  const selectedCompanyFundingUsage = selectedCompany.fundingUsage
+    .map((usage) => scoutingFundingUsageLabels.get(usage) ?? usage)
+    .join(', ')
+  const selectedProgramIndex = Math.max(
+    0,
+    programs.findIndex((program) => program.id === selectedProgram.id),
+  )
+  const selectedProgramMatch = programMatchRows.find(
+    ({ program }) => program.id === selectedProgram.id,
+  ) ?? programMatchRows[0]
+  function changeProgram(offset: number) {
+    if (programs.length < 2) return
+    setProgramTransitionDirection(offset > 0 ? 'next' : 'previous')
+    const nextIndex = selectedProgramIndex + offset
+    if (nextIndex < 0 || nextIndex >= programs.length) return
+    setSelectedProgramId(programs[nextIndex].id)
+  }
+  const previousProgram = programs[selectedProgramIndex - 1]
+  const nextProgram = programs[selectedProgramIndex + 1]
+
   return (
-    <section className="readiness-page">
-      <header className="readiness-topbar">
+    <section className="scouting-page">
+      <header className="scouting-header">
         <div>
-          <p className="readiness-eyebrow">Funding Centre</p>
-          <h1>Discovery</h1>
-          <p>
-            See exactly what funders will evaluate and what to improve before you
-            apply.
-          </p>
+          <p className="scouting-eyebrow">Funding Centre / Discovery</p>
+          <h1>Funding Match Scouting Report</h1>
+          <p>Scout the fit between one funding program and one company before you build the application.</p>
         </div>
-        <button
-          type="button"
-          className="readiness-assessment-button"
-          onClick={() => setActiveTab('actions')}
-        >
-          <Glyph type="spark" />
-          Update assessment
-        </button>
+        <Link className="scouting-header-action" to="/grants-loans">
+          Browse programs <Glyph type="arrow" />
+        </Link>
       </header>
 
-      <section className="readiness-hero">
-        <div className="readiness-score-ring" aria-label="Readiness score 68 out of 100">
-          <div>
-            <strong>68</strong>
-            <span>out of 100</span>
+      <div className="scouting-report-stage">
+        {previousProgram || nextProgram ? (
+          <>
+            {previousProgram ? (
+              <div className="scouting-card-peek is-previous" aria-hidden="true">
+                <span>{previousProgram.name}</span>
+              </div>
+            ) : null}
+            {nextProgram ? (
+              <div className="scouting-card-peek is-next" aria-hidden="true">
+                <span>{nextProgram.name}</span>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+        <article
+          key={selectedProgram.id}
+          className={`scouting-report-card is-transition-${programTransitionDirection}`}
+        >
+        <header className="scouting-report-card-header">
+          <div className="scouting-report-card-title">
+            <span>Program matching</span>
+            <h2>{selectedProgram.name}</h2>
+            <p>{selectedProgram.provider} · {selectedProgram.type} · {selectedProgram.location}</p>
           </div>
-        </div>
-        <div className="readiness-hero-copy">
-          <span className="readiness-status">Application building</span>
-          <h2>You have a fundable story. Your evidence needs work.</h2>
-          <p>
-            Your company and program fit are strong. Completing the two financial
-            tasks below could move you into the application-ready range.
-          </p>
-          <div className="readiness-hero-meta">
-            <span>
-              <strong>+13</strong> potential points
-            </span>
-            <span>
-              <strong>4</strong> priority actions
-            </span>
-            <span>
-              <strong>10</strong> matching programs
-            </span>
+          <div className="scouting-program-pager" aria-label="Funding program navigation">
+            <button type="button" onClick={() => changeProgram(-1)} disabled={selectedProgramIndex === 0}>
+              <span aria-hidden="true">‹</span> Previous
+            </button>
+            <strong>{selectedProgramIndex + 1} / {programs.length}</strong>
+            <button type="button" onClick={() => changeProgram(1)} disabled={selectedProgramIndex === programs.length - 1}>
+              Next <span aria-hidden="true">›</span>
+            </button>
           </div>
-        </div>
-        <div className="readiness-next-milestone">
-          <span>Next milestone</span>
-          <strong>75</strong>
-          <p>Application ready</p>
-          <div>
-            <i />
-          </div>
-          <small>7 points to go</small>
-        </div>
-      </section>
-
-      <nav className="readiness-tabs" aria-label="Funding readiness views">
-        {(
-          [
-            ['overview', 'Overview'],
-            ['actions', 'Action plan'],
-            ['history', 'Score history'],
-          ] as const
-        ).map(([tabId, label]) => (
-          <button
-            key={tabId}
-            type="button"
-            className={activeTab === tabId ? 'is-active' : ''}
-            aria-pressed={activeTab === tabId}
-            onClick={() => setActiveTab(tabId)}
+          <label className="scouting-company-selector">
+            <span>Company</span>
+            <select value={selectedCompany.id} onChange={(event) => setSelectedCompanyId(event.target.value)}>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>{company.name}</option>
+              ))}
+            </select>
+          </label>
+          <span
+            className={`scouting-report-match-status ${selectedProgramMatch?.isMatch ? 'is-match' : ''}`}
           >
-            {label}
-          </button>
-        ))}
-      </nav>
+            <span aria-hidden="true">{selectedProgramMatch?.isMatch ? '✓' : '!'}</span>
+            {selectedProgramMatch?.matchScore ?? scouting.overall}% match
+          </span>
+        </header>
 
-      {activeTab === 'overview' ? (
-        <div className="readiness-overview">
-          <section className="readiness-panel readiness-area-panel">
-            <div className="readiness-panel-heading">
-              <div>
-                <span>Assessment breakdown</span>
-                <h2>Readiness by area</h2>
-              </div>
-              <p>Updated today</p>
-            </div>
-            <div className="readiness-area-grid">
-              {readinessAreas.map((area) => (
-                <article key={area.label} className={`tone-${area.tone}`}>
-                  <div className="readiness-area-score">
-                    <strong>{area.score}</strong>
-                    <span>{area.change === '0' ? 'No change' : `${area.change} pts`}</span>
-                  </div>
-                  <h3>{area.label}</h3>
-                  <p>{area.description}</p>
-                  <div className="readiness-progress">
-                    <i style={{ width: `${area.score}%` }} />
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <div className="readiness-two-column">
-            <section className="readiness-panel">
-              <div className="readiness-panel-heading">
-                <div>
-                  <span>Highest impact</span>
-                  <h2>Priority action plan</h2>
-                </div>
-                <button type="button" onClick={() => setActiveTab('actions')}>
-                  View all
-                </button>
-              </div>
-              <div className="readiness-action-list">
-                {actionItems.slice(0, 3).map((action) => {
-                  const isComplete = completedTasks.includes(action.id)
-                  return (
-                    <label
-                      key={action.id}
-                      className={`readiness-action ${isComplete ? 'is-complete' : ''}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isComplete}
-                        onChange={() => toggleTask(action.id)}
-                      />
-                      <span className="readiness-action-check" />
-                      <span className="readiness-action-copy">
-                        <strong>{action.title}</strong>
-                        <small>{action.detail}</small>
-                      </span>
-                      <span className="readiness-impact">{action.impact}</span>
-                    </label>
-                  )
-                })}
-              </div>
-            </section>
-
-            <section className="readiness-panel readiness-match-panel">
-              <div className="readiness-panel-heading">
-                <div>
-                  <span>Based on your profile</span>
-                  <h2>Strongest funding matches</h2>
-                </div>
-                <Link to="/grants-loans">Explore</Link>
-              </div>
-              <article>
-                <div>
-                  <span className="readiness-match-score">92% match</span>
-                  <small>Growth &amp; innovation</small>
-                </div>
-                <h3>Ontario Business Expansion Fund</h3>
-                <p>Up to $100,000 · Deadline in 18 days</p>
-              </article>
-              <article>
-                <div>
-                  <span className="readiness-match-score">86% match</span>
-                  <small>Digital adoption</small>
-                </div>
-                <h3>SME Technology Adoption Program</h3>
-                <p>Up to $75,000 · Rolling intake</p>
-              </article>
-            </section>
+        <section className={`scouting-hero is-${tone}`}>
+        <div className="scouting-score-badge" aria-label={`Match score ${scouting.overall} out of 100`}>
+          <span>Match score</span>
+          <strong>{scouting.overall}</strong>
+          <small>/ 100</small>
+        </div>
+        <div className="scouting-hero-copy">
+          <span className="scouting-fit-badge">{conclusion}</span>
+          <h2>{selectedProgram.name} × {selectedCompany.name}</h2>
+          <p>
+            {scouting.overall >= 70
+              ? 'The profile shows a credible route to this program. Close the evidence gaps before submitting.'
+              : 'The current profile needs more evidence before this program should become a priority.'}
+          </p>
+          <div className="scouting-hero-meta">
+            <span><strong>{selectedProgram.provider}</strong> provider</span>
+            <span><strong>{selectedProgram.type}</strong> funding type</span>
+            <span><strong>{selectedProgram.location}</strong> coverage</span>
           </div>
         </div>
-      ) : null}
-
-      {activeTab === 'actions' ? (
-        <section className="readiness-panel readiness-action-plan">
-          <div className="readiness-panel-heading">
-            <div>
-              <span>Your route to 75+</span>
-              <h2>Recommended action plan</h2>
-            </div>
-            <p>{completedTasks.length} of {actionItems.length} complete</p>
-          </div>
-          <div className="readiness-action-list">
-            {actionItems.map((action) => {
-              const isComplete = completedTasks.includes(action.id)
-              return (
-                <label
-                  key={action.id}
-                  className={`readiness-action readiness-action-detailed ${
-                    isComplete ? 'is-complete' : ''
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isComplete}
-                    onChange={() => toggleTask(action.id)}
-                  />
-                  <span className="readiness-action-check" />
-                  <span className="readiness-action-copy">
-                    <em>{action.priority}</em>
-                    <strong>{action.title}</strong>
-                    <small>{action.detail}</small>
-                  </span>
-                  <span className="readiness-action-date">{action.due}</span>
-                  <span className="readiness-impact">{action.impact}</span>
-                </label>
-              )
-            })}
-          </div>
+        <div className="scouting-verdict">
+          <span>Scout's verdict</span>
+          <strong>{gaps.length ? 'Build evidence next' : 'Ready to build'}</strong>
+          <p>{gaps.length} gap{gaps.length === 1 ? '' : 's'} to close before launch.</p>
+        </div>
         </section>
-      ) : null}
 
-      {activeTab === 'history' ? (
-        <section className="readiness-panel readiness-history-panel">
-          <div className="readiness-panel-heading">
+        <div className="scouting-profile-grid">
+        <article className="scouting-card">
+          <div className="scouting-card-heading">
             <div>
-              <span>Last 90 days</span>
-              <h2>Readiness score history</h2>
+              <span>Funding program profile</span>
+              <h2>{selectedProgram.name}</h2>
             </div>
-            <strong>+26 points</strong>
+            <a href={selectedProgram.url} target="_blank" rel="noreferrer">Official source <Glyph type="arrow" /></a>
           </div>
-          <div className="readiness-history-chart">
-            {history
-              .slice()
-              .reverse()
-              .map((entry) => (
-                <article key={entry.date}>
-                  <div>
-                    <i style={{ height: `${entry.score}%` }} />
-                    <strong>{entry.score}</strong>
-                  </div>
-                  <span>{entry.date}</span>
-                  <small>{entry.label}</small>
-                </article>
-              ))}
+          <dl className="scouting-facts">
+            <div><dt>Provider</dt><dd>{selectedProgram.provider}</dd></div>
+            <div><dt>Maximum funding</dt><dd>{formatDashboardCurrency(selectedProgram.amount)}</dd></div>
+            <div><dt>Deadline</dt><dd>{selectedProgram.deadline}</dd></div>
+            <div><dt>Program coverage</dt><dd>{selectedProgram.location}</dd></div>
+          </dl>
+          <div className="scouting-detail-columns">
+            <div><h3>Requirements</h3><ul>{programRequirements.map((item) => <li key={item}>{item}</li>)}</ul></div>
+            <div><h3>Eligible uses</h3><ul>{eligibleUses.map((item) => <li key={item}>{item}</li>)}</ul></div>
           </div>
+          <div className="scouting-detail-block"><h3>Best suited to</h3><p>{targetCompanyTypes[0]}</p></div>
+          <div className="scouting-detail-block"><h3>Required evidence</h3><p>{requiredEvidence[0]}</p></div>
+        </article>
+
+        <article className="scouting-card scouting-company-card">
+          <div className="scouting-card-heading">
+            <div>
+              <span>Company profile</span>
+              <h2>{selectedCompany.name}</h2>
+            </div>
+            <Link to="/my-companies">Edit company <Glyph type="arrow" /></Link>
+          </div>
+          <p className="scouting-company-description">{selectedCompany.description || 'No company description has been added yet.'}</p>
+          <dl className="scouting-facts">
+            <div><dt>Legal structure</dt><dd>{selectedCompany.legalStructure || 'Not provided'}</dd></div>
+            <div><dt>Sector</dt><dd>{selectedCompany.sector || 'Not provided'}</dd></div>
+            <div><dt>Industry</dt><dd>{selectedCompany.industry || 'Not provided'}</dd></div>
+            <div><dt>Stage</dt><dd>{selectedCompany.stage || 'Not provided'}</dd></div>
+            <div><dt>Corporation date</dt><dd>{selectedCompany.corporationDate || 'Not provided'}</dd></div>
+            <div><dt>Location</dt><dd>{selectedCompany.location || 'Not provided'}</dd></div>
+            <div><dt>Monthly revenue</dt><dd>{formatDashboardCurrency(parseCompanyRevenue(selectedCompany))}</dd></div>
+            <div><dt>Number of full-time employees</dt><dd>{selectedCompany.employees || 'Not provided'}</dd></div>
+            <div><dt>Profile readiness</dt><dd>{selectedCompany.readiness}%</dd></div>
+          </dl>
+          <div className="scouting-company-detail-grid">
+            <div className="scouting-company-note">
+              <span>Products or services</span>
+              <p>{selectedCompany.productsOrServices || 'No products or services have been added yet.'}</p>
+            </div>
+            <div className="scouting-company-note">
+              <span>Funding usage</span>
+              <p>{selectedCompanyFundingUsage || 'No funding usage has been selected yet.'}</p>
+            </div>
+            <div className="scouting-company-note">
+              <span>Mission and vision</span>
+              <p>{selectedCompany.mission || 'No mission has been added yet.'}</p>
+              <p>{selectedCompany.vision || 'No vision has been added yet.'}</p>
+            </div>
+            <div className="scouting-company-note">
+              <span>Busy and slow periods</span>
+              <p>Busy: {formatCompanyPeriods(selectedCompany.busyPeriods) || 'Not provided'}</p>
+              <p>Slow: {formatCompanyPeriods(selectedCompany.slowPeriods) || 'Not provided'}</p>
+            </div>
+          </div>
+          <div className="scouting-company-note">
+            <span>Values and team</span>
+            <p>{selectedCompany.values || 'No values have been added yet.'}</p>
+            <p>{selectedCompany.teamIntro || 'No team introduction has been added yet.'}</p>
+            {selectedCompany.teamMembers.length > 0 ? (
+              <ul className="scouting-team-list">
+                {selectedCompany.teamMembers.map((member) => (
+                  <li key={member.id}>
+                    <strong>{member.name}</strong>
+                    <span>{member.title} · {member.responsibilities}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+          {matchingApplication ? (
+            <div className="scouting-linked-application"><Glyph type="clipboard" /><span>Linked application <strong>{matchingApplication.progress}% complete</strong></span></div>
+          ) : (
+            <div className="scouting-linked-application is-muted"><Glyph type="clipboard" /><span>No linked application for this match</span></div>
+          )}
+        </article>
+        </div>
+
+        <section className="scouting-card scouting-scorecard">
+        <div className="scouting-card-heading">
+          <div><span>Scouting evaluation</span><h2>Why this score?</h2></div>
+          <small>Rules-based and explainable</small>
+        </div>
+        <div className="scouting-score-grid">
+          {scouting.scores.map((item) => (
+            <article key={item.label}>
+              <div><strong>{item.score}</strong><span>{item.weight}% weight</span></div>
+              <h3>{item.label}</h3>
+              <div className="scouting-score-track"><i style={{ width: `${item.score}%` }} /></div>
+              <p>{item.explanation}</p>
+            </article>
+          ))}
+        </div>
         </section>
-      ) : null}
+
+        <div className="scouting-insight-grid">
+        <section className="scouting-card scouting-insight-card is-strength">
+          <div className="scouting-card-heading"><div><span>Positive signals</span><h2>Strengths</h2></div><Glyph type="spark" /></div>
+          <ul>{(strengths.length ? strengths : ['Add more company information to identify stronger signals.']).map((item) => <li key={item}>{item}</li>)}</ul>
+        </section>
+        <section className="scouting-card scouting-insight-card is-gap">
+          <div className="scouting-card-heading"><div><span>Reviewer concerns</span><h2>Gaps to close</h2></div><Glyph type="search" /></div>
+          <ul>{(gaps.length ? gaps : ['No major gaps detected in the current profile.']).map((item) => <li key={item}>{item}</li>)}</ul>
+        </section>
+        </div>
+
+        <section className="scouting-next-action">
+        <div><span>Recommended next move</span><h2>{gaps.length ? gaps[0] : 'Launch the application build from this match.'}</h2><p>The report will keep using the selected program and company as its source of truth.</p></div>
+        <Link to={nextPath}>{matchingApplication ? 'Continue application' : 'Build application'} <Glyph type="arrow" /></Link>
+        </section>
+        </article>
+      </div>
     </section>
   )
 }
@@ -7666,7 +8423,14 @@ function QuickBuildPage({
   const generationRun = useRef(0)
   const appIdFromQuery =
     new URLSearchParams(location.search).get('app_id')?.trim() ?? ''
+  const companyIdFromQuery =
+    new URLSearchParams(location.search).get('company_id')?.trim() ?? ''
+  const programIdFromQuery =
+    new URLSearchParams(location.search).get('program_id')?.trim() ?? ''
   const hasApplicationQuery = Boolean(appIdFromQuery)
+  const hasBuildContextQuery = Boolean(
+    appIdFromQuery || companyIdFromQuery || programIdFromQuery,
+  )
   const fundingProgramCatalog = useMemo(
     () =>
       loadFundingPrograms(
@@ -7693,7 +8457,7 @@ function QuickBuildPage({
   ).size
 
   useEffect(() => {
-    if (hasApplicationQuery) return
+    if (hasBuildContextQuery) return
 
     const savedDraft = window.localStorage.getItem(draftStorageKey)
     if (!savedDraft) return
@@ -7715,7 +8479,7 @@ function QuickBuildPage({
     } catch {
       removePersistentItem(draftStorageKey)
     }
-  }, [hasApplicationQuery])
+  }, [hasBuildContextQuery])
 
   useEffect(() => {
     if (
@@ -7744,6 +8508,11 @@ function QuickBuildPage({
     }
 
     const matchingReport = matchingApplication.strategicReviewReports?.at(-1)
+    const matchingCompany = loadCompanyRecords().find(
+      (company) =>
+        company.id === companyIdFromQuery ||
+        company.name === matchingApplication.company,
+    )
 
     void restoreApplicationWorkspace(
       matchingApplication,
@@ -7751,11 +8520,51 @@ function QuickBuildPage({
         ? `${matchingReport.generatedPackage.title} opened in Strategic Report.`
         : `${matchingApplication.title} restored from My Applications.`,
       matchingReport,
+      matchingCompany,
     )
-  }, [appIdFromQuery, hasApplicationQuery])
+  }, [appIdFromQuery, companyIdFromQuery, hasApplicationQuery])
 
   useEffect(() => {
-    if (hasApplicationQuery) return
+    if (
+      hasApplicationQuery ||
+      (!companyIdFromQuery && !programIdFromQuery)
+    ) return
+
+    const matchingCompany = loadCompanyRecords().find(
+      (company) => company.id === companyIdFromQuery,
+    )
+    const matchingProgram = fundingProgramCatalog.find(
+      (program) => program.id === programIdFromQuery,
+    )
+
+    if (matchingProgram) {
+      setProgramName(matchingProgram.name)
+      setProgramUrl(matchingProgram.url)
+      setAmount(matchingProgram.amount.toLocaleString(locale))
+    }
+
+    if (matchingCompany) {
+      setBusinessName(matchingCompany.name)
+      setFullName(matchingCompany.owner)
+      setBusinessIdea(matchingCompany.description)
+      setTeamIntro(
+        matchingCompany.teamIntro ||
+          `${matchingCompany.owner} leads a ${matchingCompany.employees || 'growing'}-person ${
+            matchingCompany.industry ? matchingCompany.industry.toLowerCase() : 'business'
+          } team in ${matchingCompany.location || 'Canada'}.`,
+      )
+      setFormMessage(`${matchingCompany.name} and the selected funding program are ready.`)
+    }
+  }, [
+    companyIdFromQuery,
+    fundingProgramCatalog,
+    hasApplicationQuery,
+    locale,
+    programIdFromQuery,
+  ])
+
+  useEffect(() => {
+    if (hasBuildContextQuery) return
 
     const selectedProgram = window.localStorage.getItem(selectedFundingProgramStorageKey)
     if (!selectedProgram) return
@@ -7771,10 +8580,10 @@ function QuickBuildPage({
     } finally {
       removePersistentItem(selectedFundingProgramStorageKey)
     }
-  }, [hasApplicationQuery])
+  }, [hasBuildContextQuery])
 
   useEffect(() => {
-    if (hasApplicationQuery) return
+    if (hasBuildContextQuery) return
 
     const selectedTemplate = window.localStorage.getItem(selectedTemplateStorageKey)
     if (!selectedTemplate) return
@@ -7789,7 +8598,7 @@ function QuickBuildPage({
     } finally {
       removePersistentItem(selectedTemplateStorageKey)
     }
-  }, [hasApplicationQuery])
+  }, [hasBuildContextQuery])
 
   useEffect(() => {
     if (initialView === 'workspace') {
@@ -8161,8 +8970,11 @@ function QuickBuildPage({
     application: ApplicationRecord,
     message?: string,
     report?: StrategicReviewReport,
+    company?: CompanyRecord,
   ) {
     const matchedProgram = findFundingProgramByName(application.programName)
+    const matchedCompany =
+      company ?? loadCompanyRecords().find((item) => item.name === application.company)
     const selectedReport =
       report ?? application.strategicReviewReports?.at(-1) ?? undefined
     const packageRecord = selectedReport?.generatedPackage
@@ -8171,8 +8983,17 @@ function QuickBuildPage({
     setProgramName(application.programName)
     setProgramUrl(application.programUrl || matchedProgram?.url || '')
     setAmount(application.amount.toLocaleString(locale))
-    setBusinessName(application.company)
-    setFullName(application.owner)
+    setBusinessName(matchedCompany?.name ?? application.company)
+    setFullName(matchedCompany?.owner ?? application.owner)
+    setBusinessIdea(matchedCompany?.description ?? '')
+    setTeamIntro(
+      matchedCompany?.teamIntro ||
+        (matchedCompany
+          ? `${matchedCompany.owner} leads a ${matchedCompany.employees || 'growing'}-person ${
+              matchedCompany.industry ? matchedCompany.industry.toLowerCase() : 'business'
+            } team in ${matchedCompany.location || 'Canada'}.`
+          : ''),
+    )
     if (packageRecord) {
       const applyPackage = (nextPackage: GeneratedPackage) => {
         setGeneratedPackage(nextPackage)
