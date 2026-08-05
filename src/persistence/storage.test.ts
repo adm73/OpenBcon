@@ -37,7 +37,7 @@ describe('browser persistence scopes', () => {
     expect(isPersistentStateKey('bconomics-session')).toBe(false)
   })
 
-  it('keeps settings local without sending them to the remote store', () => {
+  it('syncs user settings while keeping billing history local', () => {
     expect(isPersistentStateKey('bconomics-platform-config-v1')).toBe(true)
     expect(isPersistentStateKey('bconomics-user-settings-v1')).toBe(true)
     expect(isPersistentStateKey('bconomics-billing-transactions-v1')).toBe(true)
@@ -46,9 +46,7 @@ describe('browser persistence scopes', () => {
     ).toBe(true)
 
     expect(isRemotePersistentStateKey('bconomics-platform-config-v1')).toBe(true)
-    expect(isRemotePersistentStateKey('bconomics-user-settings-v1')).toBe(
-      false,
-    )
+    expect(isRemotePersistentStateKey('bconomics-user-settings-v1')).toBe(true)
     expect(
       isRemotePersistentStateKey('bconomics-billing-transactions-v1'),
     ).toBe(false)

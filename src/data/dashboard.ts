@@ -1,12 +1,20 @@
 export type DashboardGlyph =
   | 'home'
+  | 'compass'
   | 'grid'
   | 'search'
   | 'bolt'
   | 'currency'
   | 'file'
+  | 'report'
+  | 'building'
+  | 'bookmark'
+  | 'clipboard'
+  | 'template'
+  | 'network'
   | 'user'
   | 'settings'
+  | 'shield'
   | 'logout'
   | 'arrow'
   | 'spark'
@@ -78,7 +86,7 @@ export const dashboardGroups: DashboardGroup[] = [
       {
         id: 'discovery',
         label: 'Discovery',
-        icon: 'spark',
+        icon: 'compass',
         badgeIcon: 'spark',
         description: 'Discover funding opportunities, readiness signals, and follow-up recommendations.',
         intro:
@@ -98,7 +106,7 @@ export const dashboardGroups: DashboardGroup[] = [
       {
         id: 'strategic-reports',
         label: 'Strategic Reports',
-        icon: 'grid',
+        icon: 'report',
         badgeIcon: 'spark',
         description: 'Open strategic reports, section progress, and editable package output.',
         intro:
@@ -111,19 +119,19 @@ export const dashboardGroups: DashboardGroup[] = [
     title: 'My Workspace',
     items: [
       {
-        id: 'my-company',
-        label: 'My Company',
-        icon: 'grid',
+        id: 'my-companies',
+        label: 'My Companies',
+        icon: 'building',
         badgeIcon: 'user',
         description: 'Browse company profiles, legal information, contact data, and business details.',
         intro:
           'This listing page contains the default company-related records for the active workspace.',
-        entries: makeEntries('My Company', 'company profile'),
+        entries: makeEntries('My Companies', 'company profile'),
       },
       {
         id: 'saved-programs',
         label: 'Saved Programs',
-        icon: 'file',
+        icon: 'bookmark',
         badgeIcon: 'user',
         description: 'Access every saved grant or loan program that has been bookmarked for follow-up.',
         intro:
@@ -133,7 +141,7 @@ export const dashboardGroups: DashboardGroup[] = [
       {
         id: 'my-applications',
         label: 'My Applications',
-        icon: 'file',
+        icon: 'clipboard',
         badgeIcon: 'spark',
         description: 'List application drafts, submitted funding applications, and their current statuses.',
         intro:
@@ -148,7 +156,7 @@ export const dashboardGroups: DashboardGroup[] = [
       {
         id: 'grants-loans',
         label: 'Grants & Loans',
-        icon: 'search',
+        icon: 'currency',
         badgeIcon: 'user',
         description: 'Review all grant and loan opportunities currently available in the discovery workspace.',
         intro:
@@ -158,7 +166,7 @@ export const dashboardGroups: DashboardGroup[] = [
       {
         id: 'templates',
         label: 'Templates',
-        icon: 'file',
+        icon: 'template',
         badgeIcon: 'spark',
         description: 'Open reusable templates for plans, outreach, applications, and custom workflows.',
         intro:
@@ -168,7 +176,7 @@ export const dashboardGroups: DashboardGroup[] = [
       {
         id: 'social-resources',
         label: 'Social Resources',
-        icon: 'user',
+        icon: 'network',
         badgeIcon: 'spark',
         description: 'Discover investors, funds, advisors, accelerators, and companies in the network.',
         intro:

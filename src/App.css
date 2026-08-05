@@ -12322,38 +12322,53 @@
   font-size: 0.85rem;
 }
 
-.admin-source-status {
+.admin-source-status-bar {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.admin-source-activity {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   color: #7d8596;
   font-size: 0.54rem;
   font-weight: 800;
-  text-transform: capitalize;
 }
 
-.admin-source-status i {
+.admin-source-activity i {
   width: 6px;
   height: 6px;
+  flex: 0 0 auto;
   border-radius: 50%;
   background: #aab0bd;
 }
 
-.admin-source-status.is-connected {
+.admin-source-activity.is-active {
   color: #267c50;
 }
 
-.admin-source-status.is-connected i {
+.admin-source-activity.is-active i {
   background: #45b77c;
   box-shadow: 0 0 0 3px rgba(69, 183, 124, 0.12);
 }
 
-.admin-source-status.is-error {
-  color: #b3484e;
+.admin-source-last-sync {
+  overflow: hidden;
+  color: #7d8596;
+  font-size: 0.5rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  text-align: right;
+  white-space: nowrap;
 }
 
-.admin-source-status.is-error i {
-  background: #d55b61;
+.admin-source-last-sync small {
+  margin-right: 4px;
+  color: #a0a7b5;
+  font-size: inherit;
+  font-weight: 800;
 }
 
 .admin-source-toggle input {
@@ -12363,8 +12378,13 @@
 }
 
 .admin-source-actions {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+
+.admin-source-action-buttons {
   display: flex;
-  justify-content: end;
   gap: 5px;
 }
 
@@ -13984,6 +14004,110 @@
   white-space: nowrap;
 }
 
+.funding-directory-admin[type='button'] {
+  font: inherit;
+  cursor: pointer;
+}
+
+.funding-source-picker-dialog {
+  width: min(100%, 560px);
+}
+
+.funding-source-picker-list {
+  display: grid;
+  gap: 8px;
+  margin: 20px 0 14px;
+}
+
+.funding-source-picker-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 11px;
+  border: 1px solid #dfe4ed;
+  border-radius: 11px;
+  background: #ffffff;
+  color: #273047;
+  text-align: left;
+  cursor: pointer;
+}
+
+.funding-source-picker-option:hover,
+.funding-source-picker-option.is-selected {
+  border-color: #6877db;
+  background: #f4f6ff;
+}
+
+.funding-source-picker-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #e7f5eb;
+  color: #23824f;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.funding-source-picker-icon.is-airtable {
+  background: #fff1e7;
+  color: #d06421;
+}
+
+.funding-source-picker-icon.is-all {
+  background: #eef1ff;
+  color: #5967cf;
+  font-size: 0.54rem;
+}
+
+.funding-source-picker-option > span:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.funding-source-picker-option strong {
+  overflow: hidden;
+  font-size: 0.64rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.funding-source-picker-option small {
+  color: #81899a;
+  font-size: 0.52rem;
+}
+
+.funding-source-picker-active {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #e9f6ef;
+  color: #34765a;
+  font-size: 0.48rem;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.funding-source-picker-empty {
+  padding: 12px;
+  border: 1px dashed #d8dde6;
+  border-radius: 10px;
+  color: #747c8d;
+  font-size: 0.58rem;
+  text-align: center;
+}
+
+.funding-source-picker-admin-link {
+  display: inline-flex;
+  color: #5967cf;
+  font-size: 0.58rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .funding-directory-admin svg {
   width: 15px;
 }
@@ -14443,7 +14567,7 @@
     display: none;
   }
 
-  .admin-source-status {
+  .admin-source-status-bar {
     grid-column: 2;
   }
 
@@ -14458,7 +14582,7 @@
 
   .admin-source-actions {
     grid-column: 2 / -1;
-    justify-content: start;
+    justify-items: start;
   }
 
   .admin-source-editor-backdrop {

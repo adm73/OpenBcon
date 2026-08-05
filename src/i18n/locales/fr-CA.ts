@@ -14,7 +14,7 @@ const frCA = {
       fundingReadiness: 'Découverte',
       quickBuild: 'Création rapide',
       advisoryHub: 'Rapports stratégiques',
-      myCompany: 'Mon entreprise',
+      myCompany: 'Mes entreprises',
       savedPrograms: 'Programmes enregistrés',
       myApplications: 'Mes demandes',
       grantsLoans: 'Subventions et prêts',
@@ -123,7 +123,7 @@ const frCA = {
     useStructure: 'Utiliser la structure {{platform}}',
     clear: 'Effacer',
     continueBusiness: 'Continuer vers le profil de l’entreprise',
-    importCompany: 'Importer Mon entreprise',
+    importCompany: 'Importer Mes entreprises',
     businessNarrative: 'Récit de l’entreprise',
     fundableStory: 'Donnez à l’IA un récit qui peut être financé.',
     reviewPackage: 'Réviser le dossier',
@@ -142,7 +142,7 @@ const frCA = {
       ],
       business: [
         'Résumez l’entreprise dans le langage d’un réviseur, pas d’un argumentaire.',
-        'Utilisez Mon entreprise pour éviter de ressaisir les informations clés.',
+        'Utilisez Mes entreprises pour éviter de ressaisir les informations clés.',
         'Donnez à l’IA assez de détails pour construire un dossier d’exécution crédible.',
       ],
       review: [

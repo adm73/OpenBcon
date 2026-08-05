@@ -96,7 +96,7 @@ The current repository snapshot includes the landing experience, dashboard works
       <sub>Discovery</sub>
     </td>
     <td align="center">
-      <img src="./public/images/openbcon-screenshot-05.png" alt="My Company page" width="100%" /><br />
+      <img src="./public/images/openbcon-screenshot-05.png" alt="My Companies page" width="100%" /><br />
       <sub>Quick Build</sub>
     </td>
     <td align="center">
@@ -107,7 +107,7 @@ The current repository snapshot includes the landing experience, dashboard works
   <tr>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-07.png" alt="My Applications page" width="100%" /><br />
-      <sub>My Company</sub>
+      <sub>My Companies</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-08.png" alt="Grants and Loans page" width="100%" /><br />

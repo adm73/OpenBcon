@@ -124,7 +124,7 @@ const navigationItemTranslationKeys: Record<string, string> = {
   discovery: 'navigation.items.fundingReadiness',
   'quick-build': 'navigation.items.quickBuild',
   'strategic-reports': 'navigation.items.advisoryHub',
-  'my-company': 'navigation.items.myCompany',
+  'my-companies': 'navigation.items.myCompany',
   'saved-programs': 'navigation.items.savedPrograms',
   'my-applications': 'navigation.items.myApplications',
   'grants-loans': 'navigation.items.grantsLoans',
@@ -199,6 +199,7 @@ import {
 } from '../data/dashboard'
 import {
   hydratePersistentStorage,
+  persistPersistentItem,
   removePersistentItem,
   setPersistentItem,
 } from '../persistence/storage'
@@ -206,6 +207,8 @@ import {
 function Glyph({ type }: { type: DashboardGlyph }) {
   const paths = {
     home: 'M3 10.5 12 3l9 7.5v8.25a.75.75 0 0 1-.75.75h-4.5v-5.25h-3v5.25H3.75a.75.75 0 0 1-.75-.75V10.5Z',
+    compass:
+      'M12 2.75a9.25 9.25 0 1 0 0 18.5 9.25 9.25 0 0 0 0-18.5Zm0 1.5a7.75 7.75 0 1 1 0 15.5 7.75 7.75 0 0 1 0-15.5Zm3.7 3.05-2.1 4.2-4.2 2.1 2.1-4.2 4.2-2.1Z',
     grid: 'M3 3h7v7H3V3Zm11 0h7v7h-7V3ZM3 14h7v7H3v-7Zm11 0h7v7h-7v-7Z',
     search:
       'M10.5 4.5a6 6 0 1 0 3.782 10.657l4.53 4.53 1.06-1.06-4.53-4.53A6 6 0 0 0 10.5 4.5Zm0 1.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z',
@@ -213,10 +216,24 @@ function Glyph({ type }: { type: DashboardGlyph }) {
     currency:
       'M12 3.25c-2.66 0-4.75 1.52-4.75 3.5 0 1.9 1.67 2.89 4.52 3.48 2.65.55 3.73 1.05 3.73 2.2 0 1.21-1.38 2.07-3.5 2.07-2.03 0-3.5-.79-4.27-2.18l-1.33.76c.99 1.79 2.75 2.73 4.85 2.88v1.79h1.5v-1.81c2.78-.22 4.75-1.74 4.75-3.72 0-2.22-1.73-3.17-4.87-3.82-2.42-.5-3.38-.99-3.38-1.92 0-1 1.18-1.79 3.18-1.79 1.74 0 3 .6 3.76 1.79l1.28-.82c-.93-1.5-2.38-2.31-4.29-2.48v-1.71h-1.5v1.78Z',
     file: 'M6 3.75A1.75 1.75 0 0 1 7.75 2h6.19L19 7.06V20.25A1.75 1.75 0 0 1 17.25 22H7.75A1.75 1.75 0 0 1 6 20.25V3.75Zm7 0v4h4',
+    report:
+      'M6 3.75A1.75 1.75 0 0 1 7.75 2h6.19L19 7.06v13.19A1.75 1.75 0 0 1 17.25 22H7.75A1.75 1.75 0 0 1 6 20.25V3.75ZM14 3.8V8h4.2L14 3.8ZM9 11h6v1.5H9V11Zm0 3h6v1.5H9V14Zm0 3h4v1.5H9V17Z',
+    building:
+      'M4 21V5.25A1.25 1.25 0 0 1 5.25 4h7.5A1.25 1.25 0 0 1 14 5.25V8h4.75A1.25 1.25 0 0 1 20 9.25V21h-1.5V9.5h-4.5V21H4Zm1.5-1.5h7V5.5h-7v14Zm2-11h1.5V10H7.5V8.5Zm3 0H12V10h-1.5V8.5Zm-3 3h1.5V13H7.5v-1.5Zm3 0H12V13h-1.5v-1.5Z',
+    bookmark:
+      'M6 3.75A1.75 1.75 0 0 1 7.75 2h8.5A1.75 1.75 0 0 1 18 3.75V22l-6-3.75L6 22V3.75Zm1.5 0v15.53l4.5-2.81 4.5 2.81V3.75a.25.25 0 0 0-.25-.25h-8.5a.25.25 0 0 0-.25.25Z',
+    clipboard:
+      'M9 3h6a1.5 1.5 0 0 1 1.5 1.5H18A2.25 2.25 0 0 1 20.25 6.75v12A2.25 2.25 0 0 1 18 21H6a2.25 2.25 0 0 1-2.25-2.25v-12A2.25 2.25 0 0 1 6 4.5h1.5A1.5 1.5 0 0 1 9 3Zm0 1.5a.5.5 0 0 0-.5.5v1h7V5a.5.5 0 0 0-.5-.5H9ZM6 6a.75.75 0 0 0-.75.75v12c0 .41.34.75.75.75h12a.75.75 0 0 0 .75-.75v-12A.75.75 0 0 0 18 6H6Zm2.25 3h7.5v1.5h-7.5V9Zm0 3h7.5v1.5h-7.5V12Zm0 3h5v1.5h-5V15Z',
+    template:
+      'M5 3.25A1.25 1.25 0 0 1 6.25 2h11.5A1.25 1.25 0 0 1 19 3.25v17.5A1.25 1.25 0 0 1 17.75 22H6.25A1.25 1.25 0 0 1 5 20.75V3.25Zm1.5.25v5h11V3.5h-11Zm0 6.5v10.5h11V10h-11Z',
+    network:
+      'M6 4.5a2.5 2.5 0 1 1 2.46 3l2.08 2.6a2.48 2.48 0 0 1 2.92 0l2.08-2.6A2.5 2.5 0 1 1 17 7.5l-2.4 3a2.5 2.5 0 1 1-5.2 0L7 7.5A2.5 2.5 0 0 1 6 4.5Zm0 1.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm12 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm-6 5a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm-6 5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Zm12 0a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5Zm-12 1.5a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm12 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z',
     user:
       'M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2.25c-4.1 0-7.5 2.14-7.5 4.78V21h15v-1.97c0-2.64-3.4-4.78-7.5-4.78Z',
     settings:
       'm12 3 1.2 2.7 2.95.34-2.2 2.02.62 2.94L12 9.74 9.43 11l.62-2.94-2.2-2.02 2.95-.34L12 3Zm0 7.5A4.5 4.5 0 1 1 12 19.5a4.5 4.5 0 0 1 0-9Z',
+    shield:
+      'M12 2.5 20 5.75v5.38c0 5.08-3.35 9.42-8 10.37-4.65-.95-8-5.29-8-10.37V5.75L12 2.5Zm0 1.62L5.5 6.76v4.37c0 4.21 2.67 7.86 6.5 8.78 3.83-.92 6.5-4.57 6.5-8.78V6.76L12 4.12Zm-1 11.13L8.25 12.5l1.06-1.06L11 13.13l3.69-3.69 1.06 1.06L11 15.25Z',
     logout:
       'M10.5 3H5.25A2.25 2.25 0 0 0 3 5.25v13.5A2.25 2.25 0 0 0 5.25 21h5.25v-1.5H5.25a.75.75 0 0 1-.75-.75V5.25a.75.75 0 0 1 .75-.75h5.25V3Zm4.72 4.72-1.06 1.06 2.47 2.47H9v1.5h7.63l-2.47 2.47 1.06 1.06L19.5 12l-4.28-4.28Z',
     arrow: 'm9 6 6 6-6 6',
@@ -250,7 +267,7 @@ type ListingProfile = {
 }
 
 const listingProfiles: Record<string, ListingProfile> = {
-  'my-company': {
+  'my-companies': {
     kicker: 'Company workspace',
     action: 'Update company profile',
     metricLabel: 'Profile strength',
@@ -2815,10 +2832,14 @@ function GrantsLoansPage() {
   )
   const [selectedProgram, setSelectedProgram] =
     useState<FundingProgramRecord | null>(null)
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false)
   const enabledSourceIds = config.dataSources
     .filter((source) => source.enabled)
     .map((source) => source.id)
   const programs = loadFundingPrograms(enabledSourceIds)
+  const activeFundingDataSources = config.dataSources.filter(
+    (source) => source.module === 'grants-loans' && source.enabled,
+  )
   const [savedEntries, setSavedEntries] = useState<SavedProgramEntry[]>(() =>
     loadSavedProgramEntries(programs),
   )
@@ -2944,14 +2965,14 @@ function GrantsLoansPage() {
             workspace administrator.
           </p>
         </div>
-        <Link
-          to="/admin#data-sources"
+        <button
+          type="button"
           className="funding-directory-admin"
-          onClick={() => grantAdminAccess()}
+          onClick={() => setSourcePickerOpen(true)}
         >
           <Glyph type="settings" />
           Manage data sources
-        </Link>
+        </button>
       </header>
 
       <div className="funding-directory-metrics">
@@ -3275,6 +3296,90 @@ function GrantsLoansPage() {
                 </a>
               ) : null}
             </div>
+          </section>
+        </div>
+      ) : null}
+
+      {sourcePickerOpen ? (
+        <div
+          className="clone-record-dialog-backdrop"
+          role="presentation"
+          onMouseDown={() => setSourcePickerOpen(false)}
+        >
+          <section
+            className="clone-record-dialog funding-source-picker-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="funding-source-picker-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="clone-dialog-close"
+              aria-label="Close data source picker"
+              onClick={() => setSourcePickerOpen(false)}
+            >
+              <Glyph type="close" />
+            </button>
+            <span className="clone-record-status">Active sources</span>
+            <h2 id="funding-source-picker-title">Choose a funding data source</h2>
+            <p>
+              Select an active Grants &amp; Loans source configured by your administrator.
+            </p>
+            <div className="funding-source-picker-list">
+              <button
+                type="button"
+                className={`funding-source-picker-option ${sourceName === 'All' ? 'is-selected' : ''}`}
+                onClick={() => {
+                  setSourceName('All')
+                  setSourcePickerOpen(false)
+                }}
+              >
+                <span className="funding-source-picker-icon is-all">All</span>
+                <span>
+                  <strong>All active sources</strong>
+                  <small>Show opportunities from every enabled catalog</small>
+                </span>
+              </button>
+              {activeFundingDataSources.map((source) => (
+                <button
+                  key={source.id}
+                  type="button"
+                  className={`funding-source-picker-option ${sourceName === source.name ? 'is-selected' : ''}`}
+                  onClick={() => {
+                    setSourceName(source.name)
+                    setSourcePickerOpen(false)
+                  }}
+                >
+                  <span
+                    className={`funding-source-picker-icon is-${source.provider}`}
+                    role="img"
+                    aria-label={source.provider === 'google-sheets' ? 'Google Sheets' : 'Airtable'}
+                  >
+                    {source.provider === 'google-sheets' ? 'G' : 'A'}
+                  </span>
+                  <span>
+                    <strong>{source.name}</strong>
+                    <small>
+                      {source.provider === 'google-sheets' ? 'Google Sheets' : 'Airtable'} · {source.frequency} sync
+                    </small>
+                  </span>
+                  <i className="funding-source-picker-active">Active</i>
+                </button>
+              ))}
+            </div>
+            {activeFundingDataSources.length === 0 ? (
+              <div className="funding-source-picker-empty">
+                No active Grants &amp; Loans sources are configured.
+              </div>
+            ) : null}
+            <Link
+              to="/admin#data-sources"
+              className="funding-source-picker-admin-link"
+              onClick={() => grantAdminAccess()}
+            >
+              Manage sources in Admin Console
+            </Link>
           </section>
         </div>
       ) : null}
@@ -4845,18 +4950,33 @@ const defaultQuickBuildPreferences: QuickBuildPreferences = {
 }
 
 function loadUserSettings() {
+  const normalizeSettings = (settings: UserSettings): UserSettings => {
+    const companies = loadCompanyRecords()
+    if (
+      settings.defaultCompanyId &&
+      companies.some((company) => company.id === settings.defaultCompanyId)
+    ) {
+      return settings
+    }
+
+    return {
+      ...settings,
+      defaultCompanyId: companies[0]?.id ?? '',
+    }
+  }
+
   try {
     const saved = window.localStorage.getItem(userSettingsStorageKey)
-    if (!saved) return defaultUserSettings
+    if (!saved) return normalizeSettings(defaultUserSettings)
 
     const parsed = JSON.parse(saved) as LegacyUserSettings
-    return {
+    return normalizeSettings({
       ...defaultUserSettings,
       ...parsed,
       language: normalizeLocale(parsed.language),
-    }
+    })
   } catch {
-    return defaultUserSettings
+    return normalizeSettings(defaultUserSettings)
   }
 }
 
@@ -5384,14 +5504,30 @@ function SettingsPage() {
     setNotice('')
   }
 
-  function saveSettings() {
-    setPersistentItem(userSettingsStorageKey, JSON.stringify(settings))
+  async function saveSettings() {
+    const serializedSettings = JSON.stringify(settings)
     updateCurrentAuthUserProfile({
       fullName: settings.fullName,
       email: settings.email,
       role: settings.role,
     })
-    setNotice(t('settings.save'))
+    try {
+      const persistenceMode = await persistPersistentItem(
+        userSettingsStorageKey,
+        serializedSettings,
+      )
+      setNotice(
+        persistenceMode === 'database'
+          ? 'Settings saved locally and synced to the database.'
+          : 'Settings saved locally. Database sync will resume when available.',
+      )
+    } catch (error) {
+      setNotice(
+        `Settings saved locally. Database sync failed: ${
+          error instanceof Error ? error.message : 'Please try again.'
+        }`,
+      )
+    }
   }
 
   function activateFreePlan(item: PaymentCatalogItem) {
@@ -5656,7 +5792,7 @@ function SettingsPage() {
               <div className="settings-company-preview">
                 <span>{companies.find((company) => company.id === settings.defaultCompanyId)?.name.slice(0, 2).toUpperCase() ?? 'CO'}</span>
                 <div><strong>{companies.find((company) => company.id === settings.defaultCompanyId)?.name ?? 'Select a company'}</strong><small>{companies.find((company) => company.id === settings.defaultCompanyId)?.industry ?? 'No industry selected'}</small></div>
-                <Link to="/my-company">Manage companies</Link>
+                <Link to="/my-companies">Manage companies</Link>
               </div>
             </section>
           ) : null}
@@ -9783,7 +9919,7 @@ function QuickBuildPage({
 
             <footer>
               <span>{companyOptions.length} companies available</span>
-              <Link to="/my-company">
+              <Link to="/my-companies">
                 Manage My Companies <Glyph type="arrow" />
               </Link>
             </footer>
@@ -9805,18 +9941,143 @@ function QuickBuildPage({
   )
 }
 
-function OverviewPage() {
+function formatDashboardDate(date: Date = new Date()) {
+  return new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  }).format(date)
+}
+
+function getDashboardGreeting(date: Date = new Date()) {
+  const hour = date.getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
+function getDashboardFirstName(fullName: string | undefined) {
+  return fullName?.trim().split(/\s+/)[0] ?? ''
+}
+
+function formatDashboardCurrency(value: number, compact = false) {
+  return new Intl.NumberFormat('en-CA', {
+    style: 'currency',
+    currency: 'CAD',
+    notation: compact ? 'compact' : 'standard',
+    maximumFractionDigits: compact ? 1 : 0,
+  }).format(Math.max(0, value))
+}
+
+function formatDashboardDeadline(deadline: string) {
+  const normalized = deadline.trim()
+  if (!normalized) return 'No deadline'
+
+  const parsed = Date.parse(normalized)
+  if (Number.isNaN(parsed)) return normalized
+
+  return `Due ${new Intl.DateTimeFormat('en-CA', {
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(parsed))}`
+}
+
+function formatDashboardActivityTime(value: string) {
+  const parsed = Date.parse(value)
+  if (Number.isNaN(parsed)) {
+    return value.replace(/^Updated\s+/u, '') || 'Recently'
+  }
+
+  return new Intl.DateTimeFormat('en-CA', {
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(parsed))
+}
+
+function formatDashboardApplicationMeta(application: ApplicationRecord) {
+  const deadline = application.deadline.trim()
+  const deadlineLabel = deadline ? formatDashboardDeadline(deadline) : 'No deadline'
+  return `${formatDashboardCurrency(application.amount)} · ${deadlineLabel}`
+}
+
+function OverviewPage({ userName }: { userName?: string }) {
   const { config } = usePlatformConfig()
   const visibleQuickActions = quickActionRoutes.filter(
     (action) => config.modules[action.path.slice(1) as PlatformModuleId] !== false,
   )
+  const firstName = getDashboardFirstName(userName)
+  const applications = loadApplications()
+  const companies = loadCompanyRecords()
+  const settings = loadUserSettings()
+  const currentCompany =
+    companies.find((company) => company.id === settings.defaultCompanyId) ??
+    companies[0] ??
+    null
+  const enabledSourceIds = config.dataSources
+    .filter((source) => source.enabled)
+    .map((source) => source.id)
+  const fundingPrograms = loadFundingPrograms(enabledSourceIds)
+  const savedProgramEntries = loadSavedProgramEntries(fundingPrograms)
+  const savedProgramIds = new Set(savedProgramEntries.map((entry) => entry.programId))
+  const savedPrograms = fundingPrograms.filter((program) => savedProgramIds.has(program.id))
+  const reports = getStrategicReviewReports(applications)
+  const activeApplications = applications.filter(
+    (application) => application.status !== 'Awarded',
+  )
+  const applicationsNeedingAttention = activeApplications.filter(
+    (application) => application.progress < 85,
+  )
+  const focusApplication = [...activeApplications].sort(
+    (left, right) => left.deadlineOrder - right.deadlineOrder,
+  )[0] ?? null
+  const applicationRows = activeApplications.slice(0, 3)
+  const topMatches = [...fundingPrograms]
+    .sort((left, right) => right.match - left.match)
+    .slice(0, 2)
+  const matchedFunding = savedPrograms.reduce(
+    (total, program) => total + program.amount,
+    0,
+  )
+  const generatedDocumentCount = reports.reduce(
+    (total, report) => total + report.generatedPackage.documents.length,
+    0,
+  )
+  const readinessScore = currentCompany?.readiness ?? 0
+  const readinessTarget = 80
+  const readinessReached = readinessScore >= readinessTarget
+  const activityItems = [
+    currentCompany
+      ? {
+          icon: 'user' as const,
+          title: `${currentCompany.name} profile updated`,
+          time: formatDashboardActivityTime(currentCompany.updatedAt),
+        }
+      : null,
+    reports[0]
+      ? {
+          icon: 'spark' as const,
+          title: `${reports[0].generatedPackage.programName} strategic report generated`,
+          time: formatDashboardActivityTime(reports[0].generatedPackage.completedAt),
+        }
+      : null,
+    applications[0]
+      ? {
+          icon: 'file' as const,
+          title: `${applications[0].programName} application updated`,
+          time: formatDashboardActivityTime(applications[0].updatedAt),
+        }
+      : null,
+  ].filter((item): item is NonNullable<typeof item> => item !== null)
 
   return (
     <section className="workspace-dashboard">
       <header className="workspace-dashboard-header">
         <div>
-          <p className="workspace-eyebrow">Monday, July 28</p>
-          <h1>Good afternoon, Alex.</h1>
+          <p className="workspace-eyebrow">{formatDashboardDate()}</p>
+          <h1>
+            {getDashboardGreeting()}
+            {firstName ? `, ${firstName}.` : '.'}
+          </h1>
           <p>Here is what needs your attention across the funding workspace.</p>
         </div>
         <Link to="/quick-build" className="workspace-primary-action">
@@ -9833,12 +10094,16 @@ function OverviewPage() {
           </div>
           <div className="dashboard-readiness-content">
             <div className="dashboard-score-ring">
-              <span><strong>72</strong>/100</span>
+              <span><strong>{readinessScore}</strong>/100</span>
             </div>
             <div>
-              <p>Almost application ready</p>
-              <h2>Strengthen your financial story.</h2>
-              <span>Complete two high-impact actions to reach the recommended score of 80.</span>
+              <p>{readinessReached ? 'Application ready' : 'Almost application ready'}</p>
+              <h2>{readinessReached ? 'Your funding story is on track.' : 'Strengthen your financial story.'}</h2>
+              <span>
+                {readinessReached
+                  ? `Your company profile has reached the recommended score of ${readinessTarget}.`
+                  : `Complete your company profile and application details to reach the recommended score of ${readinessTarget}.`}
+              </span>
               <Link to="/discovery">
                 Continue assessment <Glyph type="arrow" />
               </Link>
@@ -9849,41 +10114,49 @@ function OverviewPage() {
         <article className="dashboard-focus-card">
           <div className="dashboard-card-topline">
             <span>Today’s focus</span>
-            <b>3 actions</b>
+            <b>{applicationsNeedingAttention.length} actions</b>
           </div>
           <h2>Your next best move</h2>
-          <div className="dashboard-focus-action">
-            <span><Glyph type="file" /></span>
-            <div>
-              <strong>Finish the FedDev application</strong>
-              <small>Due in 6 days · 82% complete</small>
-            </div>
-          </div>
-          <div className="dashboard-focus-progress"><span /></div>
-          <Link to="/my-applications">Open application <Glyph type="arrow" /></Link>
+          {focusApplication ? (
+            <>
+              <div className="dashboard-focus-action">
+                <span><Glyph type="file" /></span>
+                <div>
+                  <strong>{focusApplication.programName}</strong>
+                  <small>{formatDashboardDeadline(focusApplication.deadline)} · {focusApplication.progress}% complete</small>
+                </div>
+              </div>
+              <div className="dashboard-focus-progress">
+                <span style={{ width: `${focusApplication.progress}%` }} />
+              </div>
+              <Link to="/my-applications">Open application <Glyph type="arrow" /></Link>
+            </>
+          ) : (
+            <p className="application-board-empty">No active applications</p>
+          )}
         </article>
       </div>
 
       <div className="dashboard-metrics">
         <article>
           <span>Matched funding</span>
-          <strong>$1.2M</strong>
-          <small><b>+18%</b> this month</small>
+          <strong>{formatDashboardCurrency(matchedFunding, true)}</strong>
+          <small>{savedProgramEntries.length} saved programs</small>
         </article>
         <article>
           <span>Active applications</span>
-          <strong>5</strong>
-          <small>2 require attention</small>
+          <strong>{activeApplications.length}</strong>
+          <small>{applicationsNeedingAttention.length} require attention</small>
         </article>
         <article>
           <span>Saved opportunities</span>
-          <strong>14</strong>
-          <small>4 closing soon</small>
+          <strong>{savedProgramEntries.length}</strong>
+          <small>{savedPrograms.filter((program) => program.deadline !== 'Rolling intake').length} with fixed deadlines</small>
         </article>
         <article>
           <span>Documents generated</span>
-          <strong>23</strong>
-          <small><b>+6</b> this week</small>
+          <strong>{generatedDocumentCount}</strong>
+          <small>{reports.length} strategic reports</small>
         </article>
       </div>
 
@@ -9897,24 +10170,23 @@ function OverviewPage() {
             <Link to="/my-applications">View all</Link>
           </div>
           <div className="dashboard-application-list">
-            {[
-              ['FedDev Ontario Growth Program', '$250,000', 'Due Aug 3', '82'],
-              ['Canada Digital Adoption Program', '$15,000', 'Due Aug 14', '64'],
-              ['Starter Company Plus', '$5,000', 'Draft', '38'],
-            ].map(([name, amount, due, progress]) => (
-              <Link to="/my-applications" key={name} className="dashboard-application-row">
+            {applicationRows.map((application) => (
+              <Link to="/my-applications" key={application.id} className="dashboard-application-row">
                 <span className="dashboard-application-icon"><Glyph type="file" /></span>
                 <span>
-                  <strong>{name}</strong>
-                  <small>{amount} · {due}</small>
+                  <strong>{application.programName}</strong>
+                  <small>{formatDashboardApplicationMeta(application)}</small>
                 </span>
                 <span className="dashboard-row-progress">
-                  <b>{progress}%</b>
-                  <i><em style={{ width: `${progress}%` }} /></i>
+                  <b>{application.progress}%</b>
+                  <i><em style={{ width: `${application.progress}%` }} /></i>
                 </span>
                 <Glyph type="arrow" />
               </Link>
             ))}
+            {applicationRows.length === 0 ? (
+              <p className="application-board-empty">No applications yet</p>
+            ) : null}
           </div>
         </section>
 
@@ -9927,18 +10199,17 @@ function OverviewPage() {
             <Link to="/grants-loans">Explore</Link>
           </div>
           <div className="dashboard-opportunity-list">
-            <Link to="/grants-loans">
-              <span className="dashboard-match">94% match</span>
-              <strong>Ontario Made Manufacturing Investment Tax Credit</strong>
-              <small>Up to $2M · Tax credit</small>
-              <b>Strong fit for your growth stage <Glyph type="arrow" /></b>
-            </Link>
-            <Link to="/grants-loans">
-              <span className="dashboard-match">89% match</span>
-              <strong>Business Scale-up and Productivity</strong>
-              <small>Up to $10M · Repayable contribution</small>
-              <b>Matched on industry and location <Glyph type="arrow" /></b>
-            </Link>
+            {topMatches.map((program) => (
+              <Link to="/grants-loans" key={program.id}>
+                <span className="dashboard-match">{program.match}% match</span>
+                <strong>{program.name}</strong>
+                <small>Up to {formatDashboardCurrency(program.amount, true)} · {program.type}</small>
+                <b>{program.match >= 90 ? 'Strong fit for your growth stage' : 'Potential fit for your business'} <Glyph type="arrow" /></b>
+              </Link>
+            ))}
+            {topMatches.length === 0 ? (
+              <p className="application-board-empty">No funding matches yet</p>
+            ) : null}
           </div>
         </section>
       </div>
@@ -9970,18 +10241,15 @@ function OverviewPage() {
             </div>
           </div>
           <div className="dashboard-activity-list">
-            <article>
-              <span><Glyph type="spark" /></span>
-              <p><strong>Readiness score increased to 72</strong><small>2 hours ago</small></p>
-            </article>
-            <article>
-              <span><Glyph type="user" /></span>
-              <p><strong>Morgan updated Northstar Foods</strong><small>Yesterday</small></p>
-            </article>
-            <article>
-              <span><Glyph type="file" /></span>
-              <p><strong>Cash flow forecast was generated</strong><small>Jul 25</small></p>
-            </article>
+            {activityItems.map((activity) => (
+              <article key={`${activity.title}-${activity.time}`}>
+                <span><Glyph type={activity.icon} /></span>
+                <p><strong>{activity.title}</strong><small>{activity.time}</small></p>
+              </article>
+            ))}
+            {activityItems.length === 0 ? (
+              <p className="application-board-empty">No recent activity</p>
+            ) : null}
           </div>
         </section>
       </div>
@@ -10118,7 +10386,7 @@ export function DashboardPage() {
   const isQuickBuild = currentItem?.id === 'quick-build'
   const isStrategicReports = currentItem?.id === 'strategic-reports'
   const isDiscovery = currentItem?.id === 'discovery'
-  const isMyCompany = currentItem?.id === 'my-company'
+  const isMyCompanies = currentItem?.id === 'my-companies'
   const isGrantsLoans = currentItem?.id === 'grants-loans'
   const isSavedPrograms = currentItem?.id === 'saved-programs'
   const isMyApplications = currentItem?.id === 'my-applications'
@@ -10502,10 +10770,10 @@ export function DashboardPage() {
             }}
             className={({ isActive }) =>
               `clone-footer-link ${isActive ? 'is-active' : ''}`
-            }
+          }
           >
             <span className="clone-nav-icon">
-              <Glyph type="settings" />
+              <Glyph type="shield" />
             </span>
             <span>{t('navigation.items.admin')}</span>
           </NavLink>
@@ -10545,14 +10813,14 @@ export function DashboardPage() {
         ) : null}
         <div className="clone-main-inner">
           {isOverview ? (
-            <OverviewPage />
+            <OverviewPage userName={currentAuthUser?.fullName} />
           ) : isDiscovery ? (
             <FundingReadinessPage />
           ) : isQuickBuild ? (
             <QuickBuildPage initialView="form" />
           ) : isStrategicReports ? (
             <StrategicReportsPage />
-          ) : isMyCompany ? (
+          ) : isMyCompanies ? (
             <MyCompanyPage />
           ) : isSavedPrograms ? (
             <SavedProgramsPage />

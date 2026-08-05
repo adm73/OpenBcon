@@ -8,7 +8,7 @@ import { platformConfigStorageKey as sharedPlatformConfigStorageKey } from '../l
 export type PlatformModuleId =
   | 'discovery'
   | 'quick-build'
-  | 'my-company'
+  | 'my-companies'
   | 'saved-programs'
   | 'my-applications'
   | 'grants-loans'
@@ -1190,7 +1190,7 @@ export const defaultPlatformConfig: PlatformConfig = {
   modules: {
     discovery: true,
     'quick-build': true,
-    'my-company': true,
+    'my-companies': true,
     'saved-programs': true,
     'my-applications': true,
     'grants-loans': true,

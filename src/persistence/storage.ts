@@ -60,7 +60,6 @@ const persistentStateKeys = new Set([
 ])
 
 const localOnlyStateKeys = new Set([
-  'bconomics-user-settings-v1',
   'bconomics-billing-transactions-v1',
 ])
 
@@ -178,6 +177,36 @@ export function setPersistentItem(key: string, value: string) {
   })
 }
 
+export async function persistPersistentItem(
+  key: string,
+  value: string,
+): Promise<PersistenceMode> {
+  window.localStorage.setItem(key, value)
+  if (!isRemotePersistentStateKey(key) || !remotePersistenceReady) {
+    return 'local'
+  }
+
+  const mode = getClientEnvironmentMode()
+  const mutation: PendingMutation = {
+    operation: 'upsert',
+    key,
+    scope: getPersistentStateScope(key),
+    value: parseStoredValue(value),
+    mode,
+  }
+  pendingMutations.delete(`${mode}:${key}`)
+
+  try {
+    await sendMutations([mutation], mode)
+    return 'database'
+  } catch (error) {
+    pendingMutations.set(`${mode}:${key}`, mutation)
+    if (flushTimer) clearTimeout(flushTimer)
+    flushTimer = setTimeout(flushPendingMutations, 2_000)
+    throw error
+  }
+}
+
 export function setPersistentItemWithRemoteValue(
   key: string,
   localValue: string,
@@ -238,8 +267,19 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
 
     // The selected mode is the cache namespace. Never copy a missing value
     // from one mode into the other mode's database during hydration.
+    const localValuesToSync: PendingMutation[] = []
     for (const key of Object.keys(localValues)) {
       if (key !== platformConfigStorageKey && !(key in remoteValues)) {
+        if (key === 'bconomics-user-settings-v1') {
+          localValuesToSync.push({
+            operation: 'upsert',
+            key,
+            scope: 'user',
+            value: localValues[key],
+            mode,
+          })
+          continue
+        }
         window.localStorage.removeItem(key)
       }
     }
@@ -254,6 +294,9 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
     }
 
     remotePersistenceReady = true
+    for (const mutation of localValuesToSync) {
+      queueMutation(mutation)
+    }
     return 'database'
   } catch {
     return 'local'

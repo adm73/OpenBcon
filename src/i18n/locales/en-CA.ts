@@ -10,7 +10,7 @@ const enCA = {
       fundingReadiness: 'Discovery',
       quickBuild: 'Quick Build',
       advisoryHub: 'Strategic Reports',
-      myCompany: 'My Company',
+      myCompany: 'My Companies',
       savedPrograms: 'Saved Programs',
       myApplications: 'My Applications',
       grantsLoans: 'Grants & Loans',
@@ -117,7 +117,7 @@ const enCA = {
     useStructure: 'Use the {{platform}} structure',
     clear: 'Clear',
     continueBusiness: 'Continue to business profile',
-    importCompany: 'Import My Company',
+    importCompany: 'Import My Companies',
     businessNarrative: 'Business narrative',
     fundableStory: 'Give the AI a fundable story to work with.',
     reviewPackage: 'Review package',
@@ -136,7 +136,7 @@ const enCA = {
       ],
       business: [
         'Summarize the business in reviewer language, not pitch language.',
-        'Pull from My Company to avoid retyping core details.',
+        'Pull from My Companies to avoid retyping core details.',
         'Give the AI enough detail to build a believable execution case.',
       ],
       review: [

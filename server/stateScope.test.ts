@@ -25,9 +25,9 @@ describe('state scope routing', () => {
     expect(isPersistentStateKey('bconomics-session')).toBe(false)
   })
 
-  it('keeps secrets out while allowing dynamic platform config to sync', () => {
+  it('keeps secrets out while allowing user settings to sync', () => {
     expect(isPersistentStateKey('bconomics-platform-config-v1')).toBe(true)
-    expect(isPersistentStateKey('bconomics-user-settings-v1')).toBe(false)
+    expect(isPersistentStateKey('bconomics-user-settings-v1')).toBe(true)
     expect(isPersistentStateKey('bconomics-billing-transactions-v1')).toBe(
       false,
     )

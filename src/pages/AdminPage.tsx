@@ -52,7 +52,7 @@ import { cssDeclarationsToStyle } from '../lib/layoutStyles'
 const moduleLabels: Array<{ id: PlatformModuleId; label: string; group: string }> = [
   { id: 'discovery', label: 'Discovery', group: 'Funding Centre' },
   { id: 'quick-build', label: 'Quick Build', group: 'Funding Centre' },
-  { id: 'my-company', label: 'My Company', group: 'My Workspace' },
+  { id: 'my-companies', label: 'My Companies', group: 'My Workspace' },
   { id: 'saved-programs', label: 'Saved Programs', group: 'My Workspace' },
   { id: 'my-applications', label: 'My Applications', group: 'My Workspace' },
   { id: 'grants-loans', label: 'Grants & Loans', group: 'Programs' },
@@ -109,6 +109,11 @@ const dataSourceModuleLabels: Record<DataSourceModule, string> = {
   templates: 'Templates',
   'social-resources': 'Social Resources',
   tools: 'Tools',
+}
+
+const dataSourceProviderLabels: Record<FundingDataSourceProvider, string> = {
+  'google-sheets': 'Google Sheets',
+  airtable: 'Airtable',
 }
 
 function createFundingDataSource(): FundingDataSource {
@@ -2280,18 +2285,18 @@ export function AdminPage() {
                   <article key={source.id} className="admin-data-source-row">
                     <span
                       className={`admin-source-provider is-${source.provider}`}
-                      aria-hidden="true"
+                      role="img"
+                      aria-label={dataSourceProviderLabels[source.provider]}
+                      title={dataSourceProviderLabels[source.provider]}
                     >
                       {source.provider === 'google-sheets' ? 'G' : 'A'}
                     </span>
                     <div className="admin-source-identity">
                       <span>
                         <strong>{source.name}</strong>
-                        <em>{source.provider === 'google-sheets' ? 'Google Sheets' : 'Airtable'}</em>
                       </span>
                       <small>
                         {dataSourceModuleLabels[source.module]} · {source.frequency} sync
-                        {source.lastSyncedAt ? ` · ${source.lastSyncedAt}` : ''}
                       </small>
                       {source.lastError ? <b>{source.lastError}</b> : null}
                     </div>
@@ -2299,10 +2304,12 @@ export function AdminPage() {
                       <strong>{source.recordCount}</strong>
                       <small>records</small>
                     </div>
-                    <span className={`admin-source-status is-${source.status}`}>
-                      <i />
-                      {source.status}
-                    </span>
+                    <div className="admin-source-status-bar">
+                      <span className={`admin-source-activity is-${source.enabled ? 'active' : 'inactive'}`}>
+                        <i />
+                        {source.enabled ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
                     <label className="admin-source-toggle">
                       <span className="sr-only">Enable {source.name}</span>
                       <input
@@ -2312,38 +2319,44 @@ export function AdminPage() {
                       />
                     </label>
                     <div className="admin-source-actions">
-                      <button
-                        type="button"
-                        disabled={syncingSourceId === source.id}
-                        onClick={() => syncDataSource(source)}
-                      >
-                        {syncingSourceId === source.id ? 'Syncing…' : 'Sync'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSourceEditor({ ...source })
-                          setSourceNotice('')
-                        }}
-                      >
-                        Edit
-                      </button>
-                      {deleteSourceId === source.id ? (
+                      <div className="admin-source-action-buttons">
                         <button
                           type="button"
-                          className="is-danger"
-                          onClick={() => deleteDataSource(source.id)}
+                          disabled={syncingSourceId === source.id}
+                          onClick={() => syncDataSource(source)}
                         >
-                          Confirm
+                          {syncingSourceId === source.id ? 'Syncing…' : 'Sync'}
                         </button>
-                      ) : (
                         <button
                           type="button"
-                          onClick={() => setDeleteSourceId(source.id)}
+                          onClick={() => {
+                            setSourceEditor({ ...source })
+                            setSourceNotice('')
+                          }}
                         >
-                          Delete
+                          Edit
                         </button>
-                      )}
+                        {deleteSourceId === source.id ? (
+                          <button
+                            type="button"
+                            className="is-danger"
+                            onClick={() => deleteDataSource(source.id)}
+                          >
+                            Confirm
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteSourceId(source.id)}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                      <span className="admin-source-last-sync">
+                        <small>Last sync</small>
+                        {source.lastSyncedAt || 'Never'}
+                      </span>
                     </div>
                   </article>
                 ))}

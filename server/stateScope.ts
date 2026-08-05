@@ -7,6 +7,7 @@ const remotePlatformStateKeys = new Set([
 ])
 
 const remoteUserStateKeys = new Set([
+  'bconomics-user-settings-v1',
   'bconomics-quick-build-preferences-v1',
   'bconomics-pinned-social-resources-v1',
   'bconomics-saved-tools-v1',
@@ -14,10 +15,7 @@ const remoteUserStateKeys = new Set([
   'bconomics-active-workspace-v2',
 ])
 
-const localOnlyUserStateKeys = new Set([
-  'bconomics-user-settings-v1',
-  'bconomics-billing-transactions-v1',
-])
+const localOnlyUserStateKeys = new Set(['bconomics-billing-transactions-v1'])
 
 const workspaceStateKeys = new Set([
   'bconomics-company-portfolio-v1',
