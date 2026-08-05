@@ -39,6 +39,8 @@ import {
 import {
   type AdvisoryHubAgentConfig,
   type AdvisoryHubDocumentTypeConfig,
+  type AdvisoryHubLayoutConfig,
+  type AdvisoryHubSectionLayout,
   type AdvisoryHubSectionConfig,
   sanitizePlatformConfigForPersistence,
   platformConfigStorageKey,
@@ -68,6 +70,7 @@ import {
   lookupStripeCheckoutSession,
 } from '../lib/stripeBillingApi'
 import { renderFormattedContent } from '../lib/legalContent'
+import { cssDeclarationsToStyle } from '../lib/layoutStyles'
 import { createApplicationViaApi } from '../lib/applicationsApi'
 import {
   createStrategicReviewReport,
@@ -162,6 +165,13 @@ import {
   type BusinessPlanGenerateResponse,
   type BusinessPlanSectionResponse,
 } from '../lib/businessPlanApi'
+import {
+  downloadStrategicReportDocx,
+  downloadStrategicReportPdf,
+  downloadStrategicReportXlsx,
+  coverPageSubtitle,
+  type StrategicReportExportInput,
+} from '../lib/reportExports'
 import type {
   FinancialForecast,
   GeneratedDocument,
@@ -180,6 +190,7 @@ import {
   type DashboardItem,
 } from '../data/dashboard'
 import {
+  hydratePersistentStorage,
   removePersistentItem,
   setPersistentItem,
 } from '../persistence/storage'
@@ -5737,7 +5748,17 @@ function createConfiguredAdvisoryHubSections(
         )?.name ||
         configuredDocumentTypes[0]?.name ||
         'Document',
+      layout: section.layout,
     })) satisfies GeneratedPackageSection[]
+}
+
+function getSectionLayoutId(section: GeneratedPackageSection): AdvisoryHubSectionLayout {
+  if (section.layout === 'cover-page' || section.layout === 'main-content') {
+    return section.layout
+  }
+  return /(?:^|[-_\s])cover[-_\s]?page$/iu.test(section.id) || /^cover page$/iu.test(section.title.trim())
+    ? 'cover-page'
+    : 'main-content'
 }
 
 function hydrateWorkspaceSections(packageRecord: GeneratedPackage): WorkspaceSectionState[] {
@@ -5757,38 +5778,18 @@ function createSectionVariant(
   return `${section.body} This refreshed pass sharpens the language for ${businessName}, ties the section back to ${programName}, and makes the reviewer takeaway more explicit.`
 }
 
-function buildPackageExport(packageRecord: GeneratedPackage, sections: WorkspaceSectionState[]) {
-  const forecast = packageRecord.financialForecast
-  const forecastExport = forecast
-    ? [
-        '',
-        '# Financial Forecast',
-        `Currency: ${forecast.currency}`,
-        `Period: ${forecast.months[0]?.label ?? forecast.start_month} - ${forecast.months.at(-1)?.label ?? ''}`,
-        '',
-        ['Line item', ...forecast.months.map((month) => month.label)].join('\t'),
-        ...forecast.rows.map((row) =>
-          [row.name, ...row.values.map((value) => `${forecast.currency} ${value.toFixed(2)}`)].join('\t'),
-        ),
-        '',
-        ...forecast.annual_summaries.map(
-          (summary) =>
-            `${summary.label}: revenue ${forecast.currency} ${summary.total_revenue.toFixed(2)}, expenses ${forecast.currency} ${summary.total_expenses.toFixed(2)}, net cash flow ${forecast.currency} ${summary.net_cash_flow.toFixed(2)}`,
-        ),
-      ]
-    : []
-
-  return [
-    packageRecord.title,
-    '',
-    `Program: ${packageRecord.programName}`,
-    `Business: ${packageRecord.businessName}`,
-    `Funding request: ${packageRecord.fundingRequest}`,
-    `Completed: ${packageRecord.completedAt}`,
-    '',
-    ...sections.flatMap((section) => [`# ${section.title}`, section.preview || section.body, '']),
-    ...forecastExport,
-  ].join('\n')
+function createReportExportInput(
+  packageRecord: GeneratedPackage,
+  sections = packageRecord.sections,
+  forecast = packageRecord.financialForecast,
+): StrategicReportExportInput {
+  return {
+    title: packageRecord.title,
+    businessName: packageRecord.businessName,
+    programName: packageRecord.programName,
+    sections,
+    forecast,
+  }
 }
 
 function formatForecastCurrency(value: number, currency: string, locale = 'en-CA') {
@@ -5933,7 +5934,7 @@ function FinancialForecastCharts({ forecast }: { forecast: FinancialForecast }) 
   )
 }
 
-function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
+function FinancialForecastGrid({ forecast }: { forecast: FinancialForecast }) {
   const { t } = useTranslation()
   const { locale } = useLocale()
   const [selectedYearIndex, setSelectedYearIndex] = useState(0)
@@ -5943,15 +5944,7 @@ function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
   const visibleValues = (values: number[]) => values.slice(monthStart, monthStart + 12)
 
   return (
-    <article id="financial-forecast-panel" className="generator-ai-card generator-forecast-card">
-      <header>
-        <div>
-          <span>{t('forecast.financialModel')}</span>
-          <h3>{t('forecast.monthlyForecast', { years: forecast.years })}</h3>
-        </div>
-        <b>{forecast.months.length} months</b>
-      </header>
-      <FinancialForecastCharts forecast={forecast} />
+    <>
       <div className="generator-forecast-summary">
         {forecast.annual_summaries.map((summary, index) => (
           <button
@@ -6024,6 +6017,30 @@ function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
           </tbody>
         </table>
       </div>
+    </>
+  )
+}
+
+function FinancialForecastTable({
+  forecast,
+  id = 'financial-forecast-panel',
+}: {
+  forecast: FinancialForecast
+  id?: string
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <article id={id} className="generator-ai-card generator-forecast-card">
+      <header>
+        <div>
+          <span>{t('forecast.financialModel')}</span>
+          <h3>{t('forecast.monthlyForecast', { years: forecast.years })}</h3>
+        </div>
+        <b>{forecast.months.length} months</b>
+      </header>
+      <FinancialForecastCharts forecast={forecast} />
+      <FinancialForecastGrid forecast={forecast} />
       <div className="generator-forecast-assumptions">
         <strong>{t('forecast.planningAssumptions')}</strong>
         {forecast.assumptions.map((assumption) => (
@@ -6034,46 +6051,306 @@ function FinancialForecastTable({ forecast }: { forecast: FinancialForecast }) {
   )
 }
 
+function StrategicReportDocumentPreviewDialog({
+  title,
+  sections,
+  exportInput,
+  layouts,
+  initialSectionId,
+  onClose,
+}: {
+  title: string
+  sections: GeneratedPackageSection[]
+  exportInput: StrategicReportExportInput
+  layouts: AdvisoryHubLayoutConfig[]
+  initialSectionId?: string
+  onClose: () => void
+}) {
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  useEffect(() => {
+    if (!initialSectionId) return
+    sectionRefs.current[initialSectionId]?.scrollIntoView({ block: 'start' })
+  }, [initialSectionId])
+
+  return (
+    <div className="strategic-report-preview-backdrop" onClick={onClose}>
+      <section
+        className="strategic-report-preview-dialog strategic-report-document-preview"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="strategic-report-document-preview-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <span>Document preview</span>
+            <h2 id="strategic-report-document-preview-title">{title}</h2>
+            <p>Scroll through the complete analysis and review every generated section.</p>
+          </div>
+          <button type="button" className="strategic-report-preview-close" aria-label="Close preview" onClick={onClose}>
+            <Glyph type="close" />
+          </button>
+        </header>
+
+        <div className="strategic-report-preview-download-actions">
+          <button type="button" onClick={() => void downloadStrategicReportDocx(exportInput)}>
+            Download DOCX
+          </button>
+          <button type="button" onClick={() => void downloadStrategicReportPdf(exportInput)}>
+            Download PDF
+          </button>
+        </div>
+
+        {sections.length > 0 ? (
+          <div className="strategic-report-document-scroll">
+            {sections.map((section, index) => {
+              const layoutId = getSectionLayoutId(section)
+              const layout = layouts.find((candidate) => candidate.id === layoutId)
+              const layoutStyle = layout ? cssDeclarationsToStyle(layout.css) : undefined
+
+              return layoutId === 'cover-page' ? (
+                <article
+                  className="strategic-report-document-page strategic-report-cover-page"
+                  style={layoutStyle}
+                  key={section.id}
+                  ref={(element) => {
+                    sectionRefs.current[section.id] = element
+                  }}
+                >
+                  <div className="strategic-report-cover-page-accent" aria-hidden="true" />
+                  <div className="strategic-report-cover-page-content">
+                    <span>Strategic Report</span>
+                    <h3>{title}</h3>
+                    <strong>{exportInput.businessName}</strong>
+                    <p className="strategic-report-cover-page-program">{exportInput.programName}</p>
+                    <div className="strategic-report-cover-page-rule" aria-hidden="true" />
+                    <p>{coverPageSubtitle(title)}</p>
+                    <time dateTime={new Date().toISOString()}>
+                      {new Intl.DateTimeFormat('en-CA', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric',
+                      }).format(new Date())}
+                    </time>
+                  </div>
+                </article>
+              ) : (
+                <article
+                  className="strategic-report-document-page"
+                  style={layoutStyle}
+                  key={section.id}
+                  ref={(element) => {
+                    sectionRefs.current[section.id] = element
+                  }}
+                >
+                  <div className="strategic-report-document-page-meta">
+                    <span>Section {index + 1} of {sections.length}</span>
+                  </div>
+                  <h3>{section.title}</h3>
+                  <p>{section.body}</p>
+                </article>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="strategic-report-preview-empty">No document sections are available.</div>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function StrategicReportFinancialPreviewDialog({
+  forecast,
+  exportInput,
+  onClose,
+}: {
+  forecast: FinancialForecast
+  exportInput: StrategicReportExportInput
+  onClose: () => void
+}) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  return (
+    <div className="strategic-report-preview-backdrop" onClick={onClose}>
+      <section
+        className="strategic-report-preview-dialog strategic-report-financial-preview"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="strategic-report-financial-preview-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <span>Financial Model</span>
+            <h2 id="strategic-report-financial-preview-title">Financial forecast</h2>
+            <p>Switch between years to review one twelve-month table at a time.</p>
+          </div>
+          <button type="button" className="strategic-report-preview-close" aria-label="Close preview" onClick={onClose}>
+            <Glyph type="close" />
+          </button>
+        </header>
+        <div className="strategic-report-preview-download-actions">
+          <button type="button" onClick={() => void downloadStrategicReportDocx(exportInput)}>
+            Download DOCX
+          </button>
+          <button type="button" onClick={() => void downloadStrategicReportPdf(exportInput)}>
+            Download PDF
+          </button>
+          <button type="button" onClick={() => void downloadStrategicReportXlsx(exportInput)}>
+            Download Excel
+          </button>
+        </div>
+        <div className="strategic-report-financial-preview-body">
+          <FinancialForecastGrid forecast={forecast} />
+        </div>
+      </section>
+    </div>
+  )
+}
+
 function StrategicReportContentSection({
   eyebrow,
   title,
   description,
   sections,
+  exportInput,
+  layouts,
   emptyMessage,
 }: {
   eyebrow: string
   title: string
   description: string
   sections: GeneratedPackageSection[]
+  exportInput: StrategicReportExportInput
+  layouts: AdvisoryHubLayoutConfig[]
   emptyMessage?: string
 }) {
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewSectionId, setPreviewSectionId] = useState<string | undefined>()
+  const [orderedSections, setOrderedSections] = useState(sections)
+
+  useEffect(() => {
+    setOrderedSections(sections)
+  }, [sections])
+
+  function moveSection(sectionId: string, direction: 'up' | 'down') {
+    setOrderedSections((current) => {
+      const currentIndex = current.findIndex((section) => section.id === sectionId)
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= current.length) {
+        return current
+      }
+
+      const next = [...current]
+      const [section] = next.splice(currentIndex, 1)
+      next.splice(targetIndex, 0, section)
+      return next
+    })
+  }
+
+  const scopedExportInput = {
+    ...exportInput,
+    title,
+    sections: orderedSections,
+  }
+
   return (
     <section className="strategic-report-content-section">
       <header>
         <div>
-          <span>{eyebrow}</span>
+          {eyebrow.trim().toLowerCase() !== title.trim().toLowerCase() ? (
+            <span>{eyebrow}</span>
+          ) : null}
           <h2>{title}</h2>
           <p>{description}</p>
         </div>
-        {sections.length > 0 ? <small>{sections.length} source section{sections.length === 1 ? '' : 's'}</small> : null}
+        <div className="strategic-report-section-actions">
+          <small>{sections.length} source section{sections.length === 1 ? '' : 's'}</small>
+          <button
+            type="button"
+            onClick={() => {
+              setPreviewSectionId(undefined)
+              setPreviewOpen(true)
+            }}
+          >
+            <Glyph type="file" />
+            Download
+          </button>
+        </div>
       </header>
-      {sections.length > 0 ? (
-        <div className="strategic-report-content-items">
-          {sections.map((section) => (
-            <article key={section.id}>
-              <div>
-                <small>{section.agent}</small>
-              </div>
-              <h3>{section.title}</h3>
-              <p>{section.body}</p>
-            </article>
-          ))}
+      {orderedSections.length > 0 ? (
+        <div className="strategic-report-table-of-contents">
+          <div className="strategic-report-toc-heading">
+            <strong>Table of contents</strong>
+            <small>Choose a section to open the full analysis. Use the controls to reorder it.</small>
+          </div>
+          <ol>
+            {orderedSections.map((section, index) => (
+              <li key={section.id}>
+                <button
+                  type="button"
+                  className="strategic-report-toc-item"
+                  onClick={() => {
+                    setPreviewSectionId(section.id)
+                    setPreviewOpen(true)
+                  }}
+                >
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <strong>{section.title}</strong>
+                </button>
+                <div className="strategic-report-toc-order-actions">
+                  <button
+                    type="button"
+                    aria-label={`Move ${section.title} up`}
+                    onClick={() => moveSection(section.id, 'up')}
+                    disabled={index === 0}
+                  >
+                    Up
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${section.title} down`}
+                    onClick={() => moveSection(section.id, 'down')}
+                    disabled={index === orderedSections.length - 1}
+                  >
+                    Down
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
       ) : (
         <div className="strategic-report-content-empty">
           <strong>{emptyMessage ?? 'This analysis has not been generated yet.'}</strong>
         </div>
       )}
+      {previewOpen ? (
+        <StrategicReportDocumentPreviewDialog
+          title={title}
+          sections={orderedSections}
+          exportInput={scopedExportInput}
+          layouts={layouts}
+          initialSectionId={previewSectionId}
+          onClose={() => setPreviewOpen(false)}
+        />
+      ) : null}
     </section>
   )
 }
@@ -6151,7 +6428,19 @@ function StrategicReportsPage() {
   const navigate = useNavigate()
   const [generationError, setGenerationError] = useState('')
   const [generationStatus, setGenerationStatus] = useState<'idle' | 'generating' | 'failed'>('idle')
+  const [financialPreviewOpen, setFinancialPreviewOpen] = useState(false)
+  const [, setRemoteStateRevision] = useState(0)
   const generationApplicationRef = useRef<string | null>(null)
+  useEffect(() => {
+    let active = true
+    void hydratePersistentStorage().then(() => {
+      if (active) setRemoteStateRevision((revision) => revision + 1)
+    })
+    return () => {
+      active = false
+    }
+  }, [location.search])
+
   const applications = loadApplications()
   const reports = getStrategicReviewReports(applications)
   const requestedAppId =
@@ -6297,17 +6586,36 @@ function StrategicReportsPage() {
     const firstDocument = packageRecord.documents[0]
     const sectionText = (section: GeneratedPackageSection) =>
       `${section.id} ${section.title} ${section.documentLabel}`.toLowerCase()
-    const technologyAnalysisSection = packageRecord.sections.find((section) =>
-      /technology|tech|digital/iu.test(sectionText(section)),
+    const technologyAnalysisSections = packageRecord.sections.filter((section) =>
+      /technology|technical|tech|digital/iu.test(sectionText(section)),
     )
-    const financialModelSection = packageRecord.sections.find((section) =>
+    const financialModelSections = packageRecord.sections.filter((section) =>
       /financial|forecast|cash[-\s]?flow/iu.test(sectionText(section)),
     )
+    const financialModelSection = financialModelSections[0]
     const businessAnalysisSections = packageRecord.sections.filter(
       (section) =>
-        section.id !== technologyAnalysisSection?.id &&
-        section.id !== financialModelSection?.id,
+        !technologyAnalysisSections.some((technologySection) => technologySection.id === section.id) &&
+        !financialModelSections.some((financialSection) => financialSection.id === section.id),
     )
+    const businessAnalysisExportInput = createReportExportInput(
+      packageRecord,
+      businessAnalysisSections,
+      undefined,
+    )
+    businessAnalysisExportInput.title = 'Business Analysis'
+    const technologyAnalysisExportInput = createReportExportInput(
+      packageRecord,
+      technologyAnalysisSections,
+      undefined,
+    )
+    technologyAnalysisExportInput.title = 'Technology Analysis'
+    const financialModelExportInput = createReportExportInput(
+      packageRecord,
+      financialModelSections,
+      forecast,
+    )
+    financialModelExportInput.title = 'Financial Model'
     const reportAgents = [...new Set(packageRecord.sections.map((section) => section.agent))]
     const analysisSteps = [
       {
@@ -6358,7 +6666,9 @@ function StrategicReportsPage() {
         </header>
 
         <div className="strategic-reports-id-row">
-          <span>Strategic Report ID</span>
+          <span>app_id</span>
+          <code>{selectedApplication.appId ?? selectedApplication.id}</code>
+          <span>report_id</span>
           <code>{selectedReport.id}</code>
         </div>
 
@@ -6459,6 +6769,8 @@ function StrategicReportsPage() {
           title="Business analysis"
           description="The business plan is presented as one independent analysis of the company, operating model, and execution case."
           sections={businessAnalysisSections}
+          exportInput={businessAnalysisExportInput}
+          layouts={config.advisoryHub.layouts}
           emptyMessage="No business analysis section was generated for this report."
         />
 
@@ -6466,7 +6778,9 @@ function StrategicReportsPage() {
           eyebrow="Technology Analysis"
           title="Technology analysis"
           description="Review the technology, digital capability, systems, and implementation requirements connected to the opportunity."
-          sections={technologyAnalysisSection ? [technologyAnalysisSection] : []}
+          sections={technologyAnalysisSections}
+          exportInput={technologyAnalysisExportInput}
+          layouts={config.advisoryHub.layouts}
           emptyMessage="Technology analysis has not been generated for this report yet."
         />
 
@@ -6477,7 +6791,13 @@ function StrategicReportsPage() {
               <h2>Financial model</h2>
               <p>Monthly financial forecast and planning assumptions for the funding strategy.</p>
             </div>
-            {financialModelSection ? <small>{financialModelSection.agent}</small> : null}
+            <div className="strategic-report-section-actions">
+              {financialModelSection ? <small>{financialModelSection.agent}</small> : null}
+              <button type="button" onClick={() => setFinancialPreviewOpen(true)} disabled={!forecast}>
+                <Glyph type="file" />
+                Download
+              </button>
+            </div>
           </header>
           {financialModelSection ? (
             <div className="strategic-report-financial-context">
@@ -6498,6 +6818,13 @@ function StrategicReportsPage() {
               </Link>
             </div>
           )}
+          {financialPreviewOpen && forecast ? (
+            <StrategicReportFinancialPreviewDialog
+              forecast={forecast}
+              exportInput={financialModelExportInput}
+              onClose={() => setFinancialPreviewOpen(false)}
+            />
+          ) : null}
         </section>
 
       </section>
@@ -6547,26 +6874,29 @@ function StrategicReportsPage() {
 
         {reports.length > 0 ? (
           <div className="strategic-reports-grid">
-            {reports.map((report) => (
-              <button
-                key={report.id}
-                type="button"
-                className="strategic-report-card"
-                onClick={() => openReport(report)}
-              >
-                <div className="strategic-report-card-topline">
-                  <span><Glyph type="spark" /> Strategic Report</span>
-                  <strong>{report.generatedPackage.readinessScore}%</strong>
-                </div>
-                <h3>{report.generatedPackage.programName}</h3>
-                <p>{report.generatedPackage.businessName}</p>
-                <small>Report ID · {report.id}</small>
-                <footer>
-                  <span>{report.generatedPackage.sections.length} sections</span>
-                  <b>{t('quickBuild.openReport')} <Glyph type="arrow" /></b>
-                </footer>
-              </button>
-            ))}
+            {reports.map((report) => {
+              const application = applications.find((item) => item.id === report.applicationId)
+              return (
+                <button
+                  key={report.id}
+                  type="button"
+                  className="strategic-report-card"
+                  onClick={() => openReport(report)}
+                >
+                  <div className="strategic-report-card-topline">
+                    <span><Glyph type="spark" /> Strategic Report</span>
+                    <strong>{report.generatedPackage.readinessScore}%</strong>
+                  </div>
+                  <h3>{report.generatedPackage.programName}</h3>
+                  <p>{report.generatedPackage.businessName}</p>
+                  <small>app_id · {application?.appId ?? report.applicationId}</small>
+                  <footer>
+                    <span>{report.generatedPackage.sections.length} sections</span>
+                    <b>{t('quickBuild.openReport')} <Glyph type="arrow" /></b>
+                  </footer>
+                </button>
+              )
+            })}
           </div>
         ) : (
           <div className="strategic-reports-empty">
@@ -6617,16 +6947,56 @@ function createGeneratedPackageFromBackend(
       'executive-summary':
         document.executive_summary.trim() ||
         findBackendSectionBody(document.sections, /executive|summary/iu),
-      'company-overview':
+      'cover-page':
+        `${document.program_name} Strategic Report for ${document.business_name}.`,
+      'business-overview':
         findBackendSectionBody(
           document.sections,
           /company|overview|business[-_\s]?overview/iu,
         ) || document.sections[0]?.content,
-      'market-analysis':
+      'sales-and-marketing':
         findBackendSectionBody(
           document.sections,
-          /market|customer|competition|traction|demand/iu,
+          /market|customer|competition|traction|demand|sales|marketing/iu,
         ),
+      'operating-plan': findBackendSectionBody(
+        document.sections,
+        /operating|operations|implementation|delivery/iu,
+      ),
+      people: findBackendSectionBody(
+        document.sections,
+        /people|team|leadership|management|staff/iu,
+      ),
+      'action-plan': findBackendSectionBody(
+        document.sections,
+        /action|next[-_\s]?steps|milestone|execution/iu,
+      ),
+      'technology-cover-page':
+        `${document.program_name} Technology Analysis for ${document.business_name}.`,
+      'technology-executive-summary':
+        findBackendSectionBody(
+          document.sections,
+          /technology|technical|digital|systems/iu,
+        ) || document.executive_summary.trim(),
+      'business-technology-overview': findBackendSectionBody(
+        document.sections,
+        /business.*technology|technology.*overview|digital.*capability/iu,
+      ),
+      'technology-assessment': findBackendSectionBody(
+        document.sections,
+        /technology|technical|system|architecture|security|integration/iu,
+      ),
+      'gap-opportunity-analysis': findBackendSectionBody(
+        document.sections,
+        /gap|opportunity|risk|challenge|readiness/iu,
+      ),
+      'technology-roadmap': findBackendSectionBody(
+        document.sections,
+        /roadmap|implementation|milestone|initiative|next[-_\s]?steps/iu,
+      ),
+      'technology-ai-review':
+        findBackendSectionBody(document.sections, /technology.*review|technical.*review|review/iu) ||
+        `The technology analysis is being refined for ${document.program_name} with clearer feasibility, implementation, and reviewer confidence language.`,
       'financial-model':
         findBackendSectionBody(
           document.sections,
@@ -6640,6 +7010,14 @@ function createGeneratedPackageFromBackend(
       'ai-review':
         findBackendSectionBody(document.sections, /risk|review/iu) ||
         `The package is being refined for ${document.program_name} with stronger measurable outcomes, reviewer confidence language, and clearer next-step logic.`,
+      'company-overview': findBackendSectionBody(
+        document.sections,
+        /company|overview|business[-_\s]?overview/iu,
+      ),
+      'market-analysis': findBackendSectionBody(
+        document.sections,
+        /market|customer|competition|traction|demand/iu,
+      ),
     },
   )
 
@@ -7739,21 +8117,49 @@ function QuickBuildPage({
     persistGeneratedPackage(nextPackage)
   }
 
-  function downloadWordCompatibleExport() {
+  function workspaceExportInput() {
     if (!generatedPackage) {
+      return null
+    }
+
+    const sections = workspaceSections.map(({ status: _status, progress: _progress, preview, ...section }) => ({
+      ...section,
+      body: preview || section.body,
+    }))
+    return createReportExportInput(generatedPackage, sections)
+  }
+
+  async function downloadDocxExport() {
+    const input = workspaceExportInput()
+    if (!input) {
       setFormMessage('Generate the package first, then export it.')
       return
     }
 
-    const exportContent = buildPackageExport(generatedPackage, workspaceSections)
-    const blob = new Blob([exportContent], { type: 'application/msword;charset=utf-8' })
-    const objectUrl = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = objectUrl
-    link.download = `${generatedPackage.businessName.replace(/\s+/gu, '-').toLowerCase()}-funding-package.doc`
-    link.click()
-    window.URL.revokeObjectURL(objectUrl)
-    setFormMessage('Word-compatible export downloaded. A true DOCX renderer can plug into this workflow next.')
+    await downloadStrategicReportDocx(input)
+    setFormMessage('DOCX export downloaded.')
+  }
+
+  async function downloadPdfExport() {
+    const input = workspaceExportInput()
+    if (!input) {
+      setFormMessage('Generate the package first, then export it.')
+      return
+    }
+
+    await downloadStrategicReportPdf(input)
+    setFormMessage('PDF export downloaded.')
+  }
+
+  async function downloadExcelExport() {
+    const input = workspaceExportInput()
+    if (!input) {
+      setFormMessage('Generate the package first, then export it.')
+      return
+    }
+
+    await downloadStrategicReportXlsx(input)
+    setFormMessage('Excel export downloaded.')
   }
 
   async function shareWorkspace() {
@@ -7841,44 +8247,45 @@ function QuickBuildPage({
 
               {strategicReviewReports.length > 0 ? (
                 <div className="advisory-report-list">
-                  {strategicReviewReports.map((report) => (
-                    <button
-                      key={report.id}
-                      type="button"
-                      className="advisory-report-row"
-                      onClick={() => openStrategicReviewReport(report)}
-                    >
-                      <span className="advisory-report-symbol">
-                        <Glyph type="spark" />
-                      </span>
-                      <span className="advisory-report-main">
-                        <span className="advisory-report-label">{t('quickBuild.strategicReport')}</span>
-                        <strong>{report.generatedPackage.programName}</strong>
-                        <small>
-                          {report.generatedPackage.businessName} · {t('quickBuild.applicationId')} {report.applicationId}
-                        </small>
-                        <small>{t('quickBuild.strategicReportId')} {report.id}</small>
-                      </span>
-                      <span className="advisory-report-score">
-                        <strong>{report.generatedPackage.readinessScore}%</strong>
-                        <small>{t('quickBuild.readiness')}</small>
-                      </span>
-                      <span className="advisory-report-date">
-                        <strong>
-                          {new Intl.DateTimeFormat(locale, {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          }).format(new Date(report.generatedPackage.completedAt))}
-                        </strong>
-                        <small>{t('common.completed')}</small>
-                      </span>
-                      <span className="advisory-report-open">
-                        {t('quickBuild.openReport')}
-                        <Glyph type="arrow" />
-                      </span>
-                    </button>
-                  ))}
+                  {strategicReviewReports.map((report) => {
+                    const application = findApplicationRecord(loadApplications(), report.applicationId)
+                    return (
+                      <button
+                        key={report.id}
+                        type="button"
+                        className="advisory-report-row"
+                        onClick={() => openStrategicReviewReport(report)}
+                      >
+                        <span className="advisory-report-symbol">
+                          <Glyph type="spark" />
+                        </span>
+                        <span className="advisory-report-main">
+                          <span className="advisory-report-label">{t('quickBuild.strategicReport')}</span>
+                          <strong>{report.generatedPackage.programName}</strong>
+                          <small>app_id {application?.appId ?? report.applicationId}</small>
+                          <small>{report.generatedPackage.businessName}</small>
+                        </span>
+                        <span className="advisory-report-score">
+                          <strong>{report.generatedPackage.readinessScore}%</strong>
+                          <small>{t('quickBuild.readiness')}</small>
+                        </span>
+                        <span className="advisory-report-date">
+                          <strong>
+                            {new Intl.DateTimeFormat(locale, {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            }).format(new Date(report.generatedPackage.completedAt))}
+                          </strong>
+                          <small>{t('common.completed')}</small>
+                        </span>
+                        <span className="advisory-report-open">
+                          {t('quickBuild.openReport')}
+                          <Glyph type="arrow" />
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="advisory-report-empty">
@@ -8563,12 +8970,17 @@ function QuickBuildPage({
                           <button type="button" onClick={openEditor}>
                             Open Editor
                           </button>
-                          <button type="button" onClick={downloadWordCompatibleExport}>
+                          <button type="button" onClick={() => void downloadDocxExport()}>
                             Download DOCX
                           </button>
-                          <button type="button" onClick={() => window.print()}>
+                          <button type="button" onClick={() => void downloadPdfExport()}>
                             Download PDF
                           </button>
+                          {generatedPackage.financialForecast ? (
+                            <button type="button" onClick={() => void downloadExcelExport()}>
+                              Download Excel
+                            </button>
+                          ) : null}
                           <button type="button" onClick={shareWorkspace}>
                             Share Workspace
                           </button>

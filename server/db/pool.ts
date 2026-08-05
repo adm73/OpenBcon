@@ -3,14 +3,20 @@ import { environment } from '../config'
 
 const { Pool } = pg
 
-export const databasePool = new Pool({
-  connectionString: environment.DATABASE_URL,
-  max: 10,
-  idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,
-  ssl: environment.DATABASE_SSL
-    ? {
-        rejectUnauthorized: false,
-      }
-    : undefined,
-})
+export function createDatabasePool(connectionString: string) {
+  return new Pool({
+    connectionString,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+    ssl: environment.DATABASE_SSL
+      ? {
+          rejectUnauthorized: false,
+        }
+      : undefined,
+  })
+}
+
+export const databasePool = createDatabasePool(
+  environment.DATABASE_URL_TEST ?? environment.DATABASE_URL,
+)

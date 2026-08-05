@@ -88,6 +88,7 @@ export type GeneratedPackageSection = {
   body: string
   agent: string
   documentLabel: string
+  layout?: 'cover-page' | 'main-content'
 }
 
 export type GeneratedPackage = {

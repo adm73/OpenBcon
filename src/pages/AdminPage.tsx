@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type CSSProperties,
   type FormEvent,
 } from 'react'
 import { Link } from 'react-router-dom'
@@ -11,6 +12,7 @@ import {
   type AdvisoryHubAgentConfig,
   type AdvisoryHubConfig,
   type AdvisoryHubDocumentTypeConfig,
+  type AdvisoryHubLayoutConfig,
   type AdvisoryHubSectionConfig,
   type AIModelConfig,
   type ContentFormat,
@@ -39,10 +41,13 @@ import {
   type FundingDataSourceProvider,
 } from '../data/fundingSources'
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
+import { getEnvironmentModeHeaders } from '../lib/environmentMode'
+import { languageOptions, normalizeLocale, useLocale } from '../i18n'
 import {
   OPEN_BCON_REPO_URL,
   hasCommercialLicenseAccess,
 } from '../licensing/openBconAttribution'
+import { cssDeclarationsToStyle } from '../lib/layoutStyles'
 
 const moduleLabels: Array<{ id: PlatformModuleId; label: string; group: string }> = [
   { id: 'discovery', label: 'Discovery', group: 'Funding Centre' },
@@ -173,6 +178,10 @@ function createPaymentPriceItem(
     active: true,
     isDefault: false,
   }
+}
+
+function layoutPreviewStyle(layout: AdvisoryHubLayoutConfig): CSSProperties {
+  return cssDeclarationsToStyle(layout.css)
 }
 
 type PaymentDescriptionEditorProps = {
@@ -419,6 +428,7 @@ function formatAIChatResponse(value: string) {
 
 export function AdminPage() {
   const { config, updateConfig, resetConfig } = usePlatformConfig()
+  const { setLocale } = useLocale()
   const [draft, setDraft] = useState<PlatformConfig>(config)
   const [saved, setSaved] = useState(false)
   const [paymentNotice, setPaymentNotice] = useState('')
@@ -673,6 +683,19 @@ export function AdminPage() {
     setSaved(false)
   }
 
+  function updateAdvisoryHubLayout<Key extends keyof AdvisoryHubLayoutConfig>(
+    layoutId: AdvisoryHubLayoutConfig['id'],
+    field: Key,
+    value: AdvisoryHubLayoutConfig[Key],
+  ) {
+    updateAdvisoryHubField(
+      'layouts',
+      draft.advisoryHub.layouts.map((layout) =>
+        layout.id === layoutId ? { ...layout, [field]: value } : layout,
+      ),
+    )
+  }
+
   function updateAdvisoryHubSection<Key extends keyof AdvisoryHubSectionConfig>(
     sectionId: AdvisoryHubSectionConfig['id'],
     field: Key,
@@ -710,6 +733,33 @@ export function AdminPage() {
     const [section] = nextSections.splice(currentIndex, 1)
     nextSections.splice(targetIndex, 0, section)
     updateAdvisoryHubField('sections', nextSections)
+  }
+
+  function addAdvisoryHubSection() {
+    const documentType = draft.advisoryHub.documentTypes[0]
+    const agent = draft.advisoryHub.agents[0]
+    if (!documentType || !agent) return
+
+    updateAdvisoryHubField('sections', [
+      ...draft.advisoryHub.sections,
+      {
+        id: `custom-section-${Date.now()}`,
+        title: 'New section',
+        documentTypeId: documentType.id,
+        prompt: 'Describe the evidence, analysis, and reviewer outcome this section should cover.',
+        agentId: agent.id,
+        layout: 'main-content',
+        enabled: true,
+      },
+    ])
+  }
+
+  function removeAdvisoryHubSection(sectionId: AdvisoryHubSectionConfig['id']) {
+    if (draft.advisoryHub.sections.length <= 1) return
+    updateAdvisoryHubField(
+      'sections',
+      draft.advisoryHub.sections.filter((section) => section.id !== sectionId),
+    )
   }
 
   function updateAdvisoryHubAgent<Key extends keyof AdvisoryHubAgentConfig>(
@@ -1235,7 +1285,10 @@ export function AdminPage() {
       try {
         const response = await fetch(`${pythonBackendBaseUrl}/api/ai/test-connection`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...getEnvironmentModeHeaders(),
+          },
           credentials: 'include',
           body: JSON.stringify({
             model_name: model.id,
@@ -1347,6 +1400,7 @@ export function AdminPage() {
   function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     updateConfig(draft)
+    setLocale(draft.language)
     setSaved(true)
   }
 
@@ -1366,7 +1420,7 @@ export function AdminPage() {
     try {
       const response = await fetch(
         `/api/updates?currentCommit=${encodeURIComponent(updateCheck.currentCommit)}`,
-        { credentials: 'include' },
+        { credentials: 'include', headers: getEnvironmentModeHeaders() },
       )
       const payload = (await response.json()) as Partial<UpdateCheckState> & {
         message?: string
@@ -1416,6 +1470,7 @@ export function AdminPage() {
           <a href="#pricing">Pricing</a>
           <a href="#revenue">Revenue</a>
           <a href="#advisory-hub">Strategic Report - Sections</a>
+          <a href="#layouts">Layouts</a>
           <a href="#advisory-hub-document-types">Strategic Report - Document Types</a>
           <a href="#advisory-hub-agents">Strategic Report - Agents</a>
           <a href="#ai-models">AI Models</a>
@@ -1451,6 +1506,20 @@ export function AdminPage() {
                   value={draft.supportEmail}
                   onChange={(event) => updateField('supportEmail', event.target.value)}
                 />
+              </label>
+              <label>
+                <span>Language</span>
+                <select
+                  value={draft.language}
+                  onChange={(event) => updateField('language', normalizeLocale(event.target.value))}
+                >
+                  {languageOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <small>Default language for the platform. Users can choose their own language in Settings.</small>
               </label>
               <div className="admin-brand-upload admin-field-wide">
                 <span>Platform logo</span>
@@ -2890,10 +2959,17 @@ export function AdminPage() {
                   <div>
                     <strong>Section generation</strong>
                     <p>
-                      Toggle, rename, assign, and reorder sections. At least one
-                      section must stay enabled.
+                      Add, remove, rename, assign, and reorder sections. At least
+                      one section must remain available and enabled.
                     </p>
                   </div>
+                  <button
+                    className="admin-button-secondary"
+                    type="button"
+                    onClick={addAdvisoryHubSection}
+                  >
+                    Add section
+                  </button>
                 </div>
                 <div className="admin-price-management-list">
                   {draft.advisoryHub.sections.map((section, index) => (
@@ -2970,6 +3046,22 @@ export function AdminPage() {
                             ))}
                           </select>
                         </label>
+                        <label>
+                          <span>Layout</span>
+                          <select
+                            value={section.layout}
+                            onChange={(event) =>
+                              updateAdvisoryHubSection(
+                                section.id,
+                                'layout',
+                                event.target.value as AdvisoryHubSectionConfig['layout'],
+                              )
+                            }
+                          >
+                            <option value="cover-page">Cover page</option>
+                            <option value="main-content">Main content</option>
+                          </select>
+                        </label>
                         <label className="admin-field-wide">
                           <span>Section prompt</span>
                           <textarea
@@ -3006,10 +3098,114 @@ export function AdminPage() {
                           >
                             Move down
                           </button>
+                          <button
+                            className="admin-button-secondary"
+                            type="button"
+                            onClick={() => removeAdvisoryHubSection(section.id)}
+                            disabled={draft.advisoryHub.sections.length <= 1}
+                          >
+                            Remove section
+                          </button>
                         </div>
                       </div>
                     </article>
                   ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-card admin-management-card" id="layouts">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">10</p>
+              <h2>Layouts</h2>
+              <p>Configure the reusable layout definitions used by Strategic Report sections.</p>
+            </div>
+            <div className="admin-management-content">
+              <div className="admin-price-management">
+                <div className="admin-price-management-header">
+                  <div>
+                    <strong>Layout definitions</strong>
+                    <p>
+                      Edit the CSS declarations and preview the result before
+                      saving. Sections reference these layouts by ID.
+                    </p>
+                  </div>
+                </div>
+                <div className="admin-layout-list">
+                  {draft.advisoryHub.layouts.map((layout) => {
+                    return (
+                      <article className="admin-layout-definition" key={layout.id}>
+                        <header className="admin-layout-definition-header">
+                          <div>
+                            <span>{layout.id}</span>
+                            <strong>{layout.name.trim() || 'Untitled layout'}</strong>
+                          </div>
+                          <span className="admin-layout-definition-badge">Preview</span>
+                        </header>
+                        <div className="admin-fields">
+                          <label>
+                            <span>Layout name</span>
+                            <input
+                              value={layout.name}
+                              onChange={(event) =>
+                                updateAdvisoryHubLayout(layout.id, 'name', event.target.value)
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>Description</span>
+                            <input
+                              value={layout.description}
+                              onChange={(event) =>
+                                updateAdvisoryHubLayout(layout.id, 'description', event.target.value)
+                              }
+                            />
+                          </label>
+                          <label className="admin-field-wide">
+                            <span>CSS declarations</span>
+                            <textarea
+                              value={layout.css}
+                              onChange={(event) =>
+                                updateAdvisoryHubLayout(layout.id, 'css', event.target.value)
+                              }
+                              placeholder="padding: 36px; background: #ffffff;"
+                            />
+                            <small>
+                              Enter declarations only, without a selector. Example:{' '}
+                              <code>padding: 36px; background: #ffffff;</code>
+                            </small>
+                          </label>
+                        </div>
+                        <div className="admin-layout-preview">
+                          <div className="admin-layout-preview-heading">
+                            <strong>Live preview</strong>
+                            <small>{layout.description}</small>
+                          </div>
+                          <div className="admin-layout-preview-frame">
+                            <div
+                              className={`admin-layout-preview-surface is-${layout.id}`}
+                              style={layoutPreviewStyle(layout)}
+                            >
+                              {layout.id === 'cover-page' ? (
+                                <>
+                                  <span>Strategic Report</span>
+                                  <strong>Northstar Foods</strong>
+                                  <small>Business analysis</small>
+                                </>
+                              ) : (
+                                <>
+                                  <span>Section 01</span>
+                                  <strong>Executive Summary</strong>
+                                  <small>Standard analysis content preview</small>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -3020,7 +3216,7 @@ export function AdminPage() {
             id="advisory-hub-document-types"
           >
             <div className="admin-section-copy">
-              <p className="admin-section-number">10</p>
+              <p className="admin-section-number">11</p>
               <h2>Strategic Report - Document Types</h2>
               <p>Configure the document types available to sections.</p>
             </div>
@@ -3099,7 +3295,7 @@ export function AdminPage() {
 
           <section className="admin-card admin-management-card" id="advisory-hub-agents">
             <div className="admin-section-copy">
-              <p className="admin-section-number">11</p>
+              <p className="admin-section-number">12</p>
               <h2>Strategic Report - Agents</h2>
               <p>Configure the agents available to section generation.</p>
             </div>
@@ -3176,7 +3372,7 @@ export function AdminPage() {
 
           <section className="admin-card admin-management-card" id="ai-models">
             <div className="admin-section-copy">
-              <p className="admin-section-number">12</p>
+              <p className="admin-section-number">13</p>
               <h2>AI model management</h2>
               <p>
                 Configure the model endpoint and request payload used by document generation workflows.
@@ -3304,7 +3500,7 @@ export function AdminPage() {
 
           <section className="admin-card" id="legal">
             <div className="admin-section-copy">
-              <p className="admin-section-number">13</p>
+              <p className="admin-section-number">14</p>
               <h2>Legal pages</h2>
               <p>
                 Edit the public Privacy Policy and Terms of Service shown in the
@@ -3400,7 +3596,7 @@ export function AdminPage() {
 
           {!commercialLicenseUnlocked && <section className="admin-card" id="licensing">
             <div className="admin-section-copy">
-              <p className="admin-section-number">14</p>
+              <p className="admin-section-number">15</p>
               <h2>Commercial licensing</h2>
               <p>
                 Commercial licensing terms are fixed for the community edition
@@ -3465,7 +3661,7 @@ export function AdminPage() {
 
           <section className="admin-card" id="notification-bar">
             <div className="admin-section-copy">
-              <p className="admin-section-number">15</p>
+              <p className="admin-section-number">16</p>
               <h2>Notification bar</h2>
               <p>
                 Show a configurable message at the top of every authenticated
@@ -3564,7 +3760,7 @@ export function AdminPage() {
 
           <section className="admin-card" id="updates">
             <div className="admin-section-copy">
-              <p className="admin-section-number">16</p>
+              <p className="admin-section-number">17</p>
               <h2>Updates</h2>
               <p>
                 Check the OpenBcon repository for a newer application build.

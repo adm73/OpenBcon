@@ -11,6 +11,7 @@ from .models import (
     GeneratedSection,
     ProgramAnalysis,
 )
+from .config import EnvironmentMode
 from .prompts import (
     build_company_analysis_prompt,
     build_outline_prompt,
@@ -204,7 +205,10 @@ class MockModelGateway:
         )
 
 
-def build_model_gateway(settings: Settings) -> ModelGateway:
-    if settings.use_mock_llm:
+def build_model_gateway(
+    settings: Settings,
+    environment_mode: EnvironmentMode = "test",
+) -> ModelGateway:
+    if environment_mode == "test" or settings.use_mock_llm:
         return MockModelGateway()
     return OpenAIModelGateway(settings)

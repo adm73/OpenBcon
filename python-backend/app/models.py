@@ -72,8 +72,10 @@ class AdvisoryHubSectionConfig(BaseModel):
     id: str
     title: str
     document_type_id: str
+    document_type_name: str = ""
     prompt: str
     agent_id: str
+    layout: Literal["cover-page", "main-content"] = "main-content"
     enabled: bool
 
 

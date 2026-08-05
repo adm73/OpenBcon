@@ -46,6 +46,11 @@ function loadInitialLocale(): SupportedLocale {
   if (storedLocale) return normalizeLocale(storedLocale)
 
   try {
+    const platformConfig = JSON.parse(
+      window.localStorage.getItem('bconomics-platform-config-v1') ?? '{}',
+    ) as { language?: string }
+    if (platformConfig.language) return normalizeLocale(platformConfig.language)
+
     const settings = JSON.parse(
       window.localStorage.getItem('bconomics-user-settings-v1') ?? '{}',
     ) as { language?: string }
@@ -54,7 +59,7 @@ function loadInitialLocale(): SupportedLocale {
     // Ignore malformed legacy settings and use the browser locale.
   }
 
-  return normalizeLocale(window.navigator.language)
+  return 'en-CA'
 }
 
 void i18n.use(initReactI18next).init({

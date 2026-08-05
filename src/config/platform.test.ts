@@ -3,6 +3,7 @@ import {
   commercialLicenseDefaults,
   defaultNotificationBar,
   defaultPlatformConfig,
+  normalizeAdvisoryHubSections,
   sanitizePlatformConfigForPersistence,
 } from './platform'
 
@@ -17,6 +18,10 @@ describe('platform config persistence', () => {
     expect(defaultPlatformConfig.environmentMode).toBe('test')
   })
 
+  it('defaults the platform language to English', () => {
+    expect(defaultPlatformConfig.language).toBe('en-CA')
+  })
+
   it('provides a prompt for every Strategic Report document type', () => {
     expect(defaultPlatformConfig.advisoryHub.documentTypes.map((documentType) => documentType.name)).toEqual([
       'Business Analysis',
@@ -28,6 +33,80 @@ describe('platform config persistence', () => {
         (documentType) => documentType.prompt.trim().length > 0,
       ),
     ).toBe(true)
+  })
+
+  it('provides the default Business Analysis section outline', () => {
+    expect(
+      defaultPlatformConfig.advisoryHub.sections
+        .filter((section) => section.documentTypeId === 'business-analysis')
+        .slice(0, 7)
+        .map((section) => section.title),
+    ).toEqual([
+      'Cover Page',
+      'Executive Summary',
+      'Business Overview',
+      'Sales & Marketing',
+      'Operating Plan',
+      'People',
+      'Action Plan',
+    ])
+  })
+
+  it('provides the default Technology Analysis section outline', () => {
+    expect(
+      defaultPlatformConfig.advisoryHub.sections
+        .filter((section) => section.documentTypeId === 'technical-analysis')
+        .map((section) => section.title),
+    ).toEqual([
+      'Cover Page',
+      'Executive Summary',
+      'Business & Technology Overview',
+      'Technology Assessment',
+      'Gap & Opportunity Analysis',
+      'Technology Roadmap',
+      'AI Review & Improve',
+    ])
+  })
+
+  it('assigns cover-page layout only to the default cover sections', () => {
+    const coverSections = defaultPlatformConfig.advisoryHub.sections.filter(
+      (section) => section.layout === 'cover-page',
+    )
+
+    expect(coverSections.map((section) => section.id)).toEqual([
+      'cover-page',
+      'technology-cover-page',
+    ])
+    expect(
+      defaultPlatformConfig.advisoryHub.sections
+        .filter((section) => section.layout === 'main-content')
+        .every((section) => section.title !== 'Cover Page'),
+    ).toBe(true)
+  })
+
+  it('provides editable definitions for the report layouts', () => {
+    expect(defaultPlatformConfig.advisoryHub.layouts.map((layout) => layout.id)).toEqual([
+      'cover-page',
+      'main-content',
+    ])
+    expect(
+      defaultPlatformConfig.advisoryHub.layouts.every(
+        (layout) => layout.name.trim().length > 0 && layout.css.includes(':'),
+      ),
+    ).toBe(true)
+  })
+
+  it('does not re-add sections removed from the persisted configuration', () => {
+    const sections = normalizeAdvisoryHubSections(
+      defaultPlatformConfig.advisoryHub.sections.filter(
+        (section) => !['funding-narrative', 'ai-review'].includes(section.id),
+      ),
+      defaultPlatformConfig.advisoryHub.agents,
+      defaultPlatformConfig.advisoryHub.documentTypes,
+    )
+
+    expect(sections.some((section) => section.id === 'funding-narrative')).toBe(false)
+    expect(sections.some((section) => section.id === 'ai-review')).toBe(false)
   })
 
   it('removes AI credentials before persistence', () => {

@@ -42,6 +42,7 @@ OpenBcon is designed for teams that help businesses secure funding:
 
 - **AI business plan generation**: turn company and funding-program context into a structured funding-ready package
 - **Configurable Strategic Report**: run section-by-section generation with admin-managed sections, document types, agents, roles, prompts, and ordering
+- **Reusable report layouts**: configure cover-page and main-content CSS declarations in Admin Console with a live preview, then assign those layouts to Strategic Report sections
 - **Funding readiness workflows**: assess strengths, risks, and missing inputs before submission
 - **Client and company management**: organize founder profiles, business details, and working records
 - **Funding program database**: manage grants, loans, and opportunity sources in one directory
@@ -160,6 +161,7 @@ The current repository snapshot includes the landing experience, dashboard works
 - Three-step Quick Build workflow with validation, company import, application restore, and generated previews
 - Dedicated Strategic Reports route (`/strategic-reports`) for reopening the latest generated package outside the form flow
 - Strategic Report generation driven by configurable sections, document types, agents, roles, prompts, and workflow ordering
+- Admin-managed Strategic Report layouts with editable names, descriptions, CSS declarations, and live previews
 - Saved Programs materialized as applications with funding-program step data prefilled
 - My Applications and Quick Build use the unique external `app_id` in links and API requests
 - Google Sheets and Airtable funding data-source integrations
@@ -516,6 +518,22 @@ the platform configuration. Administrators can:
 - define the document types available to those sections
 - add, remove, and edit Strategic Report agents, including their names, roles, and prompts
 - assign a document type and agent to each section
+- configure reusable `cover-page` and `main-content` layouts, including their names, descriptions, and CSS declarations
+- preview layout changes immediately before saving them
+
+Layouts are intentionally edited as CSS declarations rather than arbitrary selector
+rules. For example:
+
+```text
+padding: 36px 42px; background: #ffffff; gap: 18px;
+```
+
+Each Strategic Report section references one layout by ID. The report document
+preview applies the saved declarations to the corresponding page, while the
+`cover-page` layout also controls structured cover-page rendering. Layout
+definitions are normalized to the current platform configuration, so the selected
+Test or Live environment remains the source of truth and removed or stale local
+section snapshots are not reintroduced.
 
 At least one section, one document type, and one agent remain available so the
 generation workflow always has a valid configuration.

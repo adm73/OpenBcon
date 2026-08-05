@@ -26,14 +26,17 @@ export type DocumentStore = {
 
 type MongoStateDocument = DynamicStateDocument & { _id?: string }
 
-function createMongoDocumentStore(): DocumentStore {
-  const client = new MongoClient(environment.MONGODB_URL)
+function createMongoDocumentStore(
+  databaseName: string,
+  mongodbUrl = environment.MONGODB_URL,
+): DocumentStore {
+  const client = new MongoClient(mongodbUrl)
   let collectionPromise: Promise<Collection<MongoStateDocument>> | undefined
 
   async function getCollection() {
     collectionPromise ??= client.connect().then(async () => {
       const collection = client
-        .db(environment.MONGODB_DATABASE)
+        .db(databaseName)
         .collection<MongoStateDocument>('dynamic_state')
       await collection.createIndex(
         { scope: 1, ownerId: 1, key: 1 },
@@ -104,6 +107,8 @@ export function createInMemoryDocumentStore(): DocumentStore {
   }
 }
 
-export function createDocumentStore(): DocumentStore {
-  return createMongoDocumentStore()
+export function createDocumentStore(
+  databaseName = environment.MONGODB_DATABASE_TEST ?? environment.MONGODB_DATABASE,
+): DocumentStore {
+  return createMongoDocumentStore(databaseName)
 }

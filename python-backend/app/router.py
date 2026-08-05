@@ -9,7 +9,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
 
-from .config import get_settings
+from .config import get_environment_mode, get_settings
 from .db import get_connection
 from .advisory_config import load_advisory_hub_configuration
 from .auth import require_application_access, require_authenticated
@@ -44,7 +44,7 @@ def generate_financial_forecast(
     request: Request,
     payload: GeneratePlanRequest,
 ) -> FinancialForecast:
-    with get_connection() as connection:
+    with get_connection(get_environment_mode(request)) as connection:
         try:
             workspace = require_application_access(request, connection, payload.app_id)
             context = FundingPlanRepository(connection).load_generation_context(
@@ -157,7 +157,8 @@ def test_ai_connection(
     request: Request,
     payload: AIConnectionTestRequest,
 ) -> AIConnectionTestResponse:
-    with get_connection() as connection:
+    environment_mode = get_environment_mode(request)
+    with get_connection(environment_mode) as connection:
         require_authenticated(request, connection)
 
     settings = get_settings()
@@ -211,19 +212,20 @@ def generate_business_plan(
     payload: GeneratePlanRequest,
 ) -> GenerationRunResult:
     settings = get_settings()
+    environment_mode = get_environment_mode(request)
     strategic_report_id: UUID | None = None
     graph_trace: dict = {}
 
-    with get_connection() as connection:
+    with get_connection(environment_mode) as connection:
         repository = FundingPlanRepository(connection)
 
         try:
             workspace = require_application_access(request, connection, payload.app_id)
             context = repository.load_generation_context(payload, workspace.workspace_id)
-            gateway = build_model_gateway(settings)
+            gateway = build_model_gateway(settings, environment_mode)
             graph = build_plan_graph(PlanNodes(gateway))
             context = repository.ensure_context_records(context)
-            advisory_hub = load_advisory_hub_configuration(settings)
+            advisory_hub = load_advisory_hub_configuration(settings, environment_mode)
             context = context.model_copy(
                 update={
                     "advisory_sections": advisory_hub.sections,

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { existsSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
@@ -62,6 +63,20 @@ const mutationSchema = z.discriminatedUnion('operation', [
 const batchSchema = z.object({
   mutations: z.array(mutationSchema).max(100),
 })
+
+type EnvironmentMode = 'test' | 'live'
+
+type RuntimeResources = {
+  database: Pool
+  documentStore: DocumentStore
+}
+
+type ModeResources = Partial<Record<EnvironmentMode, RuntimeResources>>
+
+function getRequestedEnvironmentMode(request: express.Request): EnvironmentMode {
+  const header = request.headers['x-openbcon-environment-mode']
+  return header === 'live' ? 'live' : 'test'
+}
 const singleStateSchema = z.object({
   scope: scopeSchema,
   value: z.unknown(),
@@ -100,13 +115,35 @@ function sendValidationError(response: Response, error: z.ZodError) {
 }
 
 export function createApp(
-  database: Pool = databasePool,
-  documentStore: DocumentStore =
+  defaultDatabase: Pool = databasePool,
+  defaultDocumentStore: DocumentStore =
     environment.NODE_ENV === 'test'
       ? createInMemoryDocumentStore()
       : createDocumentStore(),
+  modeResources: ModeResources = {},
 ) {
   const app = express()
+  const requestResources = new AsyncLocalStorage<RuntimeResources>()
+  const testResources = modeResources.test ?? {
+    database: defaultDatabase,
+    documentStore: defaultDocumentStore,
+  }
+  const liveResources = modeResources.live
+  const database = new Proxy(defaultDatabase, {
+    get(_target, property) {
+      const target = requestResources.getStore()?.database ?? testResources.database
+      const value = Reflect.get(target, property, target)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  }) as Pool
+  const documentStore = new Proxy(defaultDocumentStore, {
+    get(_target, property) {
+      const target =
+        requestResources.getStore()?.documentStore ?? testResources.documentStore
+      const value = Reflect.get(target, property, target)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  }) as DocumentStore
   const failedLoginAttempts = new Map<string, { count: number; resetAt: number }>()
   const allowedOrigins = environment.CORS_ORIGIN.split(',').map((origin) =>
     origin.trim(),
@@ -120,6 +157,16 @@ export function createApp(
       crossOriginResourcePolicy: false,
     }),
   )
+
+  app.use((request, _response, next) => {
+    const mode = getRequestedEnvironmentMode(request)
+    const resources = mode === 'live' ? liveResources : testResources
+    if (!resources) {
+      next(new Error('Live mode is not configured with a live database.'))
+      return
+    }
+    requestResources.run(resources, next)
+  })
   app.use(
     cors({
       origin:

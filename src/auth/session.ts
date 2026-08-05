@@ -1,3 +1,5 @@
+import { getEnvironmentModeHeaders } from '../lib/environmentMode'
+
 export type AuthRole = string
 
 export type AuthUser = {
@@ -210,6 +212,7 @@ export async function registerUser(input: {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        ...getEnvironmentModeHeaders(),
       },
       credentials: 'include',
       body: JSON.stringify(input),
@@ -260,6 +263,7 @@ export async function loginUser(input: { email: string; password: string }) {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
+        ...getEnvironmentModeHeaders(),
       },
       credentials: 'include',
       body: JSON.stringify(input),
@@ -299,6 +303,7 @@ export function clearAuthSession() {
 
   void fetch(`${authApiBaseUrl}/auth/logout`, {
     method: 'POST',
+    headers: getEnvironmentModeHeaders(),
     credentials: 'include',
   }).catch(() => undefined)
 

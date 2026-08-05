@@ -2,6 +2,8 @@ import {
   defaultFundingDataSources,
   type FundingDataSource,
 } from '../data/fundingSources'
+import type { SupportedLocale } from '../i18n'
+import { platformConfigStorageKey as sharedPlatformConfigStorageKey } from '../lib/environmentMode'
 
 export type PlatformModuleId =
   | 'discovery'
@@ -85,12 +87,26 @@ export type AIModelConfig = {
 }
 
 export type AdvisoryHubSectionId =
+  | 'cover-page'
   | 'executive-summary'
-  | 'company-overview'
-  | 'market-analysis'
+  | 'business-overview'
+  | 'sales-and-marketing'
+  | 'operating-plan'
+  | 'people'
+  | 'action-plan'
+  | 'technology-cover-page'
+  | 'technology-executive-summary'
+  | 'business-technology-overview'
+  | 'technology-assessment'
+  | 'gap-opportunity-analysis'
+  | 'technology-roadmap'
+  | 'technology-ai-review'
   | 'financial-model'
   | 'funding-narrative'
   | 'ai-review'
+  | 'company-overview'
+  | 'market-analysis'
+  | `custom-section-${string}`
 
 export type AdvisoryHubAgentConfig = {
   id: string
@@ -105,18 +121,29 @@ export type AdvisoryHubDocumentTypeConfig = {
   prompt: string
 }
 
+export type AdvisoryHubSectionLayout = 'cover-page' | 'main-content'
+
+export type AdvisoryHubLayoutConfig = {
+  id: AdvisoryHubSectionLayout
+  name: string
+  description: string
+  css: string
+}
+
 export type AdvisoryHubSectionConfig = {
   id: AdvisoryHubSectionId
   title: string
   documentTypeId: string
   prompt: string
   agentId: string
+  layout: AdvisoryHubSectionLayout
   enabled: boolean
 }
 
 export type AdvisoryHubConfig = {
   agents: AdvisoryHubAgentConfig[]
   documentTypes: AdvisoryHubDocumentTypeConfig[]
+  layouts: AdvisoryHubLayoutConfig[]
   sections: AdvisoryHubSectionConfig[]
 }
 
@@ -204,6 +231,7 @@ export type PlatformConfig = {
   platformName: string
   platformLogo: string
   supportEmail: string
+  language: SupportedLocale
   environmentMode: EnvironmentMode
   primaryColor: string
   sidebarColor: string
@@ -235,6 +263,10 @@ export const defaultNotificationBar: NotificationBarConfig = {
   actionLabel: 'Learn more',
   actionUrl: '',
   dismissible: true,
+}
+
+function normalizePlatformLanguage(value: unknown): SupportedLocale {
+  return value === 'fr-CA' || value === 'zh-CN' ? value : 'en-CA'
 }
 
 function isEnvironmentReference(value: string) {
@@ -449,29 +481,146 @@ const defaultPaymentCatalog: PaymentCatalogItem[] = ensureDefaultPriceCatalog([
   },
 ])
 
+const defaultAdvisoryHubLayouts: AdvisoryHubLayoutConfig[] = [
+  {
+    id: 'cover-page',
+    name: 'Cover page',
+    description: 'A structured, centered opening page for the report.',
+    css: 'min-height: 520px; display: grid; place-items: center; padding: 54px; background: linear-gradient(145deg, #ffffff 0%, #f4f7ff 100%);',
+  },
+  {
+    id: 'main-content',
+    name: 'Main content',
+    description: 'The standard document page for analysis content.',
+    css: 'display: grid; align-content: start; gap: 18px; padding: 36px 42px; background: #ffffff;',
+  },
+]
+
 const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
+  {
+    id: 'cover-page',
+    title: 'Cover Page',
+    documentTypeId: 'business-analysis',
+    prompt: 'Create a clear cover page with the business, opportunity, funding request, and report date.',
+    agentId: 'grant-writer',
+    layout: 'cover-page',
+    enabled: true,
+  },
   {
     id: 'executive-summary',
     title: 'Executive Summary',
     documentTypeId: 'business-analysis',
     prompt: 'Summarize the opportunity, business, funding ask, and reviewer case clearly.',
     agentId: 'grant-writer',
+    layout: 'main-content',
     enabled: true,
   },
   {
-    id: 'company-overview',
-    title: 'Company Overview',
+    id: 'business-overview',
+    title: 'Business Overview',
     documentTypeId: 'business-analysis',
     prompt: 'Explain the company, operating model, team, and execution capability.',
     agentId: 'business-consultant',
+    layout: 'main-content',
     enabled: true,
   },
   {
-    id: 'market-analysis',
-    title: 'Market Analysis',
+    id: 'sales-and-marketing',
+    title: 'Sales & Marketing',
     documentTypeId: 'business-analysis',
-    prompt: 'Describe the market, customers, competition, traction, and growth opportunity.',
+    prompt: 'Describe the sales channels, marketing approach, customer acquisition plan, pipeline, and measurable growth targets.',
     agentId: 'business-consultant',
+    layout: 'main-content',
+    enabled: true,
+  },
+  {
+    id: 'operating-plan',
+    title: 'Operating Plan',
+    documentTypeId: 'business-analysis',
+    prompt: 'Explain how the business will deliver its product or service, scale operations, and execute the funding plan.',
+    agentId: 'business-consultant',
+    layout: 'main-content',
+    enabled: true,
+  },
+  {
+    id: 'people',
+    title: 'People',
+    documentTypeId: 'business-analysis',
+    prompt: 'Describe the leadership team, relevant experience, responsibilities, hiring needs, and execution capability.',
+    agentId: 'business-consultant',
+    layout: 'main-content',
+    enabled: true,
+  },
+  {
+    id: 'action-plan',
+    title: 'Action Plan',
+    documentTypeId: 'business-analysis',
+    prompt: 'Translate the strategy into sequenced actions, milestones, owners, timing, and measurable outcomes.',
+    agentId: 'business-consultant',
+    layout: 'main-content',
+    enabled: true,
+  },
+  {
+    id: 'technology-cover-page',
+    title: 'Cover Page',
+    documentTypeId: 'technical-analysis',
+    prompt: 'Create a clear technology analysis cover page with the business, technology context, opportunity, and report date.',
+    agentId: 'program-analyst',
+    layout: 'cover-page',
+    enabled: true,
+  },
+  {
+    id: 'technology-executive-summary',
+    title: 'Executive Summary',
+    documentTypeId: 'technical-analysis',
+    prompt: 'Summarize the current technology position, the most important findings, and the recommended technology direction.',
+    agentId: 'program-analyst',
+    layout: 'main-content',
+    enabled: true,
+  },
+  {
+    id: 'business-technology-overview',
+    title: 'Business & Technology Overview',
+    documentTypeId: 'technical-analysis',
+    prompt: 'Connect the business model, operating priorities, technology environment, digital capabilities, and delivery needs.',
+    agentId: 'business-consultant',
+    layout: 'main-content',
+    enabled: true,
+  },
+  {
+    id: 'technology-assessment',
+    title: 'Technology Assessment',
+    documentTypeId: 'technical-analysis',
+    prompt: 'Assess the current systems, architecture, data, security, integrations, digital tools, and technology readiness.',
+    agentId: 'program-analyst',
+    layout: 'main-content',
+    enabled: true,
+  },
+  {
+    id: 'gap-opportunity-analysis',
+    title: 'Gap & Opportunity Analysis',
+    documentTypeId: 'technical-analysis',
+    prompt: 'Identify technology gaps, risks, opportunities, dependencies, and the business impact of closing each gap.',
+    agentId: 'program-analyst',
+    layout: 'main-content',
+    enabled: true,
+  },
+  {
+    id: 'technology-roadmap',
+    title: 'Technology Roadmap',
+    documentTypeId: 'technical-analysis',
+    prompt: 'Define a sequenced technology roadmap with initiatives, milestones, owners, investment needs, and measurable outcomes.',
+    agentId: 'business-consultant',
+    layout: 'main-content',
+    enabled: true,
+  },
+  {
+    id: 'technology-ai-review',
+    title: 'AI Review & Improve',
+    documentTypeId: 'technical-analysis',
+    prompt: 'Review the technology analysis for clarity, feasibility, security, evidence, implementation risk, and reviewer confidence.',
+    agentId: 'reviewer',
+    layout: 'main-content',
     enabled: true,
   },
   {
@@ -480,6 +629,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     documentTypeId: 'financial-model',
     prompt: 'Build a credible forecast, use-of-funds logic, runway, and measurable financial assumptions.',
     agentId: 'financial-analyst',
+    layout: 'main-content',
     enabled: true,
   },
   {
@@ -488,6 +638,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     documentTypeId: 'business-analysis',
     prompt: 'Turn the evidence into a focused funding narrative with milestones and reviewer-ready outcomes.',
     agentId: 'grant-writer',
+    layout: 'main-content',
     enabled: true,
   },
   {
@@ -496,6 +647,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     documentTypeId: 'business-analysis',
     prompt: 'Review the package for clarity, evidence, compliance, measurable outcomes, and approval confidence.',
     agentId: 'reviewer',
+    layout: 'main-content',
     enabled: true,
   },
 ]
@@ -542,6 +694,62 @@ function resolveAdvisoryHubDocumentTypeId(value: string | undefined) {
   const normalized = value?.trim().toLowerCase() || ''
   return legacyAdvisoryHubDocumentTypeIdMap[normalized] || value?.trim() || ''
 }
+
+const legacyAdvisoryHubSectionIdMap: Record<string, AdvisoryHubSectionId> = {
+  'company-overview': 'business-overview',
+  'market-analysis': 'sales-and-marketing',
+}
+
+function resolveAdvisoryHubSectionId(
+  rawId: string,
+  documentTypeId: string | undefined,
+  title: string | undefined,
+): AdvisoryHubSectionId | undefined {
+  const normalizedTitle = title?.trim().toLowerCase() || ''
+  const resolvedDocumentTypeId = resolveAdvisoryHubDocumentTypeId(documentTypeId)
+
+  if (rawId.startsWith('custom-section-') && normalizedTitle === 'cover page') {
+    return resolvedDocumentTypeId === 'technical-analysis'
+      ? 'technology-cover-page'
+      : resolvedDocumentTypeId === 'business-analysis'
+        ? 'cover-page'
+        : undefined
+  }
+
+  return legacyAdvisoryHubSectionIdMap[rawId]
+}
+
+const legacyAdvisoryHubSectionDefaults: Record<
+  string,
+  { title: string; prompt: string }
+> = {
+  'executive-summary': {
+    title: 'Executive Summary',
+    prompt: 'Summarize the opportunity, business, funding ask, and reviewer case clearly.',
+  },
+  'company-overview': {
+    title: 'Company Overview',
+    prompt: 'Explain the company, operating model, team, and execution capability.',
+  },
+  'market-analysis': {
+    title: 'Market Analysis',
+    prompt: 'Describe the market, customers, competition, traction, and growth opportunity.',
+  },
+  'financial-model': {
+    title: 'Financial Model',
+    prompt: 'Build a credible forecast, use-of-funds logic, runway, and measurable financial assumptions.',
+  },
+  'funding-narrative': {
+    title: 'Funding Narrative',
+    prompt: 'Turn the evidence into a focused funding narrative with milestones and reviewer-ready outcomes.',
+  },
+  'ai-review': {
+    title: 'AI Review & Improve',
+    prompt: 'Review the package for clarity, evidence, compliance, measurable outcomes, and approval confidence.',
+  },
+}
+
+const legacyAdvisoryHubDefaultSectionIds = new Set(Object.keys(legacyAdvisoryHubSectionDefaults))
 
 const defaultAdvisoryHubAgents: AdvisoryHubAgentConfig[] = [
   {
@@ -743,7 +951,21 @@ function normalizeAdvisoryHubDocumentTypes(
     : defaultAdvisoryHubDocumentTypes.map((documentType) => ({ ...documentType }))
 }
 
-function normalizeAdvisoryHubSections(
+function normalizeAdvisoryHubLayouts(
+  layouts: Partial<AdvisoryHubLayoutConfig>[] | undefined,
+): AdvisoryHubLayoutConfig[] {
+  return defaultAdvisoryHubLayouts.map((fallback) => {
+    const saved = layouts?.find((layout) => layout.id === fallback.id)
+    return {
+      id: fallback.id,
+      name: saved?.name?.trim() || fallback.name,
+      description: saved?.description?.trim() || fallback.description,
+      css: saved?.css?.trim() || fallback.css,
+    }
+  })
+}
+
+export function normalizeAdvisoryHubSections(
   sections:
     | (Partial<AdvisoryHubSectionConfig> & {
         agent?: string
@@ -757,20 +979,72 @@ function normalizeAdvisoryHubSections(
     return defaultAdvisoryHubSections.map((section) => ({ ...section }))
   }
 
+  const isUntouchedLegacyDefaultSet =
+    sections.length === legacyAdvisoryHubDefaultSectionIds.size &&
+    sections.every((section) => {
+      const rawId = section.id?.trim() || ''
+      const legacyDefault = legacyAdvisoryHubSectionDefaults[rawId]
+      return (
+        Boolean(legacyDefault) &&
+        (!section.title?.trim() || section.title.trim() === legacyDefault.title) &&
+        (!section.prompt?.trim() || section.prompt.trim() === legacyDefault.prompt)
+      )
+    })
+
+  if (isUntouchedLegacyDefaultSet) {
+    return defaultAdvisoryHubSections.map((section) => {
+      const previousSection = sections.find((candidate) => {
+        const rawId = candidate.id?.trim() || ''
+        return (legacyAdvisoryHubSectionIdMap[rawId] || rawId) === section.id
+      })
+
+      return {
+        ...section,
+        agentId: previousSection?.agentId?.trim() || section.agentId,
+        documentTypeId:
+          resolveAdvisoryHubDocumentTypeId(previousSection?.documentTypeId) ||
+          section.documentTypeId,
+        layout: normalizeAdvisoryHubSectionLayout(
+          previousSection?.layout,
+          section.id,
+          section.title,
+          section.layout,
+        ),
+        enabled: previousSection?.enabled ?? section.enabled,
+      }
+    })
+  }
+
   const defaultsById = new Map(
     defaultAdvisoryHubSections.map((section) => [section.id, section]),
   )
   const normalized = sections
     .map((section, index) => {
+      const rawRequestedId = section.id?.trim() || ''
+      const requestedId =
+        resolveAdvisoryHubSectionId(
+          rawRequestedId,
+          section.documentTypeId,
+          section.title,
+        ) ||
+        (rawRequestedId as AdvisoryHubSectionId) ||
+        undefined
       const fallback =
-        (section.id ? defaultsById.get(section.id) : undefined) ??
+        (requestedId ? defaultsById.get(requestedId) : undefined) ??
         defaultAdvisoryHubSections[index] ??
-        null
-      if (!fallback) return null
+        defaultAdvisoryHubSections[0]
+      const legacyDefault = legacyAdvisoryHubSectionDefaults[rawRequestedId]
+      const isUntouchedLegacyDefault =
+        Boolean(legacyDefault) &&
+        (!section.title?.trim() || section.title.trim() === legacyDefault.title) &&
+        (!section.prompt?.trim() || section.prompt.trim() === legacyDefault.prompt)
 
       return {
-        id: fallback.id,
-        title: section.title?.trim() || fallback.title,
+        id: requestedId || fallback.id,
+        title:
+          isUntouchedLegacyDefault
+            ? fallback.title
+            : section.title?.trim() || fallback.title,
         documentTypeId:
           resolveAdvisoryHubDocumentTypeId(section.documentTypeId) ||
           documentTypes.find(
@@ -779,23 +1053,30 @@ function normalizeAdvisoryHubSections(
               resolveAdvisoryHubDocumentTypeId(section.documentLabel) === documentType.id,
           )?.id ||
           fallback.documentTypeId,
-        prompt: section.prompt?.trim() || fallback.prompt,
+        prompt:
+          isUntouchedLegacyDefault
+            ? fallback.prompt
+            : section.prompt?.trim() || fallback.prompt,
         agentId:
           section.agentId?.trim() ||
           agents.find(
             (agent) => agent.id === section.agent || agent.name === section.agent,
           )?.id ||
           fallback.agentId,
+        layout: normalizeAdvisoryHubSectionLayout(
+          section.layout,
+          requestedId || fallback.id,
+          section.title || fallback.title,
+          fallback.layout,
+        ),
         enabled: section.enabled ?? fallback.enabled,
       } satisfies AdvisoryHubSectionConfig
     })
     .filter((section): section is AdvisoryHubSectionConfig => section !== null)
-
-  for (const fallback of defaultAdvisoryHubSections) {
-    if (!normalized.some((section) => section.id === fallback.id)) {
-      normalized.push({ ...fallback })
-    }
-  }
+    .filter(
+      (section, index, all) =>
+        all.findIndex((candidate) => candidate.id === section.id) === index,
+    )
 
   if (!normalized.some((section) => section.enabled)) {
     normalized[0] = {
@@ -811,6 +1092,7 @@ export const defaultPlatformConfig: PlatformConfig = {
   platformName: 'Bconomics.ai',
   platformLogo: '',
   supportEmail: 'chenadm73@gmail.com',
+  language: 'en-CA',
   environmentMode: 'test',
   primaryColor: '#6257f2',
   sidebarColor: '#121c31',
@@ -901,6 +1183,7 @@ export const defaultPlatformConfig: PlatformConfig = {
   advisoryHub: {
     agents: defaultAdvisoryHubAgents,
     documentTypes: defaultAdvisoryHubDocumentTypes,
+    layouts: defaultAdvisoryHubLayouts,
     sections: defaultAdvisoryHubSections,
   },
   dataSources: defaultFundingDataSources,
@@ -918,7 +1201,7 @@ export const defaultPlatformConfig: PlatformConfig = {
   },
 }
 
-export const platformConfigStorageKey = 'bconomics-platform-config-v1'
+export const platformConfigStorageKey = sharedPlatformConfigStorageKey
 
 type LegacyPlatformConfig = Partial<PlatformConfig> & {
   platformName?: string
@@ -958,6 +1241,22 @@ type LegacyAdvisoryHubConfig = Partial<AdvisoryHubConfig> & {
     agent?: string
     documentLabel?: string
   })[]
+}
+
+function normalizeAdvisoryHubSectionLayout(
+  value: unknown,
+  sectionId: string | undefined,
+  title: string | undefined,
+  fallback: AdvisoryHubSectionLayout = 'main-content',
+): AdvisoryHubSectionLayout {
+  if (value === 'cover-page' || value === 'main-content') return value
+  if (
+    /(?:^|-)cover-page$/iu.test(sectionId?.trim() || '') ||
+    /^cover page$/iu.test(title?.trim() || '')
+  ) {
+    return 'cover-page'
+  }
+  return fallback
 }
 
 function normalizeAIProviders(
@@ -1093,6 +1392,7 @@ export function loadPlatformConfig(): PlatformConfig {
     const parsedAdvisoryHubDocumentTypes = normalizeAdvisoryHubDocumentTypes(
       parsedAdvisoryHub.documentTypes,
     )
+    const parsedAdvisoryHubLayouts = normalizeAdvisoryHubLayouts(parsedAdvisoryHub.layouts)
     const parsedProofItems = parsedLandingContent.proofItems ?? []
     const parsedPriceCatalog = parsedPayments.priceCatalog ?? []
     const legacyPlatformName = `${parsedConfig.productName ?? ''}${
@@ -1183,6 +1483,7 @@ export function loadPlatformConfig(): PlatformConfig {
         defaultPlatformConfig.platformName,
       platformLogo:
         parsedConfig.platformLogo ?? defaultPlatformConfig.platformLogo,
+      language: normalizePlatformLanguage(parsedConfig.language),
       environmentMode:
         parsedConfig.environmentMode === 'live' ? 'live' : 'test',
       notificationBar: {
@@ -1321,6 +1622,7 @@ export function loadPlatformConfig(): PlatformConfig {
         ...parsedAdvisoryHub,
         agents: parsedAdvisoryHubAgents,
         documentTypes: parsedAdvisoryHubDocumentTypes,
+        layouts: parsedAdvisoryHubLayouts,
         sections: normalizeAdvisoryHubSections(
           parsedAdvisoryHub.sections,
           parsedAdvisoryHubAgents,

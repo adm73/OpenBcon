@@ -1,3 +1,11 @@
+import {
+  getClientEnvironmentMode,
+  getEnvironmentModeHeaders,
+  environmentModeHeader,
+  platformConfigStorageKey,
+  type EnvironmentMode,
+} from '../lib/environmentMode'
+
 export type PersistenceMode = 'database' | 'local'
 export type PersistentStateScope = 'platform' | 'workspace' | 'user'
 
@@ -7,11 +15,13 @@ type PendingMutation =
       key: string
       scope: PersistentStateScope
       value: unknown
+      mode: EnvironmentMode
     }
   | {
       operation: 'delete'
       key: string
       scope: PersistentStateScope
+      mode: EnvironmentMode
     }
 
 type BootstrapResponse = {
@@ -101,14 +111,17 @@ function collectLocalState() {
   return values
 }
 
-async function sendMutations(mutations: PendingMutation[]) {
+async function sendMutations(mutations: PendingMutation[], mode: EnvironmentMode) {
   const response = await fetch(`${apiBaseUrl}/state/batch`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
+      [environmentModeHeader]: mode,
     },
     credentials: 'include',
-    body: JSON.stringify({ mutations }),
+    body: JSON.stringify({
+      mutations: mutations.map(({ mode: _mode, ...mutation }) => mutation),
+    }),
     keepalive: true,
   })
   if (!response.ok) {
@@ -122,21 +135,31 @@ async function flushPendingMutations() {
 
   const mutations = [...pendingMutations.values()]
   pendingMutations.clear()
-  try {
-    await sendMutations(mutations)
-  } catch {
-    for (const mutation of mutations) {
-      if (!pendingMutations.has(mutation.key)) {
-        pendingMutations.set(mutation.key, mutation)
+  const mutationsByMode = new Map<EnvironmentMode, PendingMutation[]>()
+  for (const mutation of mutations) {
+    const modeMutations = mutationsByMode.get(mutation.mode) ?? []
+    modeMutations.push(mutation)
+    mutationsByMode.set(mutation.mode, modeMutations)
+  }
+
+  for (const [mode, modeMutations] of mutationsByMode) {
+    try {
+      await sendMutations(modeMutations, mode)
+    } catch {
+      for (const mutation of modeMutations) {
+        const mutationKey = `${mutation.mode}:${mutation.key}`
+        if (!pendingMutations.has(mutationKey)) {
+          pendingMutations.set(mutationKey, mutation)
+        }
       }
+      flushTimer = setTimeout(flushPendingMutations, 2_000)
     }
-    flushTimer = setTimeout(flushPendingMutations, 2_000)
   }
 }
 
 function queueMutation(mutation: PendingMutation) {
   if (!remotePersistenceReady) return
-  pendingMutations.set(mutation.key, mutation)
+  pendingMutations.set(`${mutation.mode}:${mutation.key}`, mutation)
   if (flushTimer) clearTimeout(flushTimer)
   flushTimer = setTimeout(flushPendingMutations, 180)
 }
@@ -145,11 +168,13 @@ export function setPersistentItem(key: string, value: string) {
   window.localStorage.setItem(key, value)
   if (!isRemotePersistentStateKey(key)) return
 
+  const mode = getClientEnvironmentMode()
   queueMutation({
     operation: 'upsert',
     key,
     scope: getPersistentStateScope(key),
     value: parseStoredValue(value),
+    mode,
   })
 }
 
@@ -161,11 +186,13 @@ export function setPersistentItemWithRemoteValue(
   window.localStorage.setItem(key, localValue)
   if (!isRemotePersistentStateKey(key)) return
 
+  const mode = getClientEnvironmentMode()
   queueMutation({
     operation: 'upsert',
     key,
     scope: getPersistentStateScope(key),
     value: remoteValue,
+    mode,
   })
 }
 
@@ -173,10 +200,12 @@ export function removePersistentItem(key: string) {
   window.localStorage.removeItem(key)
   if (!isRemotePersistentStateKey(key)) return
 
+  const mode = getClientEnvironmentMode()
   queueMutation({
     operation: 'delete',
     key,
     scope: getPersistentStateScope(key),
+    mode,
   })
 }
 
@@ -184,31 +213,44 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
   if (!persistenceEnabled) return 'local'
 
   const localValues = collectLocalState()
+  const mode = getClientEnvironmentMode()
   try {
     const response = await fetch(`${apiBaseUrl}/bootstrap`, {
       signal: AbortSignal.timeout(3_000),
       credentials: 'include',
+      headers: getEnvironmentModeHeaders(),
     })
     if (!response.ok) return 'local'
 
     const bootstrap = (await response.json()) as BootstrapResponse
     const remoteValues = bootstrap.values ?? {}
+    const localPlatformConfig = localValues[platformConfigStorageKey]
     for (const [key, value] of Object.entries(remoteValues)) {
-      window.localStorage.setItem(key, serializeStoredValue(value))
+      const nextValue =
+        key === platformConfigStorageKey && value && typeof value === 'object'
+          ? {
+              ...(value as Record<string, unknown>),
+              environmentMode: mode,
+            }
+          : value
+      window.localStorage.setItem(key, serializeStoredValue(nextValue))
     }
 
-    const localOnlyMutations = Object.entries(localValues)
-      .filter(([key]) => !(key in remoteValues))
-      .map(
-        ([key, value]): PendingMutation => ({
-          operation: 'upsert',
-          key,
-          scope: getPersistentStateScope(key),
-          value,
+    // The selected mode is the cache namespace. Never copy a missing value
+    // from one mode into the other mode's database during hydration.
+    for (const key of Object.keys(localValues)) {
+      if (key !== platformConfigStorageKey && !(key in remoteValues)) {
+        window.localStorage.removeItem(key)
+      }
+    }
+    if (!(platformConfigStorageKey in remoteValues) && localPlatformConfig) {
+      window.localStorage.setItem(
+        platformConfigStorageKey,
+        serializeStoredValue({
+          ...(localPlatformConfig as Record<string, unknown>),
+          environmentMode: mode,
         }),
       )
-    if (localOnlyMutations.length > 0) {
-      await sendMutations(localOnlyMutations)
     }
 
     remotePersistenceReady = true

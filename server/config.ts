@@ -16,12 +16,16 @@ const environmentSchema = z.object({
     .string()
     .min(1)
     .default('postgresql://bconomics:bconomics@localhost:5432/bconomics'),
+  DATABASE_URL_TEST: z.string().min(1).optional(),
+  DATABASE_URL_LIVE: z.string().min(1).optional(),
   DATABASE_SSL: booleanFromEnvironment(false),
   MONGODB_URL: z
     .string()
     .min(1)
     .default('mongodb://localhost:27017'),
   MONGODB_DATABASE: z.string().min(1).default('bconomics'),
+  MONGODB_DATABASE_TEST: z.string().min(1).optional(),
+  MONGODB_DATABASE_LIVE: z.string().min(1).optional(),
   API_PORT: z.coerce.number().int().positive().default(8787),
   API_HOST: z.string().default('0.0.0.0'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),

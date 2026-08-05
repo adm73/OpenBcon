@@ -1,12 +1,13 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { Pool } from 'pg'
 import { databasePool } from './pool'
 
-async function waitForDatabase() {
+async function waitForDatabase(pool: Pool) {
   let lastError: unknown
   for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
-      await databasePool.query('SELECT 1')
+      await pool.query('SELECT 1')
       return
     } catch (error) {
       lastError = error
@@ -16,9 +17,9 @@ async function waitForDatabase() {
   throw lastError
 }
 
-export async function runMigrations() {
-  await waitForDatabase()
-  await databasePool.query(`
+export async function runMigrations(pool: Pool = databasePool) {
+  await waitForDatabase(pool)
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       name text PRIMARY KEY,
       applied_at timestamptz NOT NULL DEFAULT now()
@@ -36,14 +37,14 @@ export async function runMigrations() {
     .sort()
 
   for (const migrationName of migrationNames) {
-    const applied = await databasePool.query<{ name: string }>(
+    const applied = await pool.query<{ name: string }>(
       'SELECT name FROM schema_migrations WHERE name = $1',
       [migrationName],
     )
     if (applied.rowCount) continue
 
     const sql = await readFile(join(migrationsDirectory, migrationName), 'utf8')
-    const client = await databasePool.connect()
+    const client = await pool.connect()
     try {
       await client.query('BEGIN')
       await client.query(sql)

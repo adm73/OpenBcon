@@ -18,7 +18,15 @@ type DatabaseApplicationRow = {
   next_action: string
   note: string
   owner: string
-  strategic_review_reports: unknown
+  updated_at: Date
+}
+
+type DatabaseStrategicReportRow = {
+  report_id: string
+  application_id: string
+  result: unknown
+  context_snapshot: unknown
+  completed_at: Date | null
   updated_at: Date
 }
 
@@ -34,6 +42,127 @@ function isUsableStrategicReviewReport(value: unknown): value is Record<string, 
     Boolean(report.generatedPackage) &&
     typeof report.generatedPackage === 'object'
   )
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function asString(value: unknown, fallback = '') {
+  return typeof value === 'string' ? value : fallback
+}
+
+function asStringArray(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function documentLabelForSection(
+  sectionKey: string,
+  documentTypeId: string,
+  documentTypeName: string,
+) {
+  const value = `${sectionKey} ${documentTypeId} ${documentTypeName}`
+  if (/financial|forecast|cash[-_\s]?flow/iu.test(value)) {
+    return 'Financial Model'
+  }
+  if (/technology|technical|digital/iu.test(value)) {
+    return 'Technology Analysis'
+  }
+  return 'Business Analysis'
+}
+
+function mapStrategicReportRow(
+  row: DatabaseStrategicReportRow,
+  application: DatabaseApplicationRow,
+) {
+  const result = asRecord(row.result)
+  if (!result) return null
+
+  const context = asRecord(row.context_snapshot)
+  const sectionConfigs = new Map(
+    (Array.isArray(context?.advisory_sections) ? context.advisory_sections : [])
+      .map(asRecord)
+      .filter((section): section is Record<string, unknown> => Boolean(section))
+      .map((section) => [asString(section.id), section] as const),
+  )
+  const agents = new Map(
+    (Array.isArray(context?.advisory_agents) ? context.advisory_agents : [])
+      .map(asRecord)
+      .filter((agent): agent is Record<string, unknown> => Boolean(agent))
+      .map((agent) => [asString(agent.id), asString(agent.name, 'Advisory agent')] as const),
+  )
+  const rawSections = Array.isArray(result.sections) ? result.sections : []
+  const sections = rawSections
+    .map(asRecord)
+    .filter((section): section is Record<string, unknown> => Boolean(section))
+    .map((section, index) => {
+      const id = asString(section.section_key, `section-${index + 1}`)
+      const config = sectionConfigs.get(id)
+      const documentTypeId = asString(config?.document_type_id)
+      const documentTypeName = asString(config?.document_type_name)
+      const layout = asString(
+        config?.layout,
+        /(?:^|-)cover-page$/iu.test(id) ? 'cover-page' : 'main-content',
+      )
+      return {
+        id,
+        title: asString(section.title, asString(config?.title, 'Report section')),
+        body: asString(section.content),
+        agent: agents.get(asString(config?.agent_id)) ?? 'Advisory agent',
+        documentLabel: documentLabelForSection(id, documentTypeId, documentTypeName),
+        layout: layout === 'cover-page' ? 'cover-page' : 'main-content',
+      }
+    })
+  const forecast = asRecord(result.financial_forecast)
+  const completedAt = (row.completed_at ?? row.updated_at).toISOString()
+  const keyStrengths = asStringArray(result.key_strengths)
+  const risks = asStringArray(result.risks)
+  const nextSteps = asStringArray(result.next_steps)
+  const programName = asString(result.program_name, application.program_name)
+  const businessName = asString(result.business_name, application.company_name)
+  const title = asString(result.title, `${programName} Business Plan`)
+  const readinessScore = Math.min(
+    96,
+    Math.max(72, 70 + sections.length * 3 + Math.min(keyStrengths.length, 3)),
+  )
+  const fundingRequest = `$${Number(application.amount ?? 0).toLocaleString('en-CA')} CAD`
+  const generatedPackage = {
+    title,
+    strategicReportId: row.report_id,
+    programName,
+    businessName,
+    fundingRequest,
+    sourceMaterial: 'Database strategic_reports record',
+    completedAt,
+    readinessScore,
+    thoughts: [...keyStrengths, ...risks, ...nextSteps].slice(0, 8),
+    documents: [
+      {
+        title,
+        readinessScore,
+        summary: asString(result.executive_summary),
+        sections: sections.map((section) => ({ title: section.title, body: section.body })),
+        metrics: [
+          { label: 'Funding Request', value: fundingRequest },
+          { label: 'Program', value: programName },
+          { label: 'Business', value: businessName },
+          { label: 'Sections', value: `${sections.length}` },
+        ],
+        milestones: nextSteps,
+        financialForecast: forecast,
+      },
+    ],
+    sections,
+    financialForecast: forecast,
+  }
+
+  return {
+    id: row.report_id,
+    applicationId: application.id,
+    generatedPackage,
+  }
 }
 
 export async function readApplicationsForWorkspace(
@@ -60,7 +189,6 @@ export async function readApplicationsForWorkspace(
         applications.next_action,
         applications.note,
         app_users.display_name AS owner,
-        applications.strategic_review_reports,
         applications.updated_at
       FROM applications
       JOIN funding_programs ON funding_programs.id = applications.funding_program_id
@@ -72,7 +200,34 @@ export async function readApplicationsForWorkspace(
     [workspaceId],
   )
 
-  return result.rows.map((row) => ({
+  const strategicReportsResult = await database.query<DatabaseStrategicReportRow>(
+    `
+      SELECT
+        strategic_reports.id::text AS report_id,
+        strategic_reports.application_id::text,
+        strategic_reports.result,
+        strategic_reports.context_snapshot,
+        strategic_reports.completed_at,
+        strategic_reports.updated_at
+      FROM strategic_reports
+      WHERE strategic_reports.workspace_id = $1
+        AND strategic_reports.status = 'completed'
+        AND strategic_reports.result IS NOT NULL
+      ORDER BY strategic_reports.updated_at DESC
+    `,
+    [workspaceId],
+  )
+  const strategicReportsByApplicationId = new Map(
+    strategicReportsResult.rows.map((report) => [report.application_id, report]),
+  )
+
+  return result.rows.map((row) => {
+    const databaseReport = strategicReportsByApplicationId.get(row.id)
+    const mappedDatabaseReport = databaseReport
+      ? mapStrategicReportRow(databaseReport, row)
+      : null
+
+    return {
     id: row.id,
     appId: row.app_id,
     title: row.title,
@@ -91,14 +246,9 @@ export async function readApplicationsForWorkspace(
     documentsTotal: row.documents_total,
     nextAction: row.next_action,
     note: row.note,
-    strategicReviewReports: Array.isArray(row.strategic_review_reports)
-      ? (() => {
-          const reports = row.strategic_review_reports.filter(isUsableStrategicReviewReport)
-          const latestReport = reports.at(-1)
-          return latestReport ? [latestReport] : []
-        })()
-      : [],
-  }))
+      strategicReviewReports: mappedDatabaseReport ? [mappedDatabaseReport] : [],
+    }
+  })
 }
 
 export async function syncApplicationsSnapshot(
