@@ -9231,7 +9231,7 @@
 
 .company-portfolio-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
@@ -9877,6 +9877,7 @@
 
 .company-form-grid input,
 .company-form-grid select,
+.company-form-grid textarea,
 .company-description-field textarea {
   width: 100%;
   min-height: 42px;
@@ -9892,6 +9893,7 @@
 
 .company-form-grid input:focus,
 .company-form-grid select:focus,
+.company-form-grid textarea:focus,
 .company-description-field textarea:focus {
   border-color: #7777df;
   background: #ffffff;
@@ -9914,6 +9916,90 @@
   font-size: 0.58rem;
 }
 
+.company-profile-fields {
+  grid-column: 2;
+  margin-top: 14px;
+}
+
+.company-team-editor {
+  display: grid;
+  gap: 18px;
+}
+
+.company-team-members {
+  display: grid;
+  gap: 12px;
+}
+
+.company-team-members-heading,
+.company-team-member-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.company-team-members-heading strong,
+.company-team-member-heading strong {
+  color: #30374b;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.company-team-members-heading small {
+  display: block;
+  margin-top: 3px;
+  color: #8b92a3;
+  font-size: 0.6rem;
+}
+
+.company-team-members-heading button,
+.company-team-member-heading button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #dce1e9;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #555bc1;
+  font-size: 0.58rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.company-team-members-heading button:hover,
+.company-team-member-heading button:hover {
+  border-color: #bbbfe3;
+  background: #f7f8ff;
+}
+
+.company-team-member {
+  display: grid;
+  gap: 13px;
+  padding: 16px;
+  border: 1px solid #e3e6ed;
+  border-radius: 13px;
+  background: #fafbfc;
+}
+
+.company-team-member .company-form-grid {
+  gap: 12px;
+}
+
+.company-team-member textarea {
+  min-height: 130px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.company-team-members-empty {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed #dfe3eb;
+  border-radius: 10px;
+  color: #8b92a3;
+  font-size: 0.63rem;
+}
+
 @media (max-width: 1120px) {
   .company-portfolio-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -9929,6 +10015,10 @@
 
   .company-form-card {
     grid-template-columns: 1fr;
+  }
+
+  .company-profile-fields {
+    grid-column: auto;
   }
 }
 
@@ -13152,6 +13242,160 @@
   height: 15px;
 }
 
+.strategic-report-section-editor {
+  width: min(860px, 100%);
+}
+
+.strategic-report-section-editor-body {
+  display: grid;
+  gap: 16px;
+  min-height: 0;
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+
+.strategic-report-section-editor-body > label {
+  display: grid;
+  gap: 7px;
+}
+
+.strategic-report-section-editor-body > label > span,
+.strategic-report-section-editor-preview strong {
+  color: #202b48;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.strategic-report-section-editor-body select,
+.strategic-report-section-editor-body textarea {
+  width: 100%;
+  border: 1px solid #d9dfeb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #20263a;
+  font: inherit;
+  font-size: 0.76rem;
+}
+
+.strategic-report-section-editor-body select {
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.strategic-report-section-editor-body textarea {
+  min-height: 260px;
+  padding: 13px 14px;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.strategic-report-section-editor-body select:focus,
+.strategic-report-section-editor-body textarea:focus {
+  border-color: #6978e5;
+  outline: 3px solid rgba(105, 120, 229, 0.14);
+}
+
+.strategic-report-section-editor-preview {
+  display: grid;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid #dfe4ed;
+  border-radius: 12px;
+  background: #fbfcfe;
+}
+
+.strategic-report-section-editor-preview > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.strategic-report-section-editor-preview small {
+  color: #737b8e;
+  font-size: 0.62rem;
+}
+
+.strategic-report-section-editor-surface {
+  display: grid;
+  gap: 10px;
+  min-height: 140px;
+  padding: 22px;
+  border: 1px solid #dfe4ed;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.strategic-report-section-editor-surface > span {
+  color: #5664c9;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.strategic-report-section-editor-surface p {
+  margin: 0;
+  color: #5d6982;
+  font-size: 0.76rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.strategic-report-section-editor-surface.is-cover-page {
+  min-height: 230px;
+  place-items: center;
+  text-align: center;
+}
+
+.strategic-report-section-editor-surface.is-cover-page p {
+  max-width: 560px;
+}
+
+.strategic-report-section-editor-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #f0c6c6;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #b04b4b;
+  font-size: 0.66rem;
+  line-height: 1.5;
+}
+
+.strategic-report-section-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 24px;
+  border-top: 1px solid #e1e5ee;
+  background: #ffffff;
+}
+
+.strategic-report-section-editor-actions button {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid #d9dfeb;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #5664c9;
+  font: inherit;
+  font-size: 0.64rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.strategic-report-section-editor-actions button:hover:not(:disabled) {
+  border-color: #8794e7;
+  background: #f2f4ff;
+}
+
+.strategic-report-section-editor-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .strategic-report-preview-download-actions {
   display: flex;
   align-items: center;
@@ -13469,6 +13713,11 @@
   font-size: 0.56rem;
   font-weight: 800;
   cursor: pointer;
+}
+
+.strategic-report-toc-order-actions .strategic-report-toc-edit-action {
+  color: #202b48;
+  background: #f4f6ff;
 }
 
 .strategic-report-toc-order-actions button:hover:not(:disabled) {

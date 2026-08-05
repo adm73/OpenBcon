@@ -30,6 +30,13 @@ class GeneratePlanRequest(BaseModel):
         return value if value in {"en-CA", "fr-CA", "zh-CN"} else "en-CA"
 
 
+class StrategicReportSectionRequest(GeneratePlanRequest):
+    strategic_report_id: UUID
+    section_key: str = Field(min_length=1, max_length=160)
+    content: str = Field(default="", max_length=200000)
+    layout: Literal["cover-page", "main-content"] = "main-content"
+
+
 class CompanyRecord(BaseModel):
     id: int | None = None
     workspace_id: UUID
@@ -141,6 +148,14 @@ class GeneratedSection(BaseModel):
     title: str
     content: str
     citations: list[str] = Field(default_factory=list)
+
+
+class StrategicReportSectionResult(BaseModel):
+    strategic_report_id: UUID
+    status: Literal["saved", "regenerated"]
+    section: GeneratedSection
+    layout: Literal["cover-page", "main-content"]
+    updated_at: datetime
 
 
 class ForecastMonth(BaseModel):

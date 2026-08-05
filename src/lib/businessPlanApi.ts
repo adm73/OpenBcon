@@ -14,6 +14,26 @@ export type BusinessPlanSectionResponse = {
   citations: string[]
 }
 
+export type StrategicReportSectionLayout = 'cover-page' | 'main-content'
+
+export type StrategicReportSectionMutationRequest = {
+  app_id: string
+  strategic_report_id: string
+  section_key: string
+  content: string
+  layout: StrategicReportSectionLayout
+  language: SupportedLocale
+  signal?: AbortSignal
+}
+
+export type StrategicReportSectionMutationResponse = {
+  strategic_report_id: string
+  status: 'saved' | 'regenerated'
+  section: BusinessPlanSectionResponse
+  layout: StrategicReportSectionLayout
+  updated_at: string
+}
+
 export type BusinessPlanGenerateResponse = {
   strategic_report_id: string
   status: 'completed' | 'failed'
@@ -137,5 +157,69 @@ export async function generateFinancialForecastViaApi(
       return (await response.json()) as FinancialForecast
     },
   )
+}
+
+async function mutateStrategicReportSection(
+  path: '/api/business-plan/section/update' | '/api/business-plan/section/regenerate',
+  payload: StrategicReportSectionMutationRequest,
+) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), generationTimeoutMs)
+  const abortRequest = () => controller.abort()
+  payload.signal?.addEventListener('abort', abortRequest, { once: true })
+
+  try {
+    const response = await fetch(`${defaultApiBaseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getEnvironmentModeHeaders(),
+      },
+      credentials: 'include',
+      signal: controller.signal,
+      body: JSON.stringify({
+        app_id: payload.app_id,
+        strategic_report_id: payload.strategic_report_id,
+        section_key: payload.section_key,
+        content: payload.content,
+        layout: payload.layout,
+        language: payload.language,
+      }),
+    })
+
+    if (!response.ok) {
+      let detail = `Strategic Report section request failed with status ${response.status}.`
+      try {
+        const errorBody = (await response.json()) as { detail?: string }
+        if (errorBody.detail) detail = errorBody.detail
+      } catch {
+        // Ignore non-JSON error bodies and keep the status-based message.
+      }
+      throw new Error(detail)
+    }
+
+    return (await response.json()) as StrategicReportSectionMutationResponse
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      if (payload.signal?.aborted) throw error
+      throw new Error('Strategic Report section regeneration timed out after two minutes.')
+    }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+    payload.signal?.removeEventListener('abort', abortRequest)
+  }
+}
+
+export function updateStrategicReportSectionViaApi(
+  payload: StrategicReportSectionMutationRequest,
+) {
+  return mutateStrategicReportSection('/api/business-plan/section/update', payload)
+}
+
+export function regenerateStrategicReportSectionViaApi(
+  payload: StrategicReportSectionMutationRequest,
+) {
+  return mutateStrategicReportSection('/api/business-plan/section/regenerate', payload)
 }
 import type { FinancialForecast } from '../types'

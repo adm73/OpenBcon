@@ -13,6 +13,7 @@ from .models import (
     FinalDocument,
     FundingProgramRecord,
     GeneratePlanRequest,
+    GeneratedSection,
     GenerationContext,
 )
 
@@ -383,6 +384,119 @@ class FundingPlanRepository:
                 document.model_dump_json(),
                 review_id,
             ),
+        )
+
+    def load_strategic_report(
+        self,
+        report_id: UUID,
+        application_id: int,
+        workspace_id: str,
+        lock: bool = False,
+    ) -> dict:
+        query = """
+            SELECT id, status, result, graph_trace, context_snapshot, updated_at
+            FROM strategic_reports
+            WHERE id = %s
+              AND application_id = %s
+              AND workspace_id = %s
+            LIMIT 1
+        """
+        if lock:
+            query += " FOR UPDATE"
+        row = self.connection.execute(
+            query,
+            (report_id, application_id, workspace_id),
+        ).fetchone()
+        if not row:
+            raise ValueError("The Strategic Report was not found for this application.")
+        if row["status"] != "completed" or not isinstance(row["result"], dict):
+            raise ValueError("The Strategic Report is not ready to edit.")
+        return row
+
+    def update_strategic_report_section(
+        self,
+        report_id: UUID,
+        application_id: int,
+        workspace_id: str,
+        section_key: str,
+        content: str,
+        layout: str,
+        status: str,
+    ) -> tuple[GeneratedSection, str, datetime]:
+        row = self.load_strategic_report(
+            report_id,
+            application_id,
+            workspace_id,
+            lock=True,
+        )
+        result = dict(row["result"])
+        raw_sections = result.get("sections")
+        if not isinstance(raw_sections, list):
+            raise ValueError("The Strategic Report has no editable sections.")
+
+        updated_section: dict | None = None
+        for section_index, raw_section in enumerate(raw_sections):
+            if isinstance(raw_section, dict) and raw_section.get("section_key") == section_key:
+                updated_section = {
+                    "section_key": section_key,
+                    "title": str(raw_section.get("title") or section_key),
+                    "content": content,
+                    "citations": raw_section.get("citations")
+                    if isinstance(raw_section.get("citations"), list)
+                    else [],
+                }
+                raw_sections[section_index] = updated_section
+                break
+        if updated_section is None:
+            raise ValueError(f"Section {section_key} was not found in the Strategic Report.")
+
+        result["sections"] = raw_sections
+        if section_key in {"executive_summary", "executive-summary"}:
+            result["executive_summary"] = content
+
+        context_snapshot = dict(row["context_snapshot"] or {})
+        raw_configs = context_snapshot.get("advisory_sections")
+        if isinstance(raw_configs, list):
+            for config in raw_configs:
+                if isinstance(config, dict) and config.get("id") == section_key:
+                    config["layout"] = layout
+                    break
+
+        graph_trace = dict(row["graph_trace"] or {})
+        edits = graph_trace.get("section_edits")
+        if not isinstance(edits, list):
+            edits = []
+        edits.append(
+            {
+                "action": status,
+                "section_key": section_key,
+                "layout": layout,
+                "updated_at": datetime.now(tz=timezone.utc).isoformat(),
+            }
+        )
+        graph_trace["section_edits"] = edits[-50:]
+
+        updated_at = self.connection.execute(
+            """
+            UPDATE strategic_reports
+            SET result = %s::jsonb,
+                context_snapshot = %s::jsonb,
+                graph_trace = %s::jsonb,
+                updated_at = now()
+            WHERE id = %s
+            RETURNING updated_at
+            """,
+            (
+                json.dumps(self._json_value(result)),
+                json.dumps(self._json_value(context_snapshot)),
+                json.dumps(self._json_value(graph_trace)),
+                report_id,
+            ),
+        ).fetchone()["updated_at"]
+        return (
+            GeneratedSection.model_validate(updated_section),
+            layout,
+            updated_at,
         )
 
     def mark_strategic_report_failed(

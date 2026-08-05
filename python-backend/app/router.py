@@ -19,10 +19,15 @@ from .llm import build_model_gateway
 from .models import (
     AIConnectionTestRequest,
     AIConnectionTestResponse,
+    CompanyAnalysis,
     ErrorResponse,
     FinancialForecast,
     GeneratePlanRequest,
+    OutlineItem,
+    ProgramAnalysis,
     GenerationRunResult,
+    StrategicReportSectionRequest,
+    StrategicReportSectionResult,
 )
 from .nodes import PlanNodes
 from .repository import FundingPlanRepository
@@ -57,6 +62,175 @@ def generate_financial_forecast(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(error),
             ) from error
+
+
+def _configured_section(context, section_key: str):
+    return next(
+        (
+            section
+            for section in context.advisory_sections
+            if section.id == section_key and section.enabled
+        ),
+        None,
+    )
+
+
+def _section_outline(context, section, draft_content: str = "") -> OutlineItem:
+    agents_by_id = {agent.id: agent for agent in context.advisory_agents}
+    agent = agents_by_id.get(section.agent_id)
+    if agent is None:
+        raise ValueError(f"Missing Advisory Hub agent configuration for section {section.id}.")
+
+    draft_guidance = (
+        " An existing draft is supplied; improve it while preserving accurate facts."
+        if draft_content.strip()
+        else ""
+    )
+    return OutlineItem(
+        section_key=section.id,
+        title=section.title,
+        objective=section.prompt,
+        agent_id=section.agent_id,
+        guidance=(
+            "Follow the current section configuration from the Admin Console. "
+            f"Document type: {section.document_type_id}. "
+            f"Assigned agent: {agent.name}. Agent role: {agent.role}. "
+            f"Agent instructions: {agent.prompt}.{draft_guidance}"
+        ),
+    )
+
+
+def _stored_section_content(report: dict, section_key: str) -> str:
+    result = report.get("result") or {}
+    sections = result.get("sections") if isinstance(result, dict) else None
+    if isinstance(sections, list):
+        for section in sections:
+            if isinstance(section, dict) and section.get("section_key") == section_key:
+                return str(section.get("content") or "")
+    raise ValueError(f"Section {section_key} was not found in the Strategic Report.")
+
+
+def _report_analysis(report: dict, context, gateway):
+    trace = report.get("graph_trace") or {}
+    program_trace = trace.get("analyze_program", {}).get("program_analysis", {})
+    company_trace = trace.get("analyze_company", {}).get("company_analysis", {})
+    try:
+        program_analysis = ProgramAnalysis.model_validate(program_trace)
+        company_analysis = CompanyAnalysis.model_validate(company_trace)
+    except Exception:
+        # Reports created before trace persistence can still regenerate safely.
+        program_analysis = gateway.analyze_program(context.program, context.target_language)
+        company_analysis = gateway.analyze_company(context, program_analysis)
+    return program_analysis, company_analysis
+
+
+@router.post(
+    "/api/business-plan/section/update",
+    response_model=StrategicReportSectionResult,
+    responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+def update_business_plan_section(
+    request: Request,
+    payload: StrategicReportSectionRequest,
+) -> StrategicReportSectionResult:
+    environment_mode = get_environment_mode(request)
+    with get_connection(environment_mode) as connection:
+        workspace = require_application_access(request, connection, payload.app_id)
+        repository = FundingPlanRepository(connection)
+        context = repository.load_generation_context(payload, workspace.workspace_id)
+        section = _configured_section(context, payload.section_key)
+        if section is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This section is no longer enabled in Strategic Report configuration.",
+            )
+        updated_section, layout, updated_at = repository.update_strategic_report_section(
+            payload.strategic_report_id,
+            context.application_id,
+            workspace.workspace_id,
+            payload.section_key,
+            payload.content,
+            payload.layout,
+            "saved",
+        )
+        return StrategicReportSectionResult(
+            strategic_report_id=payload.strategic_report_id,
+            status="saved",
+            section=updated_section,
+            layout=layout,
+            updated_at=updated_at,
+        )
+
+
+@router.post(
+    "/api/business-plan/section/regenerate",
+    response_model=StrategicReportSectionResult,
+    responses={400: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+)
+def regenerate_business_plan_section(
+    request: Request,
+    payload: StrategicReportSectionRequest,
+) -> StrategicReportSectionResult:
+    settings = get_settings()
+    environment_mode = get_environment_mode(request)
+    with get_connection(environment_mode) as connection:
+        workspace = require_application_access(request, connection, payload.app_id)
+        repository = FundingPlanRepository(connection)
+        context = repository.load_generation_context(payload, workspace.workspace_id)
+        advisory_hub = load_advisory_hub_configuration(settings, environment_mode)
+        context = context.model_copy(
+            update={
+                "advisory_sections": advisory_hub.sections,
+                "advisory_agents": advisory_hub.agents,
+                "section_limit": len(advisory_hub.sections),
+            }
+        )
+        section = _configured_section(context, payload.section_key)
+        if section is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This section is no longer enabled in Strategic Report configuration.",
+            )
+
+        report = repository.load_strategic_report(
+            payload.strategic_report_id,
+            context.application_id,
+            workspace.workspace_id,
+        )
+        draft_content = payload.content.strip() or _stored_section_content(
+            report,
+            payload.section_key,
+        )
+        gateway = build_model_gateway(settings, environment_mode)
+        program_analysis, company_analysis = _report_analysis(report, context, gateway)
+        generated = gateway.generate_section(
+            context,
+            program_analysis,
+            company_analysis,
+            _section_outline(context, section, draft_content),
+            draft_content,
+        ).model_copy(
+            update={
+                "section_key": section.id,
+                "title": section.title,
+            }
+        )
+        updated_section, layout, updated_at = repository.update_strategic_report_section(
+            payload.strategic_report_id,
+            context.application_id,
+            workspace.workspace_id,
+            payload.section_key,
+            generated.content,
+            payload.layout,
+            "regenerated",
+        )
+        return StrategicReportSectionResult(
+            strategic_report_id=payload.strategic_report_id,
+            status="regenerated",
+            section=updated_section,
+            layout=layout,
+            updated_at=updated_at,
+        )
 
 
 def _safe_upstream_error(status_code: int, detail: str, reason: str) -> str:

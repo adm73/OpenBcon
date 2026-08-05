@@ -40,6 +40,7 @@ class ModelGateway(Protocol):
         program_analysis: ProgramAnalysis,
         company_analysis: CompanyAnalysis,
         outline_item,
+        draft_content: str | None = None,
     ) -> GeneratedSection: ...
 
 
@@ -89,6 +90,7 @@ class OpenAIModelGateway:
         program_analysis: ProgramAnalysis,
         company_analysis: CompanyAnalysis,
         outline_item,
+        draft_content: str | None = None,
     ) -> GeneratedSection:
         return self._invoke_structured(
             GeneratedSection,
@@ -97,6 +99,7 @@ class OpenAIModelGateway:
                 program_analysis,
                 company_analysis,
                 outline_item,
+                draft_content,
             ),
         )
 
@@ -186,6 +189,7 @@ class MockModelGateway:
         program_analysis: ProgramAnalysis,
         company_analysis: CompanyAnalysis,
         outline_item,
+        draft_content: str | None = None,
     ) -> GeneratedSection:
         company = context.company
         content = (
@@ -197,6 +201,8 @@ class MockModelGateway:
             f"The commercial model is {company.revenue_model or company_analysis.business_model}. "
             f"This section should reinforce {', '.join(program_analysis.reviewer_priorities[:2])}."
         )
+        if draft_content and draft_content.strip():
+            content += f" Revised from the founder's draft: {draft_content.strip()}"
         return GeneratedSection(
             section_key=outline_item.section_key,
             title=outline_item.title,

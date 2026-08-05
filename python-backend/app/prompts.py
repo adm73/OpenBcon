@@ -115,6 +115,7 @@ def build_section_prompt(
     program_analysis: ProgramAnalysis,
     company_analysis: CompanyAnalysis,
     outline_item: OutlineItem,
+    draft_content: str | None = None,
 ) -> list[dict[str, str]]:
     company = context.company
     program = context.program
@@ -174,6 +175,13 @@ Program evaluation criteria:
 
 Fundability summary:
 {company_analysis.fundability_summary}
+
+Existing draft to improve:
+{draft_content.strip() if draft_content and draft_content.strip() else "No existing draft supplied. Create the section from the configured objective and guidance."}
+
+When an existing draft is supplied, preserve accurate facts, improve clarity and
+reviewer confidence, and return the complete replacement section rather than a
+commentary about the draft.
 """.strip(),
         },
     ]

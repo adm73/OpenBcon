@@ -73,6 +73,12 @@ import { renderFormattedContent } from '../lib/legalContent'
 import { cssDeclarationsToStyle } from '../lib/layoutStyles'
 import { createApplicationViaApi } from '../lib/applicationsApi'
 import {
+  loadCompaniesViaApi,
+  saveCompanyViaApi,
+  type CompanyApiRecord,
+  type CompanyTeamMember,
+} from '../lib/companiesApi'
+import {
   createStrategicReviewReport,
   findApplicationRecord,
   findApplicationRecordByAppId,
@@ -162,6 +168,8 @@ import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand
 import {
   generateFinancialForecastViaApi,
   generateBusinessPlanViaApi,
+  regenerateStrategicReportSectionViaApi,
+  updateStrategicReportSectionViaApi,
   type BusinessPlanGenerateResponse,
   type BusinessPlanSectionResponse,
 } from '../lib/businessPlanApi'
@@ -689,27 +697,7 @@ function SectionListing({ item }: { item: DashboardItem }) {
   )
 }
 
-type CompanyRecord = {
-  id: string
-  logo: string
-  name: string
-  legalName: string
-  registrationNumber: string
-  industry: string
-  stage: string
-  location: string
-  website: string
-  description: string
-  owner: string
-  email: string
-  phone: string
-  employees: string
-  monthlyRevenue: string
-  fundingTarget: string
-  readiness: number
-  status: 'Active' | 'Needs review' | 'Draft'
-  updatedAt: string
-}
+type CompanyRecord = CompanyApiRecord
 
 const initialCompanies: CompanyRecord[] = [
   {
@@ -729,6 +717,16 @@ const initialCompanies: CompanyRecord[] = [
     phone: '+1 416 555 0184',
     employees: '4',
     monthlyRevenue: '18,000',
+    teamIntro:
+      'A hands-on food manufacturing team focused on reliable production, customer insight, and disciplined growth.',
+    teamMembers: [
+      {
+        id: 'northstar-ava-lin',
+        name: 'Ava Lin',
+        title: 'Founder and CEO',
+        responsibilities: 'Leads strategy, partnerships, and operating decisions.',
+      },
+    ],
     fundingTarget: '250,000',
     readiness: 84,
     status: 'Active',
@@ -751,6 +749,16 @@ const initialCompanies: CompanyRecord[] = [
     phone: '+1 905 555 0142',
     employees: '11',
     monthlyRevenue: '86,000',
+    teamIntro:
+      'An experienced retrofit delivery team combining field installation, energy analysis, and customer success.',
+    teamMembers: [
+      {
+        id: 'greenline-morgan-chen',
+        name: 'Morgan Chen',
+        title: 'Managing Director',
+        responsibilities: 'Owns delivery quality, sales operations, and strategic accounts.',
+      },
+    ],
     fundingTarget: '500,000',
     readiness: 72,
     status: 'Needs review',
@@ -773,6 +781,8 @@ const initialCompanies: CompanyRecord[] = [
     phone: '',
     employees: '2',
     monthlyRevenue: '0',
+    teamIntro: '',
+    teamMembers: [],
     fundingTarget: '150,000',
     readiness: 46,
     status: 'Draft',
@@ -819,6 +829,8 @@ function createEmptyCompany(): CompanyRecord {
     phone: '',
     employees: '',
     monthlyRevenue: '',
+    teamIntro: '',
+    teamMembers: [],
     fundingTarget: '',
     readiness: 20,
     status: 'Draft',
@@ -835,6 +847,48 @@ function MyCompanyPage() {
   const [notice, setNotice] = useState('')
 
   useEffect(() => {
+    let cancelled = false
+
+    void loadCompaniesViaApi()
+      .then((remoteCompanies) => {
+        if (cancelled || remoteCompanies.length === 0) return
+
+        setCompanies((currentCompanies) => {
+          const remoteByName = new Map(
+            remoteCompanies.map((company) => [company.name.trim().toLowerCase(), company]),
+          )
+          const merged = currentCompanies.map((localCompany) => {
+            const key = localCompany.name.trim().toLowerCase()
+            const remoteCompany = remoteByName.get(key)
+            if (!remoteCompany) return localCompany
+            remoteByName.delete(key)
+            return {
+              ...localCompany,
+              ...remoteCompany,
+              logo: remoteCompany.logo || localCompany.logo,
+              teamIntro: remoteCompany.teamIntro || localCompany.teamIntro,
+              teamMembers: remoteCompany.teamMembers.length
+                ? remoteCompany.teamMembers
+                : localCompany.teamMembers,
+            }
+          })
+
+          return [
+            ...merged,
+            ...remoteCompanies.filter((company) => remoteByName.has(company.name.trim().toLowerCase())),
+          ]
+        })
+      })
+      .catch(() => {
+        // The local cache remains the source of truth when the API is unavailable.
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' })
   }, [draft?.id])
 
@@ -849,11 +903,6 @@ function MyCompanyPage() {
     return matchesQuery && (filter === 'All' || company.status === filter)
   })
 
-  const portfolioFunding = companies.reduce(
-    (total, company) =>
-      total + Number(company.fundingTarget.replaceAll(',', '') || 0),
-    0,
-  )
   const averageReadiness = Math.round(
     companies.reduce((total, company) => total + company.readiness, 0) /
       Math.max(companies.length, 1),
@@ -873,12 +922,65 @@ function MyCompanyPage() {
     setNotice('')
   }
 
-  function saveCompany() {
+  function updateTeamMember(
+    index: number,
+    field: keyof Omit<CompanyTeamMember, 'id'>,
+    value: string,
+  ) {
+    setDraft((current) => {
+      if (!current) return current
+      const teamMembers = [...(current.teamMembers ?? [])]
+      const member = teamMembers[index]
+      if (!member) return current
+      teamMembers[index] = { ...member, [field]: value }
+      return { ...current, teamMembers }
+    })
+    setNotice('')
+  }
+
+  function addTeamMember() {
+    setDraft((current) => {
+      if (!current) return current
+      return {
+        ...current,
+        teamMembers: [
+          ...(current.teamMembers ?? []),
+          {
+            id: `team-member-${Date.now()}`,
+            name: '',
+            title: '',
+            responsibilities: '',
+          },
+        ],
+      }
+    })
+    setNotice('')
+  }
+
+  function removeTeamMember(index: number) {
+    setDraft((current) => {
+      if (!current) return current
+      return {
+        ...current,
+        teamMembers: (current.teamMembers ?? []).filter(
+          (_, memberIndex) => memberIndex !== index,
+        ),
+      }
+    })
+    setNotice('')
+  }
+
+  async function saveCompany() {
     if (!draft) {
       return
     }
-    if (!draft.name.trim() || !draft.owner.trim() || !draft.email.trim()) {
-      setNotice('Company name, primary contact, and email are required.')
+    if (
+      !draft.name.trim() ||
+      !draft.owner.trim() ||
+      !draft.email.trim() ||
+      !draft.description.trim()
+    ) {
+      setNotice('Company name, primary contact, email, and description are required.')
       return
     }
 
@@ -892,25 +994,47 @@ function MyCompanyPage() {
       draft.phone,
       draft.employees,
       draft.monthlyRevenue,
-      draft.fundingTarget,
+      draft.teamIntro ?? '',
+      draft.teamMembers?.length ? 'team members' : '',
     ].filter((value) => value.trim()).length
     const nextRecord: CompanyRecord = {
       ...draft,
+      teamIntro: draft.teamIntro ?? '',
+      teamMembers: draft.teamMembers ?? [],
       readiness: Math.min(100, 35 + completedFields * 6),
       status: completedFields >= 8 ? 'Active' : 'Needs review',
       updatedAt: 'Updated just now',
     }
 
-    setCompanies((current) =>
-      isNew
-        ? [nextRecord, ...current]
-        : current.map((company) =>
-            company.id === nextRecord.id ? nextRecord : company,
-          ),
-    )
+    const nextCompanies = isNew
+      ? [nextRecord, ...companies]
+      : companies.map((company) =>
+          company.id === nextRecord.id ? nextRecord : company,
+        )
+    setCompanies(nextCompanies)
+    setPersistentItem(companyStorageKey, JSON.stringify(nextCompanies))
     setDraft(nextRecord)
     setIsNew(false)
-    setNotice('Company details saved successfully.')
+    setNotice('Company saved locally. Syncing to the current database...')
+
+    try {
+      const syncedCompany = await saveCompanyViaApi(nextRecord)
+      const syncedCompanies = nextCompanies.map((company) =>
+        company.id === nextRecord.id
+          ? { ...nextRecord, ...syncedCompany, logo: syncedCompany.logo || nextRecord.logo }
+          : company,
+      )
+      setCompanies(syncedCompanies)
+      setPersistentItem(companyStorageKey, JSON.stringify(syncedCompanies))
+      setDraft(syncedCompanies.find((company) => company.name === nextRecord.name) ?? nextRecord)
+      setNotice('Company saved and synced to the current database.')
+    } catch (error) {
+      setNotice(
+        `Company saved locally. Database sync failed: ${
+          error instanceof Error ? error.message : 'Please try again.'
+        }`,
+      )
+    }
   }
 
   function uploadLogo(event: ChangeEvent<HTMLInputElement>) {
@@ -1094,6 +1218,16 @@ function MyCompanyPage() {
                 />
                 <small>{draft.description.length} characters</small>
               </label>
+              <div className="company-form-grid company-profile-fields">
+                <label className="company-field-wide">
+                  <span>Monthly revenue (CAD)</span>
+                  <input
+                    inputMode="numeric"
+                    value={draft.monthlyRevenue}
+                    onChange={(event) => updateDraft('monthlyRevenue', event.target.value)}
+                  />
+                </label>
+              </div>
             </section>
 
             <section className="company-form-card">
@@ -1124,23 +1258,76 @@ function MyCompanyPage() {
               <div className="company-form-heading">
                 <span>04</span>
                 <div>
-                  <h2>Financial snapshot</h2>
-                  <p>High-level figures used to assess funding capacity.</p>
+                  <h2>Team intro</h2>
+                  <p>Introduce the people responsible for the company and its execution.</p>
                 </div>
               </div>
-              <div className="company-form-grid">
-                <label>
-                  <span>Team size</span>
-                  <input inputMode="numeric" value={draft.employees} onChange={(event) => updateDraft('employees', event.target.value)} />
+              <div className="company-team-editor">
+                <div className="company-form-grid">
+                  <label>
+                    <span>Team size</span>
+                    <input
+                      inputMode="numeric"
+                      value={draft.employees}
+                      onChange={(event) => updateDraft('employees', event.target.value)}
+                    />
+                  </label>
+                </div>
+                <label className="company-description-field">
+                  <span>Team introduction</span>
+                  <textarea
+                    value={draft.teamIntro ?? ''}
+                    onChange={(event) => updateDraft('teamIntro', event.target.value)}
+                    placeholder="How the team works together and why it can execute this plan."
+                  />
+                  <small>{(draft.teamIntro ?? '').length} characters</small>
                 </label>
-                <label>
-                  <span>Monthly revenue (CAD)</span>
-                  <input inputMode="numeric" value={draft.monthlyRevenue} onChange={(event) => updateDraft('monthlyRevenue', event.target.value)} />
-                </label>
-                <label className="company-field-wide">
-                  <span>Funding target (CAD)</span>
-                  <input inputMode="numeric" value={draft.fundingTarget} onChange={(event) => updateDraft('fundingTarget', event.target.value)} />
-                </label>
+                <div className="company-team-members">
+                  <div className="company-team-members-heading">
+                    <div>
+                      <strong>Team members</strong>
+                      <small>Add the people and responsibilities behind the company.</small>
+                    </div>
+                    <button type="button" onClick={addTeamMember}>Add employee</button>
+                  </div>
+                  {(draft.teamMembers ?? []).map((member, index) => (
+                    <div className="company-team-member" key={member.id}>
+                      <div className="company-team-member-heading">
+                        <strong>Employee {index + 1}</strong>
+                        <button type="button" onClick={() => removeTeamMember(index)}>Remove</button>
+                      </div>
+                      <div className="company-form-grid">
+                        <label>
+                          <span>Employee introduction</span>
+                          <input
+                            value={member.name}
+                            onChange={(event) => updateTeamMember(index, 'name', event.target.value)}
+                            placeholder="e.g. Ava Lin"
+                          />
+                        </label>
+                        <label>
+                          <span>Title</span>
+                          <input
+                            value={member.title}
+                            onChange={(event) => updateTeamMember(index, 'title', event.target.value)}
+                            placeholder="e.g. Founder and CEO"
+                          />
+                        </label>
+                        <label className="company-field-wide">
+                          <span>Responsibilities</span>
+                          <textarea
+                            value={member.responsibilities}
+                            onChange={(event) => updateTeamMember(index, 'responsibilities', event.target.value)}
+                            placeholder="Describe this person's role and key responsibilities."
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                  {(draft.teamMembers ?? []).length === 0 ? (
+                    <p className="company-team-members-empty">No team members added yet.</p>
+                  ) : null}
+                </div>
               </div>
             </section>
           </div>
@@ -1181,11 +1368,6 @@ function MyCompanyPage() {
           <span>Average readiness</span>
           <strong>{averageReadiness}%</strong>
           <small>Across the portfolio</small>
-        </article>
-        <article>
-          <span>Funding targets</span>
-          <strong>${Math.round(portfolioFunding / 1000)}K</strong>
-          <small>Combined capital need</small>
         </article>
         <article className="is-attention">
           <span>Needs attention</span>
@@ -6024,9 +6206,11 @@ function FinancialForecastGrid({ forecast }: { forecast: FinancialForecast }) {
 function FinancialForecastTable({
   forecast,
   id = 'financial-forecast-panel',
+  showLabel = true,
 }: {
   forecast: FinancialForecast
   id?: string
+  showLabel?: boolean
 }) {
   const { t } = useTranslation()
 
@@ -6034,7 +6218,7 @@ function FinancialForecastTable({
     <article id={id} className="generator-ai-card generator-forecast-card">
       <header>
         <div>
-          <span>{t('forecast.financialModel')}</span>
+          {showLabel ? <span>{t('forecast.financialModel')}</span> : null}
           <h3>{t('forecast.monthlyForecast', { years: forecast.years })}</h3>
         </div>
         <b>{forecast.months.length} months</b>
@@ -6169,6 +6353,165 @@ function StrategicReportDocumentPreviewDialog({
   )
 }
 
+function StrategicReportSectionEditorDialog({
+  appId,
+  strategicReportId,
+  section,
+  layouts,
+  onClose,
+  onSaved,
+}: {
+  appId: string
+  strategicReportId: string
+  section: GeneratedPackageSection
+  layouts: AdvisoryHubLayoutConfig[]
+  onClose: () => void
+  onSaved: (section: GeneratedPackageSection) => void
+}) {
+  const { locale } = useLocale()
+  const [content, setContent] = useState(section.body)
+  const [layoutId, setLayoutId] = useState<AdvisoryHubSectionLayout>(
+    getSectionLayoutId(section),
+  )
+  const [status, setStatus] = useState<'idle' | 'saving' | 'regenerating'>('idle')
+  const [error, setError] = useState('')
+  const selectedLayout = layouts.find((layout) => layout.id === layoutId)
+  const isBusy = status !== 'idle'
+
+  async function submit(action: 'save' | 'regenerate') {
+    setStatus(action === 'save' ? 'saving' : 'regenerating')
+    setError('')
+
+    try {
+      const response =
+        action === 'save'
+          ? await updateStrategicReportSectionViaApi({
+              app_id: appId,
+              strategic_report_id: strategicReportId,
+              section_key: section.id,
+              content,
+              layout: layoutId,
+              language: locale,
+            })
+          : await regenerateStrategicReportSectionViaApi({
+              app_id: appId,
+              strategic_report_id: strategicReportId,
+              section_key: section.id,
+              content,
+              layout: layoutId,
+              language: locale,
+            })
+      const updatedSection: GeneratedPackageSection = {
+        ...section,
+        id: response.section.section_key,
+        title: response.section.title,
+        body: response.section.content,
+        layout: response.layout,
+      }
+      onSaved(updatedSection)
+      setContent(updatedSection.body)
+      setLayoutId(updatedSection.layout ?? layoutId)
+      if (action === 'save') onClose()
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'The Strategic Report section could not be updated.',
+      )
+    } finally {
+      setStatus('idle')
+    }
+  }
+
+  return (
+    <div className="strategic-report-preview-backdrop" onClick={onClose}>
+      <section
+        className="strategic-report-preview-dialog strategic-report-section-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="strategic-report-section-editor-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <span>Edit section</span>
+            <h2 id="strategic-report-section-editor-title">{section.title}</h2>
+            <p>Edit the content, choose a layout, or regenerate only this section.</p>
+          </div>
+          <button
+            type="button"
+            className="strategic-report-preview-close"
+            aria-label="Close editor"
+            onClick={onClose}
+            disabled={isBusy}
+          >
+            <Glyph type="close" />
+          </button>
+        </header>
+
+        <div className="strategic-report-section-editor-body">
+          <label>
+            <span>Layout</span>
+            <select
+              value={layoutId}
+              onChange={(event) =>
+                setLayoutId(event.target.value as AdvisoryHubSectionLayout)
+              }
+              disabled={isBusy}
+            >
+              {layouts.map((layout) => (
+                <option key={layout.id} value={layout.id}>
+                  {layout.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Section content</span>
+            <textarea
+              value={content}
+              onChange={(event) => setContent(event.target.value)}
+              disabled={isBusy}
+              rows={15}
+            />
+          </label>
+          <div className="strategic-report-section-editor-preview">
+            <div>
+              <strong>Layout preview</strong>
+              <small>{selectedLayout?.description}</small>
+            </div>
+            <article
+              className={`strategic-report-section-editor-surface is-${layoutId}`}
+              style={selectedLayout ? cssDeclarationsToStyle(selectedLayout.css) : undefined}
+            >
+              <span>{section.title}</span>
+              <p>{content || 'Section content preview'}</p>
+            </article>
+          </div>
+          {error ? <p className="strategic-report-section-editor-error">{error}</p> : null}
+        </div>
+
+        <footer className="strategic-report-section-editor-actions">
+          <button type="button" onClick={onClose} disabled={isBusy}>
+            Cancel
+          </button>
+          <button type="button" onClick={() => void submit('save')} disabled={isBusy}>
+            {status === 'saving' ? 'Saving...' : 'Save'}
+          </button>
+          <button
+            type="button"
+            className="strategic-reports-primary-action"
+            onClick={() => void submit('regenerate')}
+            disabled={isBusy}
+          >
+            {status === 'regenerating' ? 'Regenerating...' : 'Regenerate'}
+          </button>
+        </footer>
+      </section>
+    </div>
+  )
+}
+
 function StrategicReportFinancialPreviewDialog({
   forecast,
   exportInput,
@@ -6225,24 +6568,31 @@ function StrategicReportFinancialPreviewDialog({
 }
 
 function StrategicReportContentSection({
+  appId,
+  strategicReportId,
   eyebrow,
   title,
   description,
   sections,
   exportInput,
   layouts,
+  onSectionUpdated,
   emptyMessage,
 }: {
+  appId: string
+  strategicReportId: string
   eyebrow: string
   title: string
   description: string
   sections: GeneratedPackageSection[]
   exportInput: StrategicReportExportInput
   layouts: AdvisoryHubLayoutConfig[]
+  onSectionUpdated: (section: GeneratedPackageSection) => void
   emptyMessage?: string
 }) {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewSectionId, setPreviewSectionId] = useState<string | undefined>()
+  const [editingSection, setEditingSection] = useState<GeneratedPackageSection | null>(null)
   const [orderedSections, setOrderedSections] = useState(sections)
 
   useEffect(() => {
@@ -6317,6 +6667,13 @@ function StrategicReportContentSection({
                 <div className="strategic-report-toc-order-actions">
                   <button
                     type="button"
+                    className="strategic-report-toc-edit-action"
+                    onClick={() => setEditingSection(section)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
                     aria-label={`Move ${section.title} up`}
                     onClick={() => moveSection(section.id, 'up')}
                     disabled={index === 0}
@@ -6349,6 +6706,22 @@ function StrategicReportContentSection({
           layouts={layouts}
           initialSectionId={previewSectionId}
           onClose={() => setPreviewOpen(false)}
+        />
+      ) : null}
+      {editingSection ? (
+        <StrategicReportSectionEditorDialog
+          appId={appId}
+          strategicReportId={strategicReportId}
+          section={editingSection}
+          layouts={layouts}
+          onClose={() => setEditingSection(null)}
+          onSaved={(section) => {
+            setOrderedSections((current) =>
+              current.map((item) => (item.id === section.id ? section : item)),
+            )
+            onSectionUpdated(section)
+            setEditingSection(section)
+          }}
         />
       ) : null}
     </section>
@@ -6581,6 +6954,8 @@ function StrategicReportsPage() {
   }
 
   if (selectedReport && selectedApplication) {
+    const selectedApplicationRecord = selectedApplication
+    const selectedReportRecord = selectedReport
     const packageRecord = selectedReport.generatedPackage
     const forecast = packageRecord.financialForecast
     const firstDocument = packageRecord.documents[0]
@@ -6592,7 +6967,6 @@ function StrategicReportsPage() {
     const financialModelSections = packageRecord.sections.filter((section) =>
       /financial|forecast|cash[-\s]?flow/iu.test(sectionText(section)),
     )
-    const financialModelSection = financialModelSections[0]
     const businessAnalysisSections = packageRecord.sections.filter(
       (section) =>
         !technologyAnalysisSections.some((technologySection) => technologySection.id === section.id) &&
@@ -6641,6 +7015,52 @@ function StrategicReportsPage() {
         detail: 'The completed package is ready for review, editing, and export.',
       },
     ]
+
+    function persistUpdatedSection(updatedSection: GeneratedPackageSection) {
+      const currentApplications = loadApplications()
+      const nextApplications = currentApplications.map((application) => {
+        if (application.id !== selectedApplicationRecord.id) return application
+
+        const reports = (application.strategicReviewReports ?? []).map((report) => {
+          if (report.id !== selectedReportRecord.id) return report
+
+          const generatedPackage = report.generatedPackage
+          const sections = generatedPackage.sections.map((section) =>
+            section.id === updatedSection.id ? updatedSection : section,
+          )
+          const documents = generatedPackage.documents.map((document) => ({
+            ...document,
+            summary:
+              updatedSection.id === 'executive-summary' ||
+              updatedSection.id === 'executive_summary'
+                ? updatedSection.body
+                : document.summary,
+            sections: document.sections.map((section) =>
+              section.title === updatedSection.title
+                ? { ...section, body: updatedSection.body }
+                : section,
+            ),
+          }))
+
+          return {
+            ...report,
+            generatedPackage: {
+              ...generatedPackage,
+              sections,
+              documents,
+            },
+          }
+        })
+
+        return {
+          ...application,
+          strategicReviewReports: reports,
+        }
+      })
+
+      saveApplications(nextApplications)
+      setRemoteStateRevision((revision) => revision + 1)
+    }
 
     return (
       <section className="strategic-reports-page">
@@ -6765,48 +7185,46 @@ function StrategicReportsPage() {
         </section>
 
         <StrategicReportContentSection
+          appId={selectedApplication.appId ?? selectedApplication.id}
+          strategicReportId={selectedReport.id}
           eyebrow="Business Analysis"
           title="Business analysis"
           description="The business plan is presented as one independent analysis of the company, operating model, and execution case."
           sections={businessAnalysisSections}
           exportInput={businessAnalysisExportInput}
           layouts={config.advisoryHub.layouts}
+          onSectionUpdated={persistUpdatedSection}
           emptyMessage="No business analysis section was generated for this report."
         />
 
         <StrategicReportContentSection
+          appId={selectedApplication.appId ?? selectedApplication.id}
+          strategicReportId={selectedReport.id}
           eyebrow="Technology Analysis"
           title="Technology analysis"
           description="Review the technology, digital capability, systems, and implementation requirements connected to the opportunity."
           sections={technologyAnalysisSections}
           exportInput={technologyAnalysisExportInput}
           layouts={config.advisoryHub.layouts}
+          onSectionUpdated={persistUpdatedSection}
           emptyMessage="Technology analysis has not been generated for this report yet."
         />
 
         <section className="strategic-report-content-section strategic-report-financial-section">
           <header>
             <div>
-              <span>Financial Model</span>
               <h2>Financial model</h2>
               <p>Monthly financial forecast and planning assumptions for the funding strategy.</p>
             </div>
             <div className="strategic-report-section-actions">
-              {financialModelSection ? <small>{financialModelSection.agent}</small> : null}
               <button type="button" onClick={() => setFinancialPreviewOpen(true)} disabled={!forecast}>
                 <Glyph type="file" />
                 Download
               </button>
             </div>
           </header>
-          {financialModelSection ? (
-            <div className="strategic-report-financial-context">
-              <strong>{financialModelSection.title}</strong>
-              <p>{financialModelSection.body}</p>
-            </div>
-          ) : null}
           {forecast ? (
-            <FinancialForecastTable forecast={forecast} />
+            <FinancialForecastTable forecast={forecast} showLabel={false} />
           ) : (
             <div className="strategic-report-content-empty">
               <strong>Financial forecast has not been generated for this report yet.</strong>

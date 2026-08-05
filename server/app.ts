@@ -105,6 +105,121 @@ const applicationCreateSchema = z.object({
   businessSummary: z.string().trim().min(1).max(4000),
   teamBackground: z.string().trim().max(4000).default(''),
 })
+const companySaveSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  legalName: z.string().trim().max(240).default(''),
+  founderName: z.string().trim().min(1).max(120),
+  email: z.string().trim().email().or(z.literal('')).default(''),
+  phone: z.string().trim().max(80).default(''),
+  registrationNumber: z.string().trim().max(120).default(''),
+  industry: z.string().trim().max(160).default(''),
+  stage: z.string().trim().max(80).default(''),
+  location: z.string().trim().max(160).default(''),
+  website: z.string().trim().max(2000).default(''),
+  description: z.string().trim().min(1).max(4000),
+  teamBackground: z.string().trim().max(4000).default(''),
+  employees: z.string().trim().max(40).default(''),
+  monthlyRevenue: z.string().trim().max(40).default(''),
+  teamMembers: z
+    .array(
+      z.object({
+        id: z.string().trim().max(120),
+        name: z.string().trim().max(160),
+        title: z.string().trim().max(160),
+        responsibilities: z.string().trim().max(2000),
+      }),
+    )
+    .max(50)
+    .default([]),
+  fundingTarget: z.string().trim().max(40).default(''),
+  logo: z.string().max(3_000_000).default(''),
+  readiness: z.number().int().min(0).max(100).default(20),
+  status: z.enum(['Active', 'Needs review', 'Draft']).default('Draft'),
+  updatedAt: z.string().trim().max(120).default(''),
+})
+
+type CompanyApiRow = {
+  id: string
+  name: string
+  legal_name: string | null
+  founder_name: string
+  business_summary: string
+  industry: string | null
+  stage: string | null
+  location: string | null
+  website: string | null
+  team_background: string | null
+  monthly_revenue: string | number | null
+  employee_count: number | null
+  metadata: unknown
+}
+
+function asCompanyMetadata(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+function asCompanyTeamMembers(value: unknown) {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((member) => {
+    if (!member || typeof member !== 'object' || Array.isArray(member)) {
+      return []
+    }
+    const candidate = member as Record<string, unknown>
+    return [
+      {
+        id: typeof candidate.id === 'string' ? candidate.id : randomUUID(),
+        name: typeof candidate.name === 'string' ? candidate.name : '',
+        title: typeof candidate.title === 'string' ? candidate.title : '',
+        responsibilities:
+          typeof candidate.responsibilities === 'string'
+            ? candidate.responsibilities
+            : '',
+      },
+    ]
+  })
+}
+
+function mapCompanyRow(row: CompanyApiRow) {
+  const metadata = asCompanyMetadata(row.metadata)
+  return {
+    id: row.id,
+    logo: typeof metadata.logo === 'string' ? metadata.logo : '',
+    name: row.name,
+    legalName: row.legal_name ?? '',
+    registrationNumber:
+      typeof metadata.registrationNumber === 'string'
+        ? metadata.registrationNumber
+        : '',
+    industry: row.industry ?? '',
+    stage: row.stage ?? 'Pre-revenue',
+    location: row.location ?? '',
+    website: row.website ?? '',
+    description: row.business_summary,
+    owner: row.founder_name,
+    email: typeof metadata.email === 'string' ? metadata.email : '',
+    phone: typeof metadata.phone === 'string' ? metadata.phone : '',
+    employees: row.employee_count === null ? '' : String(row.employee_count),
+    monthlyRevenue:
+      row.monthly_revenue === null ? '' : String(row.monthly_revenue),
+    teamIntro: row.team_background ?? '',
+    teamMembers: asCompanyTeamMembers(metadata.teamMembers),
+    fundingTarget:
+      typeof metadata.fundingTarget === 'string' ? metadata.fundingTarget : '',
+    readiness:
+      typeof metadata.readiness === 'number' ? metadata.readiness : 20,
+    status:
+      metadata.status === 'Active' || metadata.status === 'Needs review'
+        ? metadata.status
+        : 'Draft',
+    updatedAt:
+      typeof metadata.updatedAt === 'string' && metadata.updatedAt.length > 0
+        ? metadata.updatedAt
+        : 'Synced from database',
+  }
+}
 
 function sendValidationError(response: Response, error: z.ZodError) {
   response.status(400).json({
@@ -431,6 +546,160 @@ export function createApp(
       await revokeSession(database, request)
       clearSessionCookie(response)
       response.status(204).end()
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  app.get('/api/companies', async (request, response, next) => {
+    try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
+
+      const result = await database.query<CompanyApiRow>(
+        `
+          SELECT
+            companies.id::text,
+            companies.name,
+            companies.legal_name,
+            companies.founder_name,
+            companies.business_summary,
+            companies.industry,
+            companies.stage,
+            companies.location,
+            companies.website,
+            companies.team_background,
+            companies.monthly_revenue::text,
+            companies.employee_count,
+            companies.metadata
+          FROM companies
+          WHERE companies.workspace_id = $1
+          ORDER BY companies.updated_at DESC, companies.id DESC
+        `,
+        [context.workspaceId],
+      )
+      response.json({ companies: result.rows.map(mapCompanyRow) })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  app.post('/api/companies', async (request, response, next) => {
+    const parsed = companySaveSchema.safeParse(request.body)
+    if (!parsed.success) {
+      sendValidationError(response, parsed.error)
+      return
+    }
+
+    try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
+
+      const company = parsed.data
+      const employeeCount = company.employees.trim()
+        ? Number.parseInt(company.employees, 10)
+        : null
+      const monthlyRevenue = company.monthlyRevenue.trim()
+        ? Number.parseFloat(company.monthlyRevenue.replaceAll(',', ''))
+        : null
+      if (
+        (employeeCount !== null && !Number.isInteger(employeeCount)) ||
+        (monthlyRevenue !== null && !Number.isFinite(monthlyRevenue))
+      ) {
+        response.status(400).json({
+          error: 'invalid_request',
+          message: 'Team size and monthly revenue must be valid numbers.',
+        })
+        return
+      }
+
+      const result = await database.query<CompanyApiRow>(
+        `
+          INSERT INTO companies (
+            workspace_id,
+            owner_user_id,
+            created_by,
+            updated_by,
+            name,
+            legal_name,
+            founder_name,
+            business_summary,
+            industry,
+            location,
+            stage,
+            team_background,
+            monthly_revenue,
+            employee_count,
+            website,
+            metadata
+          )
+          VALUES (
+            $1, $2, $2, $2, $3, NULLIF($4, ''), $5, $6,
+            NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''),
+            NULLIF($10, ''), $11, $12, NULLIF($13, ''), $14::jsonb
+          )
+          ON CONFLICT (workspace_id, name) DO UPDATE SET
+            owner_user_id = EXCLUDED.owner_user_id,
+            updated_by = EXCLUDED.updated_by,
+            legal_name = EXCLUDED.legal_name,
+            founder_name = EXCLUDED.founder_name,
+            business_summary = EXCLUDED.business_summary,
+            industry = EXCLUDED.industry,
+            location = EXCLUDED.location,
+            stage = EXCLUDED.stage,
+            team_background = EXCLUDED.team_background,
+            monthly_revenue = EXCLUDED.monthly_revenue,
+            employee_count = EXCLUDED.employee_count,
+            website = EXCLUDED.website,
+            metadata = EXCLUDED.metadata,
+            updated_at = now()
+          RETURNING
+            companies.id::text,
+            companies.name,
+            companies.legal_name,
+            companies.founder_name,
+            companies.business_summary,
+            companies.industry,
+            companies.stage,
+            companies.location,
+            companies.website,
+            companies.team_background,
+            companies.monthly_revenue::text,
+            companies.employee_count,
+            companies.metadata
+        `,
+        [
+          context.workspaceId,
+          context.userId,
+          company.name,
+          company.legalName,
+          company.founderName,
+          company.description,
+          company.industry,
+          company.location,
+          company.stage,
+          company.teamBackground,
+          monthlyRevenue,
+          employeeCount,
+          company.website,
+          JSON.stringify({
+            logo: company.logo,
+            registrationNumber: company.registrationNumber,
+            email: company.email,
+            phone: company.phone,
+            fundingTarget: company.fundingTarget,
+            teamMembers: company.teamMembers,
+            readiness: company.readiness,
+            status: company.status,
+            updatedAt: company.updatedAt,
+          }),
+        ],
+      )
+      const savedCompany = result.rows[0]
+      if (!savedCompany) {
+        throw new Error('The company could not be saved.')
+      }
+      response.status(200).json({ company: mapCompanyRow(savedCompany) })
     } catch (error) {
       next(error)
     }
