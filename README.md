@@ -196,7 +196,10 @@ change as contributors, advisors, and self-hosting teams provide feedback.
 - [ ] Add more funding-catalog connectors and scheduled sync observability
 - [ ] Extend financial planning with editable assumptions, scenario comparisons,
   and export-ready forecast formats
+- [ ] Add structured Strategic Report cover-page templates with logo, brand,
+  alignment, and metadata controls
 - [ ] Add richer document editing, review comments, and package export workflows
+- [ ] Render matching cover pages and page breaks in DOCX and PDF exports
 - [ ] Expand localization beyond English (Canada), French (Canada), and Simplified
   Chinese
 - [ ] Publish stable integration APIs and webhooks for partner workflows
@@ -293,6 +296,32 @@ docker compose --env-file deploy/.env.production -f deploy/docker-compose.produc
   exec postgres psql -U bconomics -d bconomics \
   -c "UPDATE app_users SET role = 'admin' WHERE lower(email) = lower('admin@example.com');"
 ```
+
+### Test and Live Mode data isolation
+
+Admin Console's **Mode Switch** is also a database boundary. Every browser
+request sends the selected mode to both backend services:
+
+- **Test Mode** uses `DATABASE_URL_TEST` and `MONGODB_DATABASE_TEST`; generation
+  uses the mock model gateway and writes test applications, configuration, and
+  reports.
+- **Live Mode** uses `DATABASE_URL_LIVE` and `MONGODB_DATABASE_LIVE`; generation
+  uses the configured real model gateway and writes only to the live stores.
+
+Live connection variables are intentionally required before Live Mode can be
+used. Do not point the live PostgreSQL URL or MongoDB database at the test
+stores. With the bundled Compose stack, create the live PostgreSQL database
+before starting the API migrations, for example:
+
+```bash
+docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
+  exec postgres psql -U bconomics -d postgres \
+  -c "CREATE DATABASE bconomics_live OWNER bconomics;"
+```
+
+The browser cache is hydrated from the selected mode's database and missing
+keys are not copied into the other mode. This prevents deleted Admin sections,
+applications, and old local snapshots from reappearing after a mode switch.
 
 For updates:
 
@@ -434,6 +463,20 @@ annual summary cards. The detailed line-item table opens on Year 1 and the cards
 switch it to the selected year's twelve monthly periods, so users can review
 each year without scanning all 36 columns at once.
 
+### Structured cover pages
+
+Strategic Report cover pages are planned as structured document sections rather
+than free-form LLM HTML. A cover page can contain the business name, report
+title, funding program, subtitle, date, logo, contact details, and brand theme
+settings such as accent color and alignment. The application should keep those
+values separate from presentation so the same cover-page data can be rendered
+consistently in the web report, DOCX export, and PDF export.
+
+The default presentation is a centered, polished business-plan cover with a
+large bold title, brand-colored accent, supporting metadata, and a deliberate
+page break before the first analysis section. Administrators can edit the
+content and configuration without allowing generated text to break the layout.
+
 ## Project structure
 
 ```text
@@ -525,6 +568,11 @@ in the `dynamic_state` collection using three scopes:
 - `platform` for branding, landing-page content, modules, AI/payment configuration, and data sources
 - `workspace` for saved-program preferences and Quick Build drafts
 - `user` for personal settings, pinned resources, and active workspace selection
+
+The selected environment mode chooses the MongoDB database before these scopes
+are read or written. Strategic Report section configuration therefore comes
+from the current mode's `platform` document only; it never falls back to the
+other mode's configuration.
 
 Sensitive payment keys and AI model API keys inside
 `bconomics-platform-config-v1` are not returned to the browser in plaintext. The
