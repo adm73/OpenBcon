@@ -9,7 +9,7 @@ export type PlatformModuleId =
   | 'discovery'
   | 'quick-build'
   | 'my-companies'
-  | 'saved-programs'
+  | 'funding-shortlist'
   | 'my-applications'
   | 'grants-loans'
   | 'templates'
@@ -1191,7 +1191,7 @@ export const defaultPlatformConfig: PlatformConfig = {
     discovery: true,
     'quick-build': true,
     'my-companies': true,
-    'saved-programs': true,
+    'funding-shortlist': true,
     'my-applications': true,
     'grants-loans': true,
     templates: true,

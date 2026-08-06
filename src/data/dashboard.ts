@@ -129,14 +129,14 @@ export const dashboardGroups: DashboardGroup[] = [
         entries: makeEntries('My Companies', 'company profile'),
       },
       {
-        id: 'saved-programs',
-        label: 'Saved Programs',
+        id: 'funding-shortlist',
+        label: 'Funding Shortlist',
         icon: 'bookmark',
         badgeIcon: 'user',
-        description: 'Access every saved grant or loan program that has been bookmarked for follow-up.',
+        description: 'Access every grant or loan program shortlisted for follow-up.',
         intro:
-          'This listing page shows all saved programs in one place so nothing gets lost between sessions.',
-        entries: makeEntries('Saved Programs', 'saved program'),
+          'This listing page shows every shortlisted funding opportunity in one place so nothing gets lost between sessions.',
+        entries: makeEntries('Funding Shortlist', 'shortlisted opportunity'),
       },
       {
         id: 'my-applications',

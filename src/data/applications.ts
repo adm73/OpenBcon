@@ -240,7 +240,7 @@ export function materializeSavedProgramApplication(
   const stageState = mapSavedProgramStageToApplicationState(input.stage)
   const savedNote =
     input.note?.trim() ||
-    `Created from Saved Programs on ${new Intl.DateTimeFormat('en-CA', {
+    `Created from Funding Shortlist on ${new Intl.DateTimeFormat('en-CA', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',

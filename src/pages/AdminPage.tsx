@@ -53,7 +53,7 @@ const moduleLabels: Array<{ id: PlatformModuleId; label: string; group: string }
   { id: 'discovery', label: 'Discovery', group: 'Funding Centre' },
   { id: 'quick-build', label: 'Quick Build', group: 'Funding Centre' },
   { id: 'my-companies', label: 'My Companies', group: 'My Workspace' },
-  { id: 'saved-programs', label: 'Saved Programs', group: 'My Workspace' },
+  { id: 'funding-shortlist', label: 'Funding Shortlist', group: 'My Workspace' },
   { id: 'my-applications', label: 'My Applications', group: 'My Workspace' },
   { id: 'grants-loans', label: 'Grants & Loans', group: 'Programs' },
   { id: 'templates', label: 'Templates', group: 'Programs' },

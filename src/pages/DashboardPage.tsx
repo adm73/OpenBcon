@@ -144,7 +144,7 @@ const navigationItemTranslationKeys: Record<string, string> = {
   'quick-build': 'navigation.items.quickBuild',
   'strategic-reports': 'navigation.items.advisoryHub',
   'my-companies': 'navigation.items.myCompany',
-  'saved-programs': 'navigation.items.savedPrograms',
+  'funding-shortlist': 'navigation.items.savedPrograms',
   'my-applications': 'navigation.items.myApplications',
   'grants-loans': 'navigation.items.grantsLoans',
   templates: 'navigation.items.templates',
@@ -295,7 +295,7 @@ const listingProfiles: Record<string, ListingProfile> = {
     secondaryValue: 'Today',
     insight: 'Complete your ownership and financial details to improve program matching.',
   },
-  'saved-programs': {
+  'funding-shortlist': {
     kicker: 'Funding shortlist',
     action: 'Discover programs',
     metricLabel: 'Closing soon',
@@ -930,6 +930,7 @@ function createEmptyCompany(): CompanyRecord {
 }
 
 function MyCompanyPage() {
+  const { t } = useTranslation()
   const [companies, setCompanies] = useState<CompanyRecord[]>(loadCompanyRecords)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'All' | CompanyRecord['status']>('All')
@@ -1220,7 +1221,7 @@ function MyCompanyPage() {
               <Glyph type="arrow" />
               Back to companies
             </button>
-            <p className="workspace-eyebrow">{isNew ? 'New company' : 'Company profile'}</p>
+          <p className="workspace-eyebrow">{isNew ? t('workspacePages.myCompanies.addCompany') : t('settings.profile')}</p>
             <h1>{draft.name || 'Untitled company'}</h1>
             <p>Manage the company information used for matching, applications, and generated documents.</p>
           </div>
@@ -1613,8 +1614,8 @@ function MyCompanyPage() {
     <section className="company-manager">
       <header className="workspace-listing-header is-my-companies-topbar">
         <div className="workspace-listing-heading">
-          <h1>My Companies</h1>
-          <p>Manage the businesses connected to your funding workspace and keep every profile application-ready.</p>
+          <h1>{t('workspacePages.myCompanies.title')}</h1>
+          <p>{t('workspacePages.myCompanies.description')}</p>
         </div>
         <button
           type="button"
@@ -1626,35 +1627,35 @@ function MyCompanyPage() {
           }}
         >
           <Glyph type="spark" />
-          Add company
+          {t('workspacePages.myCompanies.addCompany')}
         </button>
       </header>
 
       <div className="company-portfolio-metrics">
         <article>
-          <span>Companies</span>
+          <span>{t('workspacePages.myCompanies.companies')}</span>
           <strong>{companies.length}</strong>
-          <small>{companies.filter((company) => company.status === 'Active').length} active profiles</small>
+          <small>{companies.filter((company) => company.status === 'Active').length} {t('workspacePages.myCompanies.activeProfiles')}</small>
         </article>
         <article>
-          <span>Average readiness</span>
+          <span>{t('workspacePages.myCompanies.averageReadiness')}</span>
           <strong>{averageReadiness}%</strong>
-          <small>Across the portfolio</small>
+          <small>{t('workspacePages.myCompanies.acrossPortfolio')}</small>
         </article>
         <article className="is-attention">
-          <span>Needs attention</span>
+          <span>{t('workspacePages.myCompanies.needsAttention')}</span>
           <strong>{companies.filter((company) => company.status !== 'Active').length}</strong>
-          <small>Incomplete or outdated profiles</small>
+          <small>{t('workspacePages.myCompanies.incompleteProfiles')}</small>
         </article>
       </div>
 
       <section className="company-portfolio-panel">
         <div className="company-portfolio-heading">
           <div>
-            <p className="workspace-eyebrow">Portfolio</p>
-            <h2>All companies</h2>
+            <p className="workspace-eyebrow">{t('workspacePages.myCompanies.portfolio')}</p>
+            <h2>{t('workspacePages.myCompanies.allCompanies')}</h2>
           </div>
-          <span>{visibleCompanies.length} companies</span>
+          <span>{visibleCompanies.length} {t('workspacePages.common.companies')}</span>
         </div>
         <div className="company-portfolio-toolbar">
           <label>
@@ -1663,7 +1664,7 @@ function MyCompanyPage() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search company, industry, or owner"
+              placeholder={t('workspacePages.myCompanies.search')}
             />
           </label>
           <div>
@@ -1722,10 +1723,10 @@ function MyCompanyPage() {
         {visibleCompanies.length === 0 ? (
           <div className="workspace-empty">
             <span><Glyph type="search" /></span>
-            <strong>No companies found</strong>
-            <p>Try a different search or status filter.</p>
+            <strong>{t('workspacePages.myCompanies.noCompanies')}</strong>
+            <p>{t('workspacePages.myCompanies.searchHint')}</p>
             <button type="button" onClick={() => { setQuery(''); setFilter('All') }}>
-              Clear filters
+              {t('workspacePages.common.clearFilters')}
             </button>
           </div>
         ) : null}
@@ -1937,14 +1938,8 @@ function getScoutingTone(score: number) {
   return 'weak'
 }
 
-function getScoutingConclusion(score: number) {
-  if (score >= 85) return 'Strong fit'
-  if (score >= 70) return 'Promising fit'
-  if (score >= 55) return 'Needs evidence'
-  return 'Weak fit'
-}
-
 function FundingReadinessPage() {
+  const { t } = useTranslation()
   const { config } = usePlatformConfig()
   const location = useLocation()
   const enabledSourceIds = config.dataSources
@@ -1994,17 +1989,17 @@ function FundingReadinessPage() {
       <section className="scouting-page">
         <header className="scouting-header is-discovery-topbar">
           <div>
-            <h1>Discovery</h1>
-            <p>Match funding programs with your company profile before building an application.</p>
+          <h1>{t('workspacePages.discovery.title')}</h1>
+            <p>{t('workspacePages.discovery.description')}</p>
           </div>
           <Link className="scouting-header-action" to="/grants-loans">
-            Browse funding programs <Glyph type="arrow" />
+            {t('workspacePages.discovery.browsePrograms')} <Glyph type="arrow" />
           </Link>
         </header>
         <div className="scouting-empty-state">
           <Glyph type="search" />
-          <strong>Not enough data to scout a match</strong>
-          <p>Make sure the funding catalog and My Companies both have records.</p>
+          <strong>{t('workspacePages.discovery.notEnoughData')}</strong>
+          <p>{t('workspacePages.discovery.catalogAndCompanies')}</p>
         </div>
       </section>
     )
@@ -2016,7 +2011,14 @@ function FundingReadinessPage() {
     matchingApplication,
   )
   const tone = getScoutingTone(scouting.overall)
-  const conclusion = getScoutingConclusion(scouting.overall)
+  const conclusionKey = scouting.overall >= 85
+    ? 'strongFit'
+    : scouting.overall >= 70
+      ? 'promisingFit'
+      : scouting.overall >= 55
+        ? 'needsEvidence'
+        : 'weakFit'
+  const conclusion = t(`workspacePages.discovery.${conclusionKey}`)
   const strengths = [
     scouting.scores[0].score >= 80 ? `${selectedCompany.location} is inside the program's coverage area.` : '',
     scouting.scores[1].score >= 85 ? `The catalog identifies ${selectedProgram.name} as a strong program match.` : '',
@@ -2075,11 +2077,11 @@ function FundingReadinessPage() {
     <section className="scouting-page">
       <header className="scouting-header is-discovery-topbar">
         <div>
-          <h1>Discovery</h1>
-          <p>Match funding programs with your company profile before building an application.</p>
+          <h1>{t('workspacePages.discovery.title')}</h1>
+          <p>{t('workspacePages.discovery.description')}</p>
         </div>
         <Link className="scouting-header-action" to="/grants-loans">
-          Browse programs <Glyph type="arrow" />
+          {t('workspacePages.discovery.browsePrograms')} <Glyph type="arrow" />
         </Link>
       </header>
 
@@ -2104,20 +2106,20 @@ function FundingReadinessPage() {
         >
         <header className="scouting-report-card-header">
           <div className="scouting-report-card-title">
-            <span>Program matching</span>
+            <span>{t('workspacePages.discovery.programMatching')}</span>
             <h2>{selectedProgram.name}</h2>
           </div>
-          <div className="scouting-program-pager" aria-label="Funding program navigation">
+          <div className="scouting-program-pager" aria-label={t('workspacePages.discovery.programMatching')}>
             <button type="button" onClick={() => changeProgram(-1)} disabled={selectedProgramIndex === 0}>
-              <span aria-hidden="true">‹</span> Previous
+              <span aria-hidden="true">‹</span> {t('workspacePages.discovery.previous')}
             </button>
             <strong>{selectedProgramIndex + 1} / {programs.length}</strong>
             <button type="button" onClick={() => changeProgram(1)} disabled={selectedProgramIndex === programs.length - 1}>
-              Next <span aria-hidden="true">›</span>
+              {t('workspacePages.discovery.next')} <span aria-hidden="true">›</span>
             </button>
           </div>
           <label className="scouting-company-selector">
-            <span>Company</span>
+            <span>{t('workspacePages.discovery.company')}</span>
             <select value={selectedCompany.id} onChange={(event) => setSelectedCompanyId(event.target.value)}>
               {companies.map((company) => (
                 <option key={company.id} value={company.id}>{company.name}</option>
@@ -2130,9 +2132,9 @@ function FundingReadinessPage() {
         <div
           className="scouting-score-badge"
           style={{ '--score-progress': `${scouting.overall}%` } as CSSProperties}
-          aria-label={`Match score ${scouting.overall} out of 100`}
+          aria-label={`${t('workspacePages.discovery.matchScore')} ${scouting.overall} / 100`}
         >
-          <span>Match score</span>
+          <span>{t('workspacePages.discovery.matchScore')}</span>
           <div className="scouting-score-value">
             <strong>{scouting.overall}</strong>
             <small>/100</small>
@@ -2143,8 +2145,8 @@ function FundingReadinessPage() {
           <h2>{selectedProgram.name} × {selectedCompany.name}</h2>
           <p>
             {scouting.overall >= 70
-              ? 'The profile shows a credible route to this program. Close the evidence gaps before submitting.'
-              : 'The current profile needs more evidence before this program should become a priority.'}
+              ? t('workspacePages.discovery.credibleRoute')
+              : t('workspacePages.discovery.needsEvidenceBeforePriority')}
           </p>
           <div className="scouting-hero-meta">
             <span><strong>{selectedProgram.provider}</strong> provider</span>
@@ -2153,9 +2155,9 @@ function FundingReadinessPage() {
           </div>
         </div>
         <div className="scouting-verdict">
-          <span>Scout's verdict</span>
-          <strong>{gaps.length ? 'Build evidence next' : 'Ready to build'}</strong>
-          <p>{gaps.length} gap{gaps.length === 1 ? '' : 's'} to close before launch.</p>
+          <span>{t('workspacePages.discovery.scoutVerdict')}</span>
+          <strong>{gaps.length ? t('workspacePages.discovery.buildEvidence') : t('workspacePages.discovery.readyToBuild')}</strong>
+          <p>{t('workspacePages.discovery.gapsToClose', { count: gaps.length, suffix: gaps.length === 1 ? '' : 's' })}</p>
         </div>
         </section>
 
@@ -2163,32 +2165,32 @@ function FundingReadinessPage() {
         <article className="scouting-card">
           <div className="scouting-card-heading">
             <div>
-              <span>Funding program profile</span>
+              <span>{t('workspacePages.discovery.fundingProgramProfile')}</span>
               <h2>{selectedProgram.name}</h2>
             </div>
-            <a href={selectedProgram.url} target="_blank" rel="noreferrer">Official source <Glyph type="arrow" /></a>
+            <a href={selectedProgram.url} target="_blank" rel="noreferrer">{t('workspacePages.discovery.officialSource')} <Glyph type="arrow" /></a>
           </div>
           <dl className="scouting-facts">
-            <div><dt>Provider</dt><dd>{selectedProgram.provider}</dd></div>
-            <div><dt>Maximum funding</dt><dd>{formatDashboardCurrency(selectedProgram.amount)}</dd></div>
-            <div><dt>Deadline</dt><dd>{selectedProgram.deadline}</dd></div>
-            <div><dt>Program coverage</dt><dd>{selectedProgram.location}</dd></div>
+            <div><dt>{t('workspacePages.discovery.provider')}</dt><dd>{selectedProgram.provider}</dd></div>
+            <div><dt>{t('workspacePages.discovery.maximumFunding')}</dt><dd>{formatDashboardCurrency(selectedProgram.amount)}</dd></div>
+            <div><dt>{t('workspacePages.discovery.deadline')}</dt><dd>{selectedProgram.deadline}</dd></div>
+            <div><dt>{t('workspacePages.discovery.programCoverage')}</dt><dd>{selectedProgram.location}</dd></div>
           </dl>
           <div className="scouting-detail-columns">
-            <div><h3>Requirements</h3><ul>{programRequirements.map((item) => <li key={item}>{item}</li>)}</ul></div>
-            <div><h3>Eligible uses</h3><ul>{eligibleUses.map((item) => <li key={item}>{item}</li>)}</ul></div>
+            <div><h3>{t('workspacePages.discovery.requirements')}</h3><ul>{programRequirements.map((item) => <li key={item}>{item}</li>)}</ul></div>
+            <div><h3>{t('workspacePages.discovery.eligibleUses')}</h3><ul>{eligibleUses.map((item) => <li key={item}>{item}</li>)}</ul></div>
           </div>
-          <div className="scouting-detail-block"><h3>Best suited to</h3><p>{targetCompanyTypes[0]}</p></div>
-          <div className="scouting-detail-block"><h3>Required evidence</h3><p>{requiredEvidence[0]}</p></div>
+          <div className="scouting-detail-block"><h3>{t('workspacePages.discovery.bestSuitedTo')}</h3><p>{targetCompanyTypes[0]}</p></div>
+          <div className="scouting-detail-block"><h3>{t('workspacePages.discovery.requiredEvidence')}</h3><p>{requiredEvidence[0]}</p></div>
         </article>
 
         <article className="scouting-card scouting-company-card">
           <div className="scouting-card-heading">
             <div>
-              <span>Company profile</span>
+              <span>{t('workspacePages.discovery.companyProfile')}</span>
               <h2>{selectedCompany.name}</h2>
             </div>
-            <Link to="/my-companies">Edit company <Glyph type="arrow" /></Link>
+            <Link to="/my-companies">{t('workspacePages.discovery.editCompany')} <Glyph type="arrow" /></Link>
           </div>
           <p className="scouting-company-description">{selectedCompany.description || 'No company description has been added yet.'}</p>
           <dl className="scouting-facts">
@@ -2284,6 +2286,7 @@ function FundingReadinessPage() {
 }
 
 function SavedProgramsPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const closingPidRef = useRef('')
@@ -2486,26 +2489,25 @@ function SavedProgramsPage() {
     <section className="saved-programs-page">
       <header className="saved-programs-header is-listing-topbar">
         <div>
-          <h1>Saved Programs</h1>
+          <h1>{t('workspacePages.savedPrograms.title')}</h1>
           <p>
-            Prioritize the programs worth pursuing, track application readiness,
-            and keep the next deadline in sight.
+            {t('workspacePages.savedPrograms.description')}
           </p>
         </div>
         <Link to="/grants-loans" className="saved-programs-header-action">
           <Glyph type="search" />
-          Discover more programs
+          {t('workspacePages.savedPrograms.discover')}
         </Link>
       </header>
 
       <div className="saved-programs-metrics">
         <article className="is-primary">
-          <span>Saved programs</span>
+          <span>{t('workspacePages.savedPrograms.savedPrograms')}</span>
           <strong>{savedPrograms.length}</strong>
-          <small>{readyCount} ready to apply</small>
+          <small>{readyCount} {t('workspacePages.savedPrograms.readyToApply')}</small>
         </article>
         <article>
-          <span>Potential funding</span>
+          <span>{t('workspacePages.savedPrograms.potentialFunding')}</span>
           <strong>
             {new Intl.NumberFormat('en-CA', {
               style: 'currency',
@@ -2514,17 +2516,17 @@ function SavedProgramsPage() {
               maximumFractionDigits: 1,
             }).format(totalPotential)}
           </strong>
-          <small>Maximum combined value</small>
+          <small>{t('workspacePages.savedPrograms.maximumCombined')}</small>
         </article>
         <article>
-          <span>Average match</span>
+          <span>{t('workspacePages.savedPrograms.averageMatch')}</span>
           <strong>{averageMatch}%</strong>
-          <small>Across your shortlist</small>
+          <small>{t('workspacePages.savedPrograms.acrossShortlist')}</small>
         </article>
         <article className="is-deadline">
-          <span>Fixed deadlines</span>
+          <span>{t('workspacePages.savedPrograms.fixedDeadlines')}</span>
           <strong>{fixedDeadlineCount}</strong>
-          <small>Need calendar review</small>
+          <small>{t('workspacePages.savedPrograms.calendarReview')}</small>
         </article>
       </div>
 
@@ -2537,34 +2539,34 @@ function SavedProgramsPage() {
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search saved programs"
+                placeholder={t('workspacePages.savedPrograms.search')}
               />
             </label>
             <select
-              aria-label="Filter by application stage"
+              aria-label={t('workspacePages.savedPrograms.applicationStage')}
               value={stage}
               onChange={(event) =>
                 setStage(event.target.value as 'All' | SavedProgramStage)
               }
             >
-              <option value="All">All stages</option>
+              <option value="All">{t('workspacePages.savedPrograms.allStages')}</option>
               <option value="Researching">Researching</option>
               <option value="Preparing">Preparing</option>
               <option value="Ready to apply">Ready to apply</option>
             </select>
             <select
-              aria-label="Filter by funding type"
+              aria-label={t('workspacePages.savedPrograms.fundingType')}
               value={type}
               onChange={(event) =>
                 setType(event.target.value as 'All' | 'Grant' | 'Loan')
               }
             >
-              <option value="All">All types</option>
-              <option value="Grant">Grants</option>
-              <option value="Loan">Loans</option>
+              <option value="All">{t('workspacePages.savedPrograms.allTypes')}</option>
+              <option value="Grant">{t('workspacePages.savedPrograms.grants')}</option>
+              <option value="Loan">{t('workspacePages.savedPrograms.loans')}</option>
             </select>
             <select
-              aria-label="Sort saved programs"
+              aria-label={t('workspacePages.savedPrograms.sort')}
               value={sort}
               onChange={(event) =>
                 setSort(
@@ -2575,20 +2577,20 @@ function SavedProgramsPage() {
                 )
               }
             >
-              <option>Recently saved</option>
-              <option>Highest match</option>
-              <option>Largest amount</option>
+              <option value="Recently saved">{t('workspacePages.savedPrograms.recentlySaved')}</option>
+              <option value="Highest match">{t('workspacePages.savedPrograms.highestMatch')}</option>
+              <option value="Largest amount">{t('workspacePages.savedPrograms.largestAmount')}</option>
             </select>
           </div>
 
           <div className="saved-programs-list-heading">
             <div>
-              <strong>Shortlist</strong>
+              <strong>{t('workspacePages.savedPrograms.shortlist')}</strong>
               <span>{visiblePrograms.length} of {savedPrograms.length} programs</span>
             </div>
-            <span>Stage</span>
-            <span>Funding</span>
-            <span>Match</span>
+            <span>{t('workspacePages.savedPrograms.stage')}</span>
+            <span>{t('workspacePages.savedPrograms.funding')}</span>
+            <span>{t('workspacePages.savedPrograms.match')}</span>
           </div>
 
           <div className="saved-programs-list">
@@ -2646,8 +2648,8 @@ function SavedProgramsPage() {
           {visiblePrograms.length === 0 ? (
             <div className="workspace-empty">
               <span><Glyph type="search" /></span>
-              <strong>No saved programs match</strong>
-              <p>Try another search or reset the stage and type filters.</p>
+              <strong>{t('workspacePages.savedPrograms.noMatch')}</strong>
+              <p>{t('workspacePages.savedPrograms.resetHint')}</p>
               <button
                 type="button"
                 onClick={() => {
@@ -2656,7 +2658,7 @@ function SavedProgramsPage() {
                   setType('All')
                 }}
               >
-                Reset filters
+                {t('workspacePages.savedPrograms.reset')}
               </button>
             </div>
           ) : null}
@@ -2664,9 +2666,9 @@ function SavedProgramsPage() {
 
         <aside className="saved-programs-insights">
           <section className="saved-next-action">
-            <p>Recommended next move</p>
+            <p>{t('workspacePages.savedPrograms.recommended')}</p>
             <span><Glyph type="spark" /></span>
-            <h2>Move your strongest match into preparation.</h2>
+            <h2>{t('workspacePages.savedPrograms.strongestMatch')}</h2>
             <p>
               {savedPrograms[0]?.program.name ?? 'Your top funding opportunity'} has
               the clearest path to a complete application package.
@@ -2678,14 +2680,14 @@ function SavedProgramsPage() {
                   updateEntry(savedPrograms[0].program.id, { stage: 'Preparing' })
                 }
               >
-                Start preparing
+                {t('workspacePages.savedPrograms.startPreparing')}
               </button>
             ) : null}
           </section>
 
           <section className="saved-stage-summary">
             <div>
-              <p>Pipeline</p>
+              <p>{t('workspacePages.savedPrograms.pipeline')}</p>
               <span>{savedPrograms.length} programs</span>
             </div>
             {(['Researching', 'Preparing', 'Ready to apply'] as const).map(
@@ -2707,8 +2709,8 @@ function SavedProgramsPage() {
           <section className="saved-shortlist-tip">
             <Glyph type="spark" />
             <div>
-              <strong>Keep the shortlist focused</strong>
-              <p>Aim for 3–6 programs with a clear owner and next action.</p>
+              <strong>{t('workspacePages.savedPrograms.focused')}</strong>
+              <p>{t('workspacePages.savedPrograms.focusedHint')}</p>
             </div>
           </section>
         </aside>
@@ -2839,6 +2841,7 @@ const applicationStatuses: ApplicationStatus[] = [
 ]
 
 function MyApplicationsPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [applications, setApplications] = useState<ApplicationRecord[]>(
     loadApplications,
@@ -2916,36 +2919,35 @@ function MyApplicationsPage() {
     <section className="applications-page">
       <header className="applications-header is-listing-topbar">
         <div>
-          <h1>My Applications</h1>
+          <h1>{t('workspacePages.applications.title')}</h1>
           <p>
-            Manage drafts, reviews, submissions, deadlines, and funding outcomes
-            from one operational pipeline.
+            {t('workspacePages.applications.description')}
           </p>
         </div>
         <Link to="/quick-build">
           <Glyph type="spark" />
-          New application
+          {t('workspacePages.applications.newApplication')}
         </Link>
       </header>
 
       <div className="applications-metrics">
         <article className="is-primary">
-          <span>Active applications</span>
+          <span>{t('workspacePages.applications.active')}</span>
           <strong>{activeCount}</strong>
-          <small>Across draft and review stages</small>
+          <small>{t('workspacePages.applications.draftReview')}</small>
         </article>
         <article className={dueSoonCount ? 'is-warning' : ''}>
-          <span>Due within 60 days</span>
+          <span>{t('workspacePages.applications.dueSoon')}</span>
           <strong>{dueSoonCount}</strong>
-          <small>Needs deadline attention</small>
+          <small>{t('workspacePages.applications.deadlineAttention')}</small>
         </article>
         <article>
-          <span>Submitted or awarded</span>
+          <span>{t('workspacePages.applications.submittedAwarded')}</span>
           <strong>{submittedCount}</strong>
-          <small>Completed application work</small>
+          <small>{t('workspacePages.applications.completedWork')}</small>
         </article>
         <article className="is-awarded">
-          <span>Awarded pipeline</span>
+          <span>{t('workspacePages.applications.awardedPipeline')}</span>
           <strong>
             {new Intl.NumberFormat('en-CA', {
               style: 'currency',
@@ -2954,7 +2956,7 @@ function MyApplicationsPage() {
               maximumFractionDigits: 1,
             }).format(awardedValue)}
           </strong>
-          <small>Confirmed funding value</small>
+          <small>{t('workspacePages.applications.confirmedValue')}</small>
         </article>
       </div>
 
@@ -2966,33 +2968,33 @@ function MyApplicationsPage() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search applications, programs, or companies"
+              placeholder={t('workspacePages.applications.search')}
             />
           </label>
           <select
-            aria-label="Filter applications by status"
+            aria-label={t('workspacePages.applications.statusFilter')}
             value={status}
             onChange={(event) =>
               setStatus(event.target.value as 'All' | ApplicationStatus)
             }
           >
-            <option value="All">All statuses</option>
+            <option value="All">{t('workspacePages.applications.allStatuses')}</option>
             {applicationStatuses.map((statusName) => (
               <option key={statusName}>{statusName}</option>
             ))}
           </select>
           <select
-            aria-label="Filter applications by company"
+            aria-label={t('workspacePages.applications.companyFilter')}
             value={company}
             onChange={(event) => setCompany(event.target.value)}
           >
-            <option value="All">All companies</option>
+            <option value="All">{t('workspacePages.applications.allCompanies')}</option>
             {companies.map((companyName) => (
               <option key={companyName}>{companyName}</option>
             ))}
           </select>
           <select
-            aria-label="Sort applications"
+            aria-label={t('workspacePages.applications.sort')}
             value={sort}
             onChange={(event) =>
               setSort(
@@ -3003,15 +3005,15 @@ function MyApplicationsPage() {
               )
             }
           >
-            <option>Nearest deadline</option>
-            <option>Recently updated</option>
-            <option>Largest funding</option>
+            <option value="Nearest deadline">{t('workspacePages.applications.nearestDeadline')}</option>
+            <option value="Recently updated">{t('workspacePages.applications.recentlyUpdated')}</option>
+            <option value="Largest funding">{t('workspacePages.applications.largestFunding')}</option>
           </select>
-          <div className="applications-view-switch" aria-label="Application view">
+          <div className="applications-view-switch" aria-label={t('workspacePages.applications.applicationView')}>
             <button
               type="button"
               className={view === 'list' ? 'is-selected' : ''}
-              aria-label="List view"
+              aria-label={t('workspacePages.applications.listView')}
               onClick={() => setView('list')}
             >
               <Glyph type="menu" />
@@ -3019,7 +3021,7 @@ function MyApplicationsPage() {
             <button
               type="button"
               className={view === 'board' ? 'is-selected' : ''}
-              aria-label="Board view"
+              aria-label={t('workspacePages.applications.boardView')}
               onClick={() => setView('board')}
             >
               <Glyph type="grid" />
@@ -3037,7 +3039,7 @@ function MyApplicationsPage() {
                 setCompany('All')
               }}
             >
-              Clear filters
+              {t('workspacePages.common.clearFilters')}
             </button>
           ) : null}
         </div>
@@ -3047,11 +3049,11 @@ function MyApplicationsPage() {
         <div className="applications-list-layout">
           <section className="applications-list-panel">
             <div className="applications-list-heading">
-              <span>Application</span>
-              <span>Status</span>
-              <span>Progress</span>
-              <span>Deadline</span>
-              <span>Funding</span>
+              <span>{t('workspacePages.applications.application')}</span>
+              <span>{t('workspacePages.applications.status')}</span>
+              <span>{t('workspacePages.applications.progress')}</span>
+              <span>{t('workspacePages.applications.deadline')}</span>
+              <span>{t('workspacePages.applications.funding')}</span>
             </div>
             <div className="applications-list">
               {visibleApplications.map((application) => (
@@ -3398,6 +3400,7 @@ function createEmptyManualFundingProgram(): ManualFundingProgramDraft {
 }
 
 function GrantsLoansPage() {
+  const { t } = useTranslation()
   const { config } = usePlatformConfig()
   const platformName = getPlatformDisplayName(config)
   const [query, setQuery] = useState('')
@@ -3656,10 +3659,9 @@ function GrantsLoansPage() {
     <section className="funding-directory">
       <header className="funding-directory-header is-listing-topbar">
         <div>
-          <h1>Grants &amp; Loans</h1>
+          <h1>{t('workspacePages.grantsLoans.title')}</h1>
           <p>
-            Search the {platformName} catalog and every external source enabled by your
-            workspace administrator.
+            {t('workspacePages.grantsLoans.description')}
           </p>
         </div>
         <div className="funding-directory-header-actions">
@@ -3672,7 +3674,7 @@ function GrantsLoansPage() {
             }}
           >
             <Glyph type="file" />
-            Import
+            {t('workspacePages.grantsLoans.import')}
           </button>
           <button
             type="button"
@@ -3680,19 +3682,19 @@ function GrantsLoansPage() {
             onClick={() => setSourcePickerOpen(true)}
           >
             <Glyph type="settings" />
-            Manage data sources
+            {t('workspacePages.common.manageDataSources')}
           </button>
         </div>
       </header>
 
       <div className="funding-directory-metrics">
         <article>
-          <span>Available opportunities</span>
+          <span>{t('workspacePages.grantsLoans.available')}</span>
           <strong>{programs.length}</strong>
-          <small>Across all active catalogs</small>
+          <small>{t('workspacePages.grantsLoans.activeCatalogs')}</small>
         </article>
         <article>
-          <span>Potential funding</span>
+          <span>{t('workspacePages.grantsLoans.potentialFunding')}</span>
           <strong>
             {new Intl.NumberFormat('en-CA', {
               style: 'currency',
@@ -3701,10 +3703,10 @@ function GrantsLoansPage() {
               maximumFractionDigits: 1,
             }).format(totalValue)}
           </strong>
-          <small>Maximum combined value</small>
+          <small>{t('workspacePages.grantsLoans.maximumCombined')}</small>
         </article>
         <article className="is-source-metric">
-          <span>Connected data sources</span>
+          <span>{t('workspacePages.common.connectedDataSources')}</span>
           <strong>{connectedSources}</strong>
           <small>
             {
@@ -3712,7 +3714,7 @@ function GrantsLoansPage() {
                 (source) => source.module === 'grants-loans' && source.enabled,
               ).length
             }{' '}
-            enabled
+            {t('workspacePages.common.enabled')}
           </small>
         </article>
       </div>
@@ -3721,13 +3723,13 @@ function GrantsLoansPage() {
         {programsError ? (
           <div className="workspace-empty funding-directory-error" role="alert">
             <span><Glyph type="close" /></span>
-            <strong>Funding programs could not be loaded</strong>
+            <strong>{t('workspacePages.grantsLoans.loading')}</strong>
             <p>{programsError}</p>
             <button
               type="button"
               onClick={() => window.location.reload()}
             >
-              Retry
+              {t('workspacePages.common.start')}
             </button>
           </div>
         ) : null}
@@ -3739,7 +3741,7 @@ function GrantsLoansPage() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by program, provider, region, or source"
+              placeholder={t('workspacePages.grantsLoans.search')}
             />
           </label>
           <div>
@@ -3751,7 +3753,7 @@ function GrantsLoansPage() {
                 aria-pressed={type === filterName}
                 onClick={() => setType(filterName)}
               >
-                {filterName}
+                {filterName === 'All' ? t('workspacePages.common.all') : filterName === 'Grant' ? t('workspacePages.grantsLoans.grants') : t('workspacePages.grantsLoans.loans')}
               </button>
             ))}
           </div>
@@ -3764,13 +3766,13 @@ function GrantsLoansPage() {
             onClick={() => setFiltersOpen((open) => !open)}
           >
             <Glyph type="settings" />
-            Filters
+            {t('workspacePages.common.filters')}
             {activeFilterCount > 0 ? <b>{activeFilterCount}</b> : null}
           </button>
           <span>
             {programsLoading
-              ? 'Loading database catalog...'
-              : `${visiblePrograms.length} ${visiblePrograms.length === 1 ? 'result' : 'results'}`}
+              ? t('workspacePages.grantsLoans.loading')
+              : `${visiblePrograms.length} ${t('workspacePages.common.records')}`}
           </span>
         </div>
 
@@ -3778,23 +3780,23 @@ function GrantsLoansPage() {
           <div className="funding-directory-filter-panel">
             <div className="funding-filter-heading">
               <div>
-                <strong>Refine opportunities</strong>
-                <span>Combine filters to narrow the complete program catalog.</span>
+                <strong>{t('workspacePages.grantsLoans.refine')}</strong>
+                <span>{t('workspacePages.grantsLoans.refineHint')}</span>
               </div>
               {activeFilterCount > 0 ? (
                 <button type="button" onClick={clearFundingFilters}>
-                  Clear all
+                  {t('workspacePages.common.clearAll')}
                 </button>
               ) : null}
             </div>
             <div className="funding-filter-fields">
               <label>
-                <span>Region</span>
+                <span>{t('workspacePages.grantsLoans.region')}</span>
                 <select
                   value={location}
                   onChange={(event) => setLocation(event.target.value)}
                 >
-                  <option value="All">All regions</option>
+                  <option value="All">{t('workspacePages.grantsLoans.allRegions')}</option>
                   {locations.map((locationName) => (
                     <option key={locationName} value={locationName}>
                       {locationName}
@@ -3803,19 +3805,19 @@ function GrantsLoansPage() {
                 </select>
               </label>
               <label>
-                <span>Data source</span>
+                <span>{t('workspacePages.grantsLoans.dataSource')}</span>
                 <select
                   value={sourceName}
                   onChange={(event) => setSourceName(event.target.value)}
                 >
-                  <option value="All">All sources</option>
+                  <option value="All">{t('workspacePages.grantsLoans.allSources')}</option>
                   {sources.map((source) => (
                     <option key={source} value={source}>{source}</option>
                   ))}
                 </select>
               </label>
               <label>
-                <span>Funding amount</span>
+                <span>{t('workspacePages.grantsLoans.fundingAmount')}</span>
                 <select
                   value={amountRange}
                   onChange={(event) =>
@@ -3824,36 +3826,36 @@ function GrantsLoansPage() {
                     )
                   }
                 >
-                  <option value="All">Any amount</option>
-                  <option value="under-50">Under $50K</option>
-                  <option value="50-100">$50K–$99K</option>
-                  <option value="100-plus">$100K+</option>
+                  <option value="All">{t('workspacePages.grantsLoans.anyAmount')}</option>
+                  <option value="under-50">{t('workspacePages.grantsLoans.under50')}</option>
+                  <option value="50-100">{t('workspacePages.grantsLoans.amount50to100')}</option>
+                  <option value="100-plus">{t('workspacePages.grantsLoans.amount100Plus')}</option>
                 </select>
               </label>
               <label>
-                <span>Minimum match</span>
+                <span>{t('workspacePages.grantsLoans.minimumMatch')}</span>
                 <select
                   value={minimumMatch}
                   onChange={(event) =>
                     setMinimumMatch(event.target.value as typeof minimumMatch)
                   }
                 >
-                  <option value="All">Any match</option>
-                  <option value="80">80% or higher</option>
-                  <option value="90">90% or higher</option>
+                  <option value="All">{t('workspacePages.grantsLoans.anyMatch')}</option>
+                  <option value="80">{t('workspacePages.grantsLoans.match80')}</option>
+                  <option value="90">{t('workspacePages.grantsLoans.match90')}</option>
                 </select>
               </label>
               <label>
-                <span>Deadline</span>
+                <span>{t('workspacePages.grantsLoans.deadline')}</span>
                 <select
                   value={deadlineType}
                   onChange={(event) =>
                     setDeadlineType(event.target.value as typeof deadlineType)
                   }
                 >
-                  <option value="All">Any deadline</option>
-                  <option value="Open">Open or rolling</option>
-                  <option value="Fixed">Fixed deadline</option>
+                  <option value="All">{t('workspacePages.grantsLoans.anyDeadline')}</option>
+                  <option value="Open">{t('workspacePages.grantsLoans.openRolling')}</option>
+                  <option value="Fixed">{t('workspacePages.grantsLoans.fixedDeadline')}</option>
                 </select>
               </label>
             </div>
@@ -3895,7 +3897,7 @@ function GrantsLoansPage() {
             ) : null}
             {deadlineType !== 'All' ? (
               <button type="button" onClick={() => setDeadlineType('All')}>
-                {deadlineType === 'Open' ? 'Open / rolling' : 'Fixed deadline'}{' '}
+                {deadlineType === 'Open' ? t('workspacePages.grantsLoans.openRolling') : t('workspacePages.grantsLoans.fixedDeadline')}{' '}
                 <b>×</b>
               </button>
             ) : null}
@@ -3920,7 +3922,7 @@ function GrantsLoansPage() {
               <div className="funding-card-copy">
                 <small>{program.provider}</small>
                 <h2>{program.name}</h2>
-                <p>{program.location} · Deadline: {program.deadline}</p>
+                <p>{program.location} · {t('workspacePages.grantsLoans.deadline')}: {program.deadline}</p>
               </div>
               <div className="funding-card-value">
                 <span>Up to</span>
@@ -4034,7 +4036,7 @@ function GrantsLoansPage() {
                   />
                 </label>
                 <label>
-                  <span>Deadline</span>
+                  <span>{t('workspacePages.grantsLoans.deadline')}</span>
                   <input
                     value={importDraft.deadline}
                     onChange={(event) => updateImportDraft('deadline', event.target.value)}
@@ -4270,10 +4272,10 @@ function GrantsLoansPage() {
             >
               <Glyph type="close" />
             </button>
-            <span className="clone-record-status">Active sources</span>
-            <h2 id="funding-source-picker-title">Choose a funding data source</h2>
+            <span className="clone-record-status">{t('workspacePages.grantsLoans.activeSources')}</span>
+            <h2 id="funding-source-picker-title">{t('workspacePages.grantsLoans.chooseDataSource')}</h2>
             <p>
-              Select an active Grants &amp; Loans source configured by your administrator.
+              {t('workspacePages.grantsLoans.chooseDataSourceDescription')}
             </p>
             <div className="funding-source-picker-list">
               <button
@@ -4286,8 +4288,8 @@ function GrantsLoansPage() {
               >
                 <span className="funding-source-picker-icon is-all">All</span>
                 <span>
-                  <strong>All active sources</strong>
-                  <small>Show opportunities from every enabled catalog</small>
+                  <strong>{t('workspacePages.grantsLoans.allActiveSources')}</strong>
+                  <small>{t('workspacePages.grantsLoans.allEnabledCatalogs')}</small>
                 </span>
               </button>
               {activeFundingDataSources.map((source) => (
@@ -4339,6 +4341,7 @@ function GrantsLoansPage() {
 const selectedTemplateStorageKey = 'bconomics-selected-template-v1'
 
 function TemplatesPage() {
+  const { t } = useTranslation()
   const { config } = usePlatformConfig()
   const enabledSourceIds = config.dataSources
     .filter((source) => source.enabled && source.module === 'templates')
@@ -4422,10 +4425,9 @@ function TemplatesPage() {
     <section className="template-directory">
       <header className="funding-directory-header template-directory-header is-listing-topbar">
         <div>
-          <h1>Templates</h1>
+          <h1>{t('workspacePages.templates.title')}</h1>
           <p>
-            Use funding-ready business plans, application narratives, forecasts,
-            and checklists from every source enabled by your administrator.
+            {t('workspacePages.templates.description')}
           </p>
         </div>
         <Link
@@ -4434,33 +4436,33 @@ function TemplatesPage() {
           onClick={() => grantAdminAccess()}
         >
           <Glyph type="settings" />
-          Manage data sources
+          {t('workspacePages.common.manageDataSources')}
         </Link>
       </header>
 
       <div className="funding-directory-metrics template-directory-metrics">
         <article>
-          <span>Available templates</span>
+          <span>{t('workspacePages.templates.available')}</span>
           <strong>{templates.length}</strong>
-          <small>Across all active libraries</small>
+          <small>{t('workspacePages.templates.activeLibraries')}</small>
         </article>
         <article>
-          <span>Community usage</span>
+          <span>{t('workspacePages.templates.communityUsage')}</span>
           <strong>
             {new Intl.NumberFormat('en-CA', {
               notation: 'compact',
               maximumFractionDigits: 1,
             }).format(totalUses)}
           </strong>
-          <small>Template starts</small>
+          <small>{t('workspacePages.templates.templateStarts')}</small>
         </article>
         <article>
-          <span>Free templates</span>
+          <span>{t('workspacePages.templates.freeTemplates')}</span>
           <strong>{templates.filter((template) => template.tier === 'Free').length}</strong>
-          <small>Ready to use immediately</small>
+          <small>{t('workspacePages.templates.readyImmediately')}</small>
         </article>
         <article className="is-source-metric">
-          <span>Connected data sources</span>
+          <span>{t('workspacePages.common.connectedDataSources')}</span>
           <strong>{connectedSources}</strong>
           <small>
             {
@@ -4468,7 +4470,7 @@ function TemplatesPage() {
                 (source) => source.module === 'templates' && source.enabled,
               ).length
             }{' '}
-            enabled
+            {t('workspacePages.common.enabled')}
           </small>
         </article>
       </div>
@@ -4481,7 +4483,7 @@ function TemplatesPage() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search templates, formats, categories, or sources"
+              placeholder={t('workspacePages.templates.search')}
             />
           </label>
           <div>
@@ -4493,7 +4495,7 @@ function TemplatesPage() {
                 aria-pressed={scope === scopeName}
                 onClick={() => setScope(scopeName)}
               >
-                {scopeName}
+                {scopeName === 'All' ? t('workspacePages.templates.all') : scopeName === 'Featured' ? t('workspacePages.templates.featured') : scopeName === 'Free' ? t('workspacePages.templates.free') : t('workspacePages.templates.pro')}
               </button>
             ))}
           </div>
@@ -4506,12 +4508,11 @@ function TemplatesPage() {
             onClick={() => setFiltersOpen((open) => !open)}
           >
             <Glyph type="settings" />
-            Filters
+            {t('workspacePages.common.filters')}
             {activeFilterCount ? <b>{activeFilterCount}</b> : null}
           </button>
           <span>
-            {visibleTemplates.length}{' '}
-            {visibleTemplates.length === 1 ? 'template' : 'templates'}
+            {visibleTemplates.length} {t('workspacePages.common.templates')}
           </span>
         </div>
 
@@ -4519,35 +4520,35 @@ function TemplatesPage() {
           <div className="funding-directory-filter-panel">
             <div className="funding-filter-heading">
               <div>
-                <strong>Refine the library</strong>
-                <span>Find the right starting point for this document package.</span>
+                <strong>{t('workspacePages.templates.refine')}</strong>
+                <span>{t('workspacePages.templates.refineHint')}</span>
               </div>
               {activeFilterCount ? (
-                <button type="button" onClick={clearTemplateFilters}>Clear all</button>
+                <button type="button" onClick={clearTemplateFilters}>{t('workspacePages.common.clearAll')}</button>
               ) : null}
             </div>
             <div className="funding-filter-fields template-filter-fields">
               <label>
-                <span>Category</span>
+                <span>{t('workspacePages.templates.allCategories')}</span>
                 <select
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
                 >
-                  <option value="All">All categories</option>
+                  <option value="All">{t('workspacePages.templates.allCategories')}</option>
                   {categories.map((categoryName) => (
                     <option key={categoryName}>{categoryName}</option>
                   ))}
                 </select>
               </label>
               <label>
-                <span>Format</span>
+                <span>{t('workspacePages.templates.allFormats')}</span>
                 <select
                   value={format}
                   onChange={(event) =>
                     setFormat(event.target.value as 'All' | TemplateFormat)
                   }
                 >
-                  <option value="All">All formats</option>
+                  <option value="All">{t('workspacePages.templates.allFormats')}</option>
                   {(['DOCX', 'XLSX', 'PDF', 'Notion'] as const).map(
                     (formatName) => (
                       <option key={formatName}>{formatName}</option>
@@ -4556,31 +4557,31 @@ function TemplatesPage() {
                 </select>
               </label>
               <label>
-                <span>Best for</span>
+                <span>{t('workspacePages.templates.allAudiences')}</span>
                 <select
                   value={audience}
                   onChange={(event) => setAudience(event.target.value)}
                 >
-                  <option value="All">All audiences</option>
+                  <option value="All">{t('workspacePages.templates.allAudiences')}</option>
                   {audiences.map((audienceName) => (
                     <option key={audienceName}>{audienceName}</option>
                   ))}
                 </select>
               </label>
               <label>
-                <span>Data source</span>
+                <span>{t('workspacePages.grantsLoans.dataSource')}</span>
                 <select
                   value={sourceName}
                   onChange={(event) => setSourceName(event.target.value)}
                 >
-                  <option value="All">All sources</option>
+                  <option value="All">{t('workspacePages.grantsLoans.allSources')}</option>
                   {sources.map((source) => (
                     <option key={source}>{source}</option>
                   ))}
                 </select>
               </label>
               <label>
-                <span>Sort by</span>
+                <span>{t('workspacePages.socialResources.sortBy')}</span>
                 <select
                   value={sort}
                   onChange={(event) =>
@@ -4760,6 +4761,7 @@ function TemplatesPage() {
 const pinnedSocialResourceStorageKey = 'bconomics-pinned-social-resources-v1'
 
 function SocialResourcesPage() {
+  const { t } = useTranslation()
   const { config } = usePlatformConfig()
   const enabledSourceIds = config.dataSources
     .filter((source) => source.enabled && source.module === 'social-resources')
@@ -4884,10 +4886,9 @@ function SocialResourcesPage() {
     <section className="social-directory">
       <header className="funding-directory-header social-directory-header is-listing-topbar">
         <div>
-          <h1>Social Resources</h1>
+          <h1>{t('workspacePages.socialResources.title')}</h1>
           <p>
-            Discover investors, venture funds, advisors, accelerators, and
-            companies relevant to your business and funding stage.
+            {t('workspacePages.socialResources.description')}
           </p>
         </div>
         <Link
@@ -4896,7 +4897,7 @@ function SocialResourcesPage() {
           onClick={() => grantAdminAccess()}
         >
           <Glyph type="settings" />
-          Manage data sources
+          {t('workspacePages.common.manageDataSources')}
         </Link>
       </header>
 
@@ -4911,24 +4912,24 @@ function SocialResourcesPage() {
 
       <div className="funding-directory-metrics social-directory-metrics">
         <article>
-          <span>Network records</span>
+          <span>{t('workspacePages.socialResources.networkRecords')}</span>
           <strong>{resources.length}</strong>
-          <small>People and organizations</small>
+          <small>{t('workspacePages.socialResources.peopleOrganizations')}</small>
         </article>
         <article>
-          <span>Verified profiles</span>
+          <span>{t('workspacePages.socialResources.verifiedProfiles')}</span>
           <strong>{verifiedCount}</strong>
-          <small>Reviewed by the network</small>
+          <small>{t('workspacePages.socialResources.reviewedByNetwork')}</small>
         </article>
         <article>
-          <span>Organizations</span>
+          <span>{t('workspacePages.socialResources.organizations')}</span>
           <strong>{organizationCount}</strong>
-          <small>Funds, accelerators, and companies</small>
+          <small>{t('workspacePages.socialResources.fundsAccelerators')}</small>
         </article>
         <article>
-          <span>Markets represented</span>
+          <span>{t('workspacePages.socialResources.markets')}</span>
           <strong>{locationCount}</strong>
-          <small>{connectedSources} connected data sources</small>
+          <small>{connectedSources} {t('workspacePages.common.connectedDataSources')}</small>
         </article>
       </div>
 
@@ -4940,7 +4941,7 @@ function SocialResourcesPage() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search people, organizations, sectors, or locations"
+              placeholder={t('workspacePages.socialResources.search')}
             />
           </label>
           <div>
@@ -4952,7 +4953,7 @@ function SocialResourcesPage() {
                 aria-pressed={scope === scopeName}
                 onClick={() => setScope(scopeName)}
               >
-                {scopeName}
+                {scopeName === 'All' ? t('workspacePages.common.all') : scopeName === 'People' ? t('workspacePages.socialResources.peopleOrganizations') : scopeName === 'Organizations' ? t('workspacePages.socialResources.organizations') : t('workspacePages.socialResources.verifiedProfiles')}
               </button>
             ))}
           </div>
@@ -4965,12 +4966,11 @@ function SocialResourcesPage() {
             onClick={() => setFiltersOpen((open) => !open)}
           >
             <Glyph type="settings" />
-            Filters
+            {t('workspacePages.common.filters')}
             {activeFilterCount ? <b>{activeFilterCount}</b> : null}
           </button>
           <span>
-            {visibleResources.length}{' '}
-            {visibleResources.length === 1 ? 'record' : 'records'}
+            {visibleResources.length} {t('workspacePages.common.records')}
           </span>
         </div>
 
@@ -4978,16 +4978,16 @@ function SocialResourcesPage() {
           <div className="funding-directory-filter-panel">
             <div className="funding-filter-heading">
               <div>
-                <strong>Refine the network</strong>
-                <span>Find contacts that match your sector, stage, and market.</span>
+                <strong>{t('workspacePages.socialResources.refine')}</strong>
+                <span>{t('workspacePages.socialResources.refineHint')}</span>
               </div>
               {activeFilterCount ? (
-                <button type="button" onClick={clearSocialFilters}>Clear all</button>
+                <button type="button" onClick={clearSocialFilters}>{t('workspacePages.common.clearAll')}</button>
               ) : null}
             </div>
             <div className="funding-filter-fields social-filter-fields">
               <label>
-                <span>Profile type</span>
+                <span>{t('workspacePages.socialResources.profileType')}</span>
                 <select
                   value={resourceType}
                   onChange={(event) =>
@@ -4996,19 +4996,19 @@ function SocialResourcesPage() {
                     )
                   }
                 >
-                  <option value="All">All profile types</option>
+                  <option value="All">{t('workspacePages.socialResources.allProfileTypes')}</option>
                   {resourceTypes.map((typeName) => (
                     <option key={typeName}>{typeName}</option>
                   ))}
                 </select>
               </label>
               <label>
-                <span>Location</span>
+                <span>{t('workspacePages.socialResources.location')}</span>
                 <select
                   value={location}
                   onChange={(event) => setLocation(event.target.value)}
                 >
-                  <option value="All">All locations</option>
+                  <option value="All">{t('workspacePages.socialResources.allLocations')}</option>
                   {locations.map((locationName) => (
                     <option key={locationName}>{locationName}</option>
                   ))}
@@ -5265,6 +5265,7 @@ function SocialResourcesPage() {
 const savedToolStorageKey = 'bconomics-saved-tools-v1'
 
 function ToolsPage() {
+  const { t } = useTranslation()
   const { config } = usePlatformConfig()
   const enabledSourceIds = config.dataSources
     .filter((source) => source.enabled && source.module === 'tools')
@@ -5366,10 +5367,9 @@ function ToolsPage() {
     <section className="tool-directory">
       <header className="funding-directory-header tool-directory-header is-listing-topbar">
         <div>
-          <h1>Tools</h1>
+          <h1>{t('workspacePages.tools.title')}</h1>
           <p>
-            Explore software, cloud services, financial platforms, and business
-            credit cards selected for entrepreneurs and growing companies.
+            {t('workspacePages.tools.description')}
           </p>
         </div>
         <Link
@@ -5378,7 +5378,7 @@ function ToolsPage() {
           onClick={() => grantAdminAccess()}
         >
           <Glyph type="settings" />
-          Manage data sources
+          {t('workspacePages.common.manageDataSources')}
         </Link>
       </header>
 
@@ -5393,22 +5393,22 @@ function ToolsPage() {
 
       <div className="funding-directory-metrics tool-directory-metrics">
         <article>
-          <span>Products & services</span>
+          <span>{t('workspacePages.tools.available')}</span>
           <strong>{tools.length}</strong>
-          <small>Across the active directory</small>
+          <small>{t('workspacePages.tools.categories')}</small>
         </article>
         <article>
-          <span>Free plans</span>
+          <span>{t('workspacePages.tools.freePlans')}</span>
           <strong>{freeToolCount}</strong>
-          <small>Start without a paid plan</small>
+          <small>{t('workspacePages.tools.free')}</small>
         </article>
         <article>
-          <span>Business categories</span>
+          <span>{t('workspacePages.tools.businessCategories')}</span>
           <strong>{categoryCount}</strong>
-          <small>From cloud to business banking</small>
+          <small>{t('workspacePages.tools.categories')}</small>
         </article>
         <article>
-          <span>Connected data sources</span>
+          <span>{t('workspacePages.common.connectedDataSources')}</span>
           <strong>{connectedSources}</strong>
           <small>
             {
@@ -5416,7 +5416,7 @@ function ToolsPage() {
                 (source) => source.module === 'tools' && source.enabled,
               ).length
             }{' '}
-            enabled
+            {t('workspacePages.common.enabled')}
           </small>
         </article>
       </div>
@@ -5424,9 +5424,7 @@ function ToolsPage() {
       <div className="tool-directory-disclosure">
         <Glyph type="spark" />
         <p>
-          Product availability, pricing, eligibility, fees, and card terms can
-          change. Confirm current details directly with the provider before
-          purchasing or applying.
+          {t('workspacePages.tools.refineHint')}
         </p>
       </div>
 
@@ -5438,7 +5436,7 @@ function ToolsPage() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search software, cloud services, cards, or use cases"
+              placeholder={t('workspacePages.tools.search')}
             />
           </label>
           <div>
@@ -5451,7 +5449,7 @@ function ToolsPage() {
                   aria-pressed={scope === scopeName}
                   onClick={() => setScope(scopeName)}
                 >
-                  {scopeName}
+                {scopeName === 'All' ? t('workspacePages.common.all') : scopeName === 'Featured' ? t('workspacePages.templates.featured') : scopeName === 'Free plans' ? t('workspacePages.tools.free') : scopeName}
                 </button>
               ),
             )}
@@ -5465,11 +5463,11 @@ function ToolsPage() {
             onClick={() => setFiltersOpen((open) => !open)}
           >
             <Glyph type="settings" />
-            Filters
+            {t('workspacePages.common.filters')}
             {activeFilterCount ? <b>{activeFilterCount}</b> : null}
           </button>
           <span>
-            {visibleTools.length} {visibleTools.length === 1 ? 'product' : 'products'}
+            {visibleTools.length} {t('workspacePages.tools.available')}
           </span>
         </div>
 
@@ -5477,21 +5475,21 @@ function ToolsPage() {
           <div className="funding-directory-filter-panel">
             <div className="funding-filter-heading">
               <div>
-                <strong>Refine the directory</strong>
-                <span>Find products that fit your workflow, budget, and market.</span>
+                <strong>{t('workspacePages.tools.refine')}</strong>
+                <span>{t('workspacePages.tools.refineHint')}</span>
               </div>
               {activeFilterCount ? (
-                <button type="button" onClick={clearToolFilters}>Clear all</button>
+                <button type="button" onClick={clearToolFilters}>{t('workspacePages.common.clearAll')}</button>
               ) : null}
             </div>
             <div className="funding-filter-fields tool-filter-fields">
               <label>
-                <span>Category</span>
+                <span>{t('workspacePages.tools.category')}</span>
                 <select
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
                 >
-                  <option value="All">All categories</option>
+                  <option value="All">{t('workspacePages.tools.allCategories')}</option>
                   {categories.map((categoryName) => (
                     <option key={categoryName}>{categoryName}</option>
                   ))}
@@ -6610,11 +6608,8 @@ function SettingsPage() {
     <section className="settings-centre">
       <header className="settings-centre-header is-listing-topbar">
         <div>
-          <h1>Settings</h1>
-          <p>
-            Manage your profile, workspace preferences, security, and
-            subscription from one place.
-          </p>
+          <h1>{t('navigation.items.settings')}</h1>
+          <p>{t('settings.pageDescription')}</p>
         </div>
         <button type="button" className="workspace-primary-action" onClick={saveSettings}>
           <Glyph type="spark" />
@@ -6634,30 +6629,30 @@ function SettingsPage() {
       <div className="settings-overview">
         <article>
           <span className="settings-overview-icon"><Glyph type="file" /></span>
-          <div><small>Current plan</small><strong>{currentPlanLabel}</strong></div>
-          <b>Active</b>
+          <div><small>{t('settings.currentPlan')}</small><strong>{currentPlanLabel}</strong></div>
+          <b>{t('settings.active')}</b>
         </article>
         <article>
           <span className="settings-overview-icon"><Glyph type="grid" /></span>
           <div>
-            <small>Default company</small>
+            <small>{t('settings.defaultCompany')}</small>
             <strong>
               {companies.find((company) => company.id === settings.defaultCompanyId)
                 ?.name ?? 'Not selected'}
             </strong>
           </div>
-          <b>{companies.length} companies</b>
+          <b>{companies.length} {t('workspacePages.common.companies')}</b>
         </article>
         <article>
           <span className="settings-overview-icon"><Glyph type="settings" /></span>
-          <div><small>Account security</small><strong>{settings.twoFactor ? 'Strong' : 'Good'}</strong></div>
-          <b>{settings.twoFactor ? '2FA on' : '2FA recommended'}</b>
+          <div><small>{t('settings.accountSecurity')}</small><strong>{settings.twoFactor ? t('settings.strong') : t('settings.good')}</strong></div>
+          <b>{settings.twoFactor ? t('settings.twoFactorOn') : t('settings.twoFactorRecommended')}</b>
         </article>
       </div>
 
       <div className="settings-layout">
-        <nav className="settings-section-nav" aria-label="Settings sections">
-          <span>Account settings</span>
+        <nav className="settings-section-nav" aria-label={t('settings.accountSettings')}>
+          <span>{t('settings.accountSettings')}</span>
           {sectionItems.map((item) => (
             <button
               key={item.id}
@@ -6673,9 +6668,9 @@ function SettingsPage() {
           ))}
           <div className="settings-support-card">
             <span><Glyph type="spark" /></span>
-            <strong>Need help?</strong>
-            <p>Contact our support team for account or billing questions.</p>
-            <a href={`mailto:${config.supportEmail}`}>Contact support</a>
+            <strong>{t('settings.needHelp')}</strong>
+            <p>{t('settings.supportDescription')}</p>
+            <a href={`mailto:${config.supportEmail}`}>{t('settings.contactSupport')}</a>
           </div>
         </nav>
 
@@ -6683,21 +6678,21 @@ function SettingsPage() {
           {activeSection === 'profile' ? (
             <section className="settings-section">
               <header>
-                <div><span>Personal profile</span><h2>Your account identity</h2></div>
-                <p>Used for workspace activity, applications, and support.</p>
+                <div><span>{t('settings.personalProfile')}</span><h2>{t('settings.accountIdentity')}</h2></div>
+                <p>{t('settings.accountIdentityDescription')}</p>
               </header>
               <div className="settings-profile-hero">
                 <span>{getUserInitials(settings.fullName || 'Workspace User')}</span>
                 <div><strong>{settings.fullName}</strong><small>{settings.role}</small></div>
                 <button type="button" onClick={() => setNotice('Profile photo upload is ready for backend storage.')}>
-                  Change photo
+                  {t('settings.changePhoto')}
                 </button>
               </div>
               <div className="settings-form-grid">
-                <label><span>Full name</span><input value={settings.fullName} onChange={(event) => updateSetting('fullName', event.target.value)} /></label>
-                <label><span>Role</span><input value={settings.role} onChange={(event) => updateSetting('role', event.target.value)} /></label>
-                <label><span>Email address</span><input type="email" value={settings.email} onChange={(event) => updateSetting('email', event.target.value)} /></label>
-                <label><span>Phone number</span><input value={settings.phone} onChange={(event) => updateSetting('phone', event.target.value)} /></label>
+                <label><span>{t('settings.fullName')}</span><input value={settings.fullName} onChange={(event) => updateSetting('fullName', event.target.value)} /></label>
+                <label><span>{t('settings.role')}</span><input value={settings.role} onChange={(event) => updateSetting('role', event.target.value)} /></label>
+                <label><span>{t('settings.emailAddress')}</span><input type="email" value={settings.email} onChange={(event) => updateSetting('email', event.target.value)} /></label>
+                <label><span>{t('settings.phoneNumber')}</span><input value={settings.phone} onChange={(event) => updateSetting('phone', event.target.value)} /></label>
               </div>
             </section>
           ) : null}
@@ -6705,18 +6700,18 @@ function SettingsPage() {
           {activeSection === 'workspace' ? (
             <section className="settings-section">
               <header>
-                <div><span>Workspace defaults</span><h2>Start every workflow correctly</h2></div>
-                <p>Choose the company and regional preferences used by default.</p>
+                <div><span>{t('settings.workspaceDefaults')}</span><h2>{t('settings.startWorkflow')}</h2></div>
+                <p>{t('settings.workspaceDefaultsDescription')}</p>
               </header>
               <div className="settings-form-grid">
                 <label className="is-wide">
-                  <span>Default company</span>
+                  <span>{t('settings.defaultCompany')}</span>
                   <select value={settings.defaultCompanyId} onChange={(event) => updateSetting('defaultCompanyId', event.target.value)}>
                     {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
                   </select>
-                  <small>Used by Quick Build and program matching.</small>
+                  <small>{t('settings.usedByQuickBuild')}</small>
                 </label>
-                <label><span>Timezone</span><select value={settings.timezone} onChange={(event) => updateSetting('timezone', event.target.value)}><option>America/Toronto</option><option>America/Vancouver</option><option>America/Halifax</option></select></label>
+                <label><span>{t('settings.timezone')}</span><select value={settings.timezone} onChange={(event) => updateSetting('timezone', event.target.value)}><option>America/Toronto</option><option>America/Vancouver</option><option>America/Halifax</option></select></label>
                 <label>
                   <span>{t('settings.language')}</span>
                   <select
@@ -8155,7 +8150,7 @@ function StrategicReportsPage() {
           </div>
           <div className="strategic-reports-header-actions">
             <button type="button" className="strategic-reports-secondary-action" onClick={closeReport}>
-              {t('quickBuild.backToReports')}
+              {t('quickBuild.back')}
             </button>
             <Link
               to={`/quick-build?app_id=${encodeURIComponent(selectedApplication.appId ?? selectedApplication.id)}`}
@@ -8334,8 +8329,8 @@ function StrategicReportsPage() {
     <section className="strategic-reports-page">
       <header className="strategic-reports-header is-listing-topbar">
         <div>
-          <h1>Strategic Reports</h1>
-          <p>Every report stays linked to its application, opportunity, business profile, and generated package.</p>
+          <h1>{t('workspacePages.strategicReports.title')}</h1>
+          <p>{t('workspacePages.strategicReports.description')}</p>
         </div>
         <Link to="/quick-build" className="strategic-reports-primary-action">
           <Glyph type="spark" />
@@ -8345,29 +8340,29 @@ function StrategicReportsPage() {
 
       <div className="strategic-reports-metrics">
         <article className="is-primary">
-          <span>Reports</span>
+          <span>{t('workspacePages.strategicReports.report')}</span>
           <strong>{reports.length}</strong>
-          <small>Generated in this workspace</small>
+          <small>{t('workspacePages.strategicReports.generatedInWorkspace')}</small>
         </article>
         <article>
-          <span>Applications</span>
+          <span>{t('workspacePages.applications.application')}</span>
           <strong>{reportApplicationCount}</strong>
-          <small>Linked application records</small>
+          <small>{t('workspacePages.strategicReports.linkedApplicationRecords')}</small>
         </article>
         <article>
-          <span>Sections</span>
+          <span>{t('workspacePages.strategicReports.sections')}</span>
           <strong>{totalSections}</strong>
-          <small>Across all strategic reports</small>
+          <small>{t('workspacePages.strategicReports.acrossReports')}</small>
         </article>
       </div>
 
       <section className="strategic-reports-results">
         <div className="strategic-reports-results-heading">
           <div>
-            <span>Strategic Reports</span>
-            <h2>Choose a report to open the full review.</h2>
+            <span>{t('workspacePages.strategicReports.title')}</span>
+            <h2>{t('workspacePages.strategicReports.chooseReport')}</h2>
           </div>
-          <small>{reports.length} {reports.length === 1 ? 'report' : 'reports'}</small>
+          <small>{t('workspacePages.strategicReports.reportCount', { count: reports.length })}</small>
         </div>
 
         {reports.length > 0 ? (
@@ -8382,14 +8377,14 @@ function StrategicReportsPage() {
                   onClick={() => openReport(report)}
                 >
                   <div className="strategic-report-card-topline">
-                    <span><Glyph type="spark" /> Strategic Report</span>
+                  <span><Glyph type="spark" /> {t('workspacePages.strategicReports.report')}</span>
                     <strong>{report.generatedPackage.readinessScore}%</strong>
                   </div>
                   <h3>{report.generatedPackage.programName}</h3>
                   <p>{report.generatedPackage.businessName}</p>
                   <small>app_id · {application?.appId ?? report.applicationId}</small>
                   <footer>
-                    <span>{report.generatedPackage.sections.length} sections</span>
+                    <span>{report.generatedPackage.sections.length} {t('workspacePages.strategicReports.sections')}</span>
                     <b>{t('quickBuild.openReport')} <Glyph type="arrow" /></b>
                   </footer>
                 </button>
@@ -9860,12 +9855,9 @@ function QuickBuildPage({
             <section className="generator-stage">
               <div className="generator-stage-heading generator-stage-heading-row">
                 <div>
-                  <span>{t('quickBuild.stepOne')} · About 2 minutes</span>
-                  <h2>Which opportunity are you applying for?</h2>
-                  <p>
-                    We use the official program source and your target amount to shape
-                    the document structure, reviewer tone, and approval narrative.
-                  </p>
+                  <span>{t('quickBuild.stepOne')} · {t('workspacePages.quickBuild.aboutMinutes')}</span>
+                  <h2>{t('workspacePages.quickBuild.opportunityQuestion')}</h2>
+                  <p>{t('workspacePages.quickBuild.opportunityDescription')}</p>
                 </div>
                 <button type="button" onClick={openProgramPicker}>
                   <Glyph type="search" />
@@ -9889,9 +9881,7 @@ function QuickBuildPage({
                   <span>{t('quickBuild.opportunityBrief')}</span>
                   <h3>{t('quickBuild.sourceOfTruth')}</h3>
                   <p>
-                    When the program source is clear, the whole package becomes more believable.
-                    This is where we define the opportunity, funding request, and the template
-                    constraints the reviewer will expect to see.
+                    {t('workspacePages.quickBuild.sourceTruthDescription')}
                   </p>
                 </div>
                 <div className="generator-stage-panel-form">
@@ -9940,7 +9930,7 @@ function QuickBuildPage({
                       </span>
                       <span>
                         <strong>{fileName || t('quickBuild.addFiles')}</strong>
-                        <small>PDF, DOCX, XLSX, JPG or PNG · optional</small>
+                        <small>{t('workspacePages.quickBuild.pdfDocxXlsx')} · {t('workspacePages.quickBuild.optional')}</small>
                       </span>
                       <b>{fileName ? t('quickBuild.replace') : t('quickBuild.browse')}</b>
                     </label>
@@ -9957,7 +9947,7 @@ function QuickBuildPage({
                       <span />
                       <div>
                         <strong>{t('quickBuild.useStructure', { platform: platformName })}</strong>
-                        <small>Recommended when no official template exists.</small>
+                        <small>{t('workspacePages.quickBuild.recommendedNoTemplate')}</small>
                       </div>
                     </label>
                   </div>
@@ -9980,12 +9970,9 @@ function QuickBuildPage({
             <section className="generator-stage">
               <div className="generator-stage-heading generator-stage-heading-row">
                 <div>
-                  <span>{t('quickBuild.stepTwo')} · About 5 minutes</span>
-                  <h2>Tell us why this business should be funded.</h2>
-                  <p>
-                    Focus on the problem, your solution, commercial model, and the
-                    team&apos;s ability to execute.
-                  </p>
+                  <span>{t('quickBuild.stepTwo')} · {t('workspacePages.quickBuild.aboutFiveMinutes')}</span>
+                  <h2>{t('workspacePages.quickBuild.businessQuestion')}</h2>
+                  <p>{t('workspacePages.quickBuild.businessDescription')}</p>
                 </div>
                 <button type="button" onClick={openCompanyPicker}>
                   <Glyph type="grid" />
@@ -10009,9 +9996,7 @@ function QuickBuildPage({
                   <span>{t('quickBuild.businessNarrative')}</span>
                   <h3>{t('quickBuild.fundableStory')}</h3>
                   <p>
-                    The strongest packages do not sound like generic marketing copy. They
-                    show the market problem, operating model, and a team that can execute
-                    against the funding milestone.
+                    {t('workspacePages.quickBuild.businessDescription')}
                   </p>
                 </div>
                 <div className="generator-stage-panel-form">
@@ -10075,8 +10060,7 @@ function QuickBuildPage({
                 <span>{t('quickBuild.stepThree')}</span>
                 <h2>{t('quickBuild.reviewTitle')}</h2>
                 <p>
-                  Confirm the funding opportunity and business profile first. Once these
-                  details look right, generate the package.
+                  {t('workspacePages.quickBuild.reviewDetails')}
                 </p>
               </div>
 
@@ -10752,8 +10736,8 @@ function QuickBuildPage({
   )
 }
 
-function formatDashboardDate(date: Date = new Date()) {
-  return new Intl.DateTimeFormat('en-US', {
+function formatDashboardDate(date: Date = new Date(), locale = 'en-CA') {
+  return new Intl.DateTimeFormat(locale, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -10780,14 +10764,19 @@ function formatDashboardCurrency(value: number, compact = false) {
   }).format(Math.max(0, value))
 }
 
-function formatDashboardDeadline(deadline: string) {
+function formatDashboardDeadline(
+  deadline: string,
+  locale: SupportedLocale = 'en-CA',
+  dueLabel = 'Due',
+  noDeadlineLabel = 'No deadline',
+) {
   const normalized = deadline.trim()
-  if (!normalized) return 'No deadline'
+  if (!normalized) return noDeadlineLabel
 
   const parsed = Date.parse(normalized)
   if (Number.isNaN(parsed)) return normalized
 
-  return `Due ${new Intl.DateTimeFormat('en-CA', {
+  return `${dueLabel} ${new Intl.DateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
   }).format(new Date(parsed))}`
@@ -10805,13 +10794,20 @@ function formatDashboardActivityTime(value: string) {
   }).format(new Date(parsed))
 }
 
-function formatDashboardApplicationMeta(application: ApplicationRecord) {
+function formatDashboardApplicationMeta(
+  application: ApplicationRecord,
+  locale: SupportedLocale,
+  dueLabel: string,
+  noDeadlineLabel: string,
+) {
   const deadline = application.deadline.trim()
-  const deadlineLabel = deadline ? formatDashboardDeadline(deadline) : 'No deadline'
+  const deadlineLabel = formatDashboardDeadline(deadline, locale, dueLabel, noDeadlineLabel)
   return `${formatDashboardCurrency(application.amount)} · ${deadlineLabel}`
 }
 
 function OverviewPage({ userName }: { userName?: string }) {
+  const { t } = useTranslation()
+  const { locale } = useLocale()
   const { config } = usePlatformConfig()
   const visibleQuickActions = quickActionRoutes.filter(
     (action) => config.modules[action.path.slice(1) as PlatformModuleId] !== false,
@@ -10877,21 +10873,21 @@ function OverviewPage({ userName }: { userName?: string }) {
     currentCompany
       ? {
           icon: 'user' as const,
-          title: `${currentCompany.name} profile updated`,
+          title: `${currentCompany.name} ${t('workspacePages.dashboard.profileUpdated')}`,
           time: formatDashboardActivityTime(currentCompany.updatedAt),
         }
       : null,
     reports[0]
       ? {
           icon: 'spark' as const,
-          title: `${reports[0].generatedPackage.programName} strategic report generated`,
+          title: `${reports[0].generatedPackage.programName} ${t('workspacePages.dashboard.reportGenerated')}`,
           time: formatDashboardActivityTime(reports[0].generatedPackage.completedAt),
         }
       : null,
     applications[0]
       ? {
           icon: 'file' as const,
-          title: `${applications[0].programName} application updated`,
+          title: `${applications[0].programName} ${t('workspacePages.dashboard.applicationUpdated')}`,
           time: formatDashboardActivityTime(applications[0].updatedAt),
         }
       : null,
@@ -10901,13 +10897,13 @@ function OverviewPage({ userName }: { userName?: string }) {
     <section className="workspace-dashboard">
       <header className="workspace-dashboard-header">
         <div className="workspace-dashboard-heading">
-          <h1>Dashboard</h1>
-          <p>Here is what needs your attention across the funding workspace.</p>
+          <h1>{t('workspacePages.dashboard.title')}</h1>
+          <p>{t('workspacePages.dashboard.description')}</p>
         </div>
         <div className="workspace-dashboard-greeting">
-          <p className="workspace-eyebrow">{formatDashboardDate()}</p>
+          <p className="workspace-eyebrow">{formatDashboardDate(new Date(), locale)}</p>
           <strong>
-            {getDashboardGreeting()}
+            {t(`workspacePages.dashboard.${getDashboardGreeting() === 'Good morning' ? 'goodMorning' : getDashboardGreeting() === 'Good afternoon' ? 'goodAfternoon' : 'goodEvening'}`)}
             {firstName ? `, ${firstName}.` : '.'}
           </strong>
         </div>
@@ -10916,23 +10912,26 @@ function OverviewPage({ userName }: { userName?: string }) {
       <div className="dashboard-command-grid">
         <article className="dashboard-readiness-card">
           <div className="dashboard-card-topline">
-            <span>Funding readiness</span>
-            <Link to={readinessPath}>View assessment</Link>
+            <span>{t('workspacePages.dashboard.fundingReadiness')}</span>
+            <Link to={readinessPath}>{t('workspacePages.dashboard.viewAssessment')}</Link>
           </div>
           <div className="dashboard-readiness-content">
             <div className="dashboard-score-ring">
               <span><strong>{readinessScore}</strong>/100</span>
             </div>
             <div>
-              <p>{readinessReached ? 'Application ready' : 'Almost application ready'}</p>
-              <h2>{readinessReached ? 'Your funding story is on track.' : 'Strengthen your financial story.'}</h2>
+              <p>{readinessReached ? t('workspacePages.dashboard.applicationReady') : t('workspacePages.dashboard.almostApplicationReady')}</p>
+              <h2>{readinessReached ? t('workspacePages.dashboard.storyOnTrack') : t('workspacePages.dashboard.strengthenStory')}</h2>
               <span>
-                {readinessReached
-                  ? `Your company profile has reached the recommended score of ${readinessTarget}.`
-                  : `Complete your company profile and application details to reach the recommended score of ${readinessTarget}.`}
+                {t(
+                  readinessReached
+                    ? 'workspacePages.dashboard.readinessReachedDescription'
+                    : 'workspacePages.dashboard.readinessMissingDescription',
+                  { score: readinessTarget },
+                )}
               </span>
               <Link to={readinessPath}>
-                Continue assessment <Glyph type="arrow" />
+                {t('workspacePages.dashboard.continueAssessment')} <Glyph type="arrow" />
               </Link>
             </div>
           </div>
@@ -10940,50 +10939,50 @@ function OverviewPage({ userName }: { userName?: string }) {
 
         <article className="dashboard-focus-card">
           <div className="dashboard-card-topline">
-            <span>Today’s focus</span>
-            <b>{applicationsNeedingAttention.length} actions</b>
+            <span>{t('workspacePages.dashboard.todaysFocus')}</span>
+            <b>{applicationsNeedingAttention.length} {t('workspacePages.dashboard.actions')}</b>
           </div>
-          <h2>Your next best move</h2>
+          <h2>{t('workspacePages.dashboard.nextBestMove')}</h2>
           {focusApplication ? (
             <>
               <div className="dashboard-focus-action">
                 <span><Glyph type="file" /></span>
                 <div>
                   <strong>{focusApplication.programName}</strong>
-                  <small>{formatDashboardDeadline(focusApplication.deadline)} · {focusApplication.progress}% complete</small>
+                  <small>{formatDashboardDeadline(focusApplication.deadline, locale, t('workspacePages.dashboard.due'), t('workspacePages.dashboard.noDeadline'))} · {focusApplication.progress}% complete</small>
                 </div>
               </div>
               <div className="dashboard-focus-progress">
                 <span style={{ width: `${focusApplication.progress}%` }} />
               </div>
-              <Link to="/my-applications">Open application <Glyph type="arrow" /></Link>
+              <Link to="/my-applications">{t('workspacePages.dashboard.openApplication')} <Glyph type="arrow" /></Link>
             </>
           ) : (
-            <p className="application-board-empty">No active applications</p>
+            <p className="application-board-empty">{t('workspacePages.dashboard.noActiveApplications')}</p>
           )}
         </article>
       </div>
 
       <div className="dashboard-metrics">
         <article>
-          <span>Matched funding</span>
+          <span>{t('workspacePages.dashboard.matchedFunding')}</span>
           <strong>{formatDashboardCurrency(matchedFunding, true)}</strong>
-          <small>{savedProgramEntries.length} saved programs</small>
+          <small>{savedProgramEntries.length} {t('workspacePages.dashboard.savedPrograms')}</small>
         </article>
         <article>
-          <span>Active applications</span>
+          <span>{t('workspacePages.dashboard.activeApplications')}</span>
           <strong>{activeApplications.length}</strong>
-          <small>{applicationsNeedingAttention.length} require attention</small>
+          <small>{applicationsNeedingAttention.length} {t('workspacePages.dashboard.requireAttention')}</small>
         </article>
         <article>
-          <span>Saved opportunities</span>
+          <span>{t('workspacePages.dashboard.savedOpportunities')}</span>
           <strong>{savedProgramEntries.length}</strong>
-          <small>{savedPrograms.filter((program) => program.deadline !== 'Rolling intake').length} with fixed deadlines</small>
+          <small>{savedPrograms.filter((program) => program.deadline !== 'Rolling intake').length} {t('workspacePages.dashboard.fixedDeadlines')}</small>
         </article>
         <article>
-          <span>Documents generated</span>
+          <span>{t('workspacePages.dashboard.documentsGenerated')}</span>
           <strong>{generatedDocumentCount}</strong>
-          <small>{reports.length} strategic reports</small>
+          <small>{reports.length} {t('workspacePages.dashboard.strategicReports')}</small>
         </article>
       </div>
 
@@ -10991,10 +10990,10 @@ function OverviewPage({ userName }: { userName?: string }) {
         <section className="dashboard-panel dashboard-applications">
           <div className="dashboard-panel-header">
             <div>
-              <p className="workspace-eyebrow">Application pipeline</p>
-              <h2>Keep every deadline moving</h2>
+              <p className="workspace-eyebrow">{t('workspacePages.dashboard.applicationPipeline')}</p>
+              <h2>{t('workspacePages.dashboard.keepDeadlinesMoving')}</h2>
             </div>
-            <Link to="/my-applications">View all</Link>
+            <Link to="/my-applications">{t('workspacePages.common.viewAll')}</Link>
           </div>
           <div className="dashboard-application-list">
             {applicationRows.map((application) => (
@@ -11002,7 +11001,7 @@ function OverviewPage({ userName }: { userName?: string }) {
                 <span className="dashboard-application-icon"><Glyph type="file" /></span>
                 <span>
                   <strong>{application.programName}</strong>
-                  <small>{formatDashboardApplicationMeta(application)}</small>
+                  <small>{formatDashboardApplicationMeta(application, locale, t('workspacePages.dashboard.due'), t('workspacePages.dashboard.noDeadline'))}</small>
                 </span>
                 <span className="dashboard-row-progress">
                   <b>{application.progress}%</b>
@@ -11020,10 +11019,10 @@ function OverviewPage({ userName }: { userName?: string }) {
         <section className="dashboard-panel dashboard-opportunities">
           <div className="dashboard-panel-header">
             <div>
-              <p className="workspace-eyebrow">Top matches</p>
-              <h2>Recommended funding</h2>
+              <p className="workspace-eyebrow">{t('workspacePages.dashboard.topMatches')}</p>
+              <h2>{t('workspacePages.dashboard.recommendedFunding')}</h2>
             </div>
-            <Link to="/grants-loans">Explore</Link>
+            <Link to="/grants-loans">{t('workspacePages.dashboard.explore')}</Link>
           </div>
           <div className="dashboard-opportunity-list">
             {topMatches.map((program) => (
@@ -11045,8 +11044,8 @@ function OverviewPage({ userName }: { userName?: string }) {
         <section className="dashboard-panel dashboard-quick-panel">
           <div className="dashboard-panel-header">
             <div>
-              <p className="workspace-eyebrow">Shortcuts</p>
-              <h2>Move work forward</h2>
+              <p className="workspace-eyebrow">{t('workspacePages.dashboard.shortcuts')}</p>
+              <h2>{t('workspacePages.dashboard.moveWorkForward')}</h2>
             </div>
           </div>
           <div className="dashboard-quick-links">
@@ -11063,8 +11062,8 @@ function OverviewPage({ userName }: { userName?: string }) {
         <section className="dashboard-panel dashboard-activity-panel">
           <div className="dashboard-panel-header">
             <div>
-              <p className="workspace-eyebrow">Workspace activity</p>
-              <h2>Recently updated</h2>
+              <p className="workspace-eyebrow">{t('workspacePages.dashboard.workspaceActivity')}</p>
+              <h2>{t('workspacePages.dashboard.recentlyUpdated')}</h2>
             </div>
           </div>
           <div className="dashboard-activity-list">
@@ -11075,7 +11074,7 @@ function OverviewPage({ userName }: { userName?: string }) {
               </article>
             ))}
             {activityItems.length === 0 ? (
-              <p className="application-board-empty">No recent activity</p>
+              <p className="application-board-empty">{t('workspacePages.dashboard.noRecentActivity')}</p>
             ) : null}
           </div>
         </section>
@@ -11215,7 +11214,7 @@ export function DashboardPage() {
   const isDiscovery = currentItem?.id === 'discovery'
   const isMyCompanies = currentItem?.id === 'my-companies'
   const isGrantsLoans = currentItem?.id === 'grants-loans'
-  const isSavedPrograms = currentItem?.id === 'saved-programs'
+  const isSavedPrograms = currentItem?.id === 'funding-shortlist'
   const isMyApplications = currentItem?.id === 'my-applications'
   const isTemplates = currentItem?.id === 'templates'
   const isSocialResources = currentItem?.id === 'social-resources'
@@ -11669,20 +11668,20 @@ export function DashboardPage() {
 
           {!isQuickBuild && showsProgramPanels ? (
             <>
-              {config.modules['saved-programs'] ? (
+              {config.modules['funding-shortlist'] ? (
                 <section className="clone-section">
                 <div className="clone-section-header">
                   <span className="clone-section-icon">
                     <Glyph type="arrow" />
                   </span>
-                  <h2>Saved Programs</h2>
-                  <Link to="/saved-programs" className="clone-inline-upgrade">
+                  <h2>Funding Shortlist</h2>
+                  <Link to="/funding-shortlist" className="clone-inline-upgrade">
                     View all
                   </Link>
                 </div>
                 <div className="clone-program-grid">
                   {allDashboardItems
-                    .find((item) => item.id === 'saved-programs')
+                    .find((item) => item.id === 'funding-shortlist')
                     ?.entries.map((entry) => (
                       <article key={entry.title} className="clone-program-card">
                         <span className="clone-program-tag">{entry.status}</span>

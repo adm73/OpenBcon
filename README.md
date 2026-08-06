@@ -101,7 +101,7 @@ The current repository snapshot includes the landing experience, dashboard works
       <sub>Quick Build</sub>
     </td>
     <td align="center">
-      <img src="./public/images/openbcon-screenshot-06.png" alt="Saved Programs page" width="100%" /><br />
+      <img src="./public/images/openbcon-screenshot-06.png" alt="Funding Shortlist page" width="100%" /><br />
       <sub>Quick Build - Result Preview</sub>
     </td>
   </tr>
@@ -112,7 +112,7 @@ The current repository snapshot includes the landing experience, dashboard works
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-08.png" alt="Grants and Loans page" width="100%" /><br />
-      <sub>Saved Programs</sub>
+      <sub>Funding Shortlist</sub>
     </td>
     <td align="center">
       <img src="./public/images/openbcon-screenshot-09.png" alt="Templates page" width="100%" /><br />
@@ -165,9 +165,10 @@ The current repository snapshot includes the landing experience, dashboard works
 - Discovery displays the match score as a dynamic progress ring with the score rendered inside the circle
 - Discovery cards expose the company profile used for matching, including legal structure, sector, industry, stage, products or services, funding usage, seasonal periods, mission, vision, values, and team information
 - Dedicated Strategic Reports route (`/strategic-reports`) for reopening the latest generated package outside the form flow
+- Funding Shortlist route (`/funding-shortlist`) for reviewing shortlisted grants, loans, and other funding opportunities
 - Strategic Report generation driven by configurable sections, document types, agents, roles, prompts, and workflow ordering
 - Admin-managed Strategic Report layouts with editable names, descriptions, CSS declarations, and live previews
-- Saved Programs materialized as applications with funding-program step data prefilled
+- Funding Shortlist opportunities materialized as applications with funding-program step data prefilled
 - My Applications and Quick Build use the unique external `app_id` in links and API requests
 - Google Sheets and Airtable funding data-source integrations
 - Admin data-source search, create, edit, delete, enable, and manual sync controls
@@ -593,7 +594,7 @@ MongoDB stores editable dynamic JSON configuration and lightweight workspace sta
 in the `dynamic_state` collection using three scopes:
 
 - `platform` for branding, landing-page content, modules, AI/payment configuration, and data sources
-- `workspace` for saved-program preferences and Quick Build drafts
+- `workspace` for Funding Shortlist preferences and Quick Build drafts
 - `user` for personal settings, pinned resources, and active workspace selection
 
 The selected environment mode chooses the MongoDB database before these scopes

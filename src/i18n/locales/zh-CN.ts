@@ -15,7 +15,7 @@ const zhCN = {
       quickBuild: '快速构建',
       advisoryHub: '战略报告',
       myCompany: '我的公司',
-      savedPrograms: '已保存项目',
+      savedPrograms: '融资候选清单',
       myApplications: '我的申请',
       grantsLoans: '补助与贷款',
       templates: '模板',
@@ -46,6 +46,7 @@ const zhCN = {
   },
   settings: {
     ...enCA.settings,
+    pageDescription: '在一个地方管理个人资料、工作区偏好、安全设置和订阅。',
     accountCentre: '账户中心',
     title: '清晰、集中管理所有设置。',
     save: '保存设置',
@@ -63,6 +64,7 @@ const zhCN = {
     english: 'English',
     french: 'Français',
     chinese: '简体中文',
+    currentPlan: '当前方案', active: '有效', defaultCompany: '默认公司', accountSecurity: '账户安全', strong: '良好', good: '正常', twoFactorOn: '双重验证已开启', twoFactorRecommended: '建议开启双重验证', accountSettings: '账户设置', needHelp: '需要帮助？', supportDescription: '如有账户或账单问题，请联系我们的支持团队。', contactSupport: '联系支持', personalProfile: '个人资料', accountIdentity: '账户身份', accountIdentityDescription: '用于工作区活动、申请和支持。', changePhoto: '更换照片', fullName: '姓名', role: '角色', emailAddress: '邮箱地址', phoneNumber: '电话号码', workspaceDefaults: '工作区默认设置', startWorkflow: '正确开始每个工作流', workspaceDefaultsDescription: '选择默认使用的公司和地区偏好。', usedByQuickBuild: '快速构建和项目匹配会使用此设置。', timezone: '时区', defaultCurrency: '默认货币',
   },
   quickBuild: {
     ...enCA.quickBuild,
@@ -192,6 +194,63 @@ const zhCN = {
     founderExpectation: '创始人接下来可以期待什么',
     packageProgress: '文件包进度',
     overallCompletion: '总体完成度',
+  },
+  workspacePages: {
+    ...enCA.workspacePages,
+    common: {
+      ...enCA.workspacePages.common,
+      all: '全部', active: '进行中', inReview: '审核中', saved: '已保存', draft: '草稿', needsReview: '需要审核',
+      clearFilters: '清除筛选', clearAll: '全部清除', filters: '筛选', viewAll: '查看全部', edit: '编辑', remove: '删除', close: '关闭', save: '保存', start: '开始', search: '搜索',
+      updatedAutomatically: '自动更新', liveWorkspaceData: '实时工作区数据', workspaceInsight: '工作区洞察', allRecords: '全部记录', records: '条记录', record: '条记录', programs: '个项目', applications: '个申请', companies: '家公司', templates: '个模板', noResults: '没有匹配结果', tryDifferentSearch: '尝试其他搜索，或清除当前筛选条件。', manageDataSources: '管理数据源', connectedDataSources: '已连接数据源', enabled: '已启用',
+    },
+    dashboard: {
+      ...enCA.workspacePages.dashboard,
+      goodMorning: '早上好',
+      goodAfternoon: '下午好',
+      goodEvening: '晚上好',
+      title: '仪表盘', description: '这里显示融资工作区中需要你关注的事项。', fundingReadiness: '融资准备度', viewAssessment: '查看评估', applicationReady: '申请已准备好', almostApplicationReady: '申请即将准备好', storyOnTrack: '你的融资故事正在按计划推进。', strengthenStory: '加强你的财务故事。', continueAssessment: '继续评估', readinessReachedDescription: '你的公司资料已达到建议的 {{score}} 分。', readinessMissingDescription: '完善公司资料和申请详情，以达到建议的 {{score}} 分。', due: '到期', noDeadline: '没有截止日期', todaysFocus: '今日重点', actions: '项行动', nextBestMove: '下一步最佳行动', openApplication: '打开申请', noActiveApplications: '暂无进行中的申请', matchedFunding: '匹配融资', savedPrograms: '个已保存项目', activeApplications: '进行中的申请', requireAttention: '项需要关注', savedOpportunities: '已保存机会', fixedDeadlines: '个固定截止日期', documentsGenerated: '已生成文档', strategicReports: '份战略报告', applicationPipeline: '申请进度', keepDeadlinesMoving: '推进每一个截止日期', topMatches: '最佳匹配', recommendedFunding: '推荐融资', explore: '探索', strongFit: '非常适合当前增长阶段', potentialFit: '可能适合你的企业', shortcuts: '快捷入口', moveWorkForward: '推进工作', workspaceActivity: '工作区活动', recentlyUpdated: '最近更新', noApplicationsYet: '暂无申请', noFundingMatches: '暂无融资匹配', noRecentActivity: '暂无最近活动', profileUpdated: '资料已更新', reportGenerated: '已生成战略报告', applicationUpdated: '申请已更新',
+    },
+    discovery: {
+      ...enCA.workspacePages.discovery,
+      programMatching: '项目匹配', previous: '上一个', next: '下一个', scoutVerdict: '匹配结论', buildEvidence: '先补充材料', readyToBuild: '可以开始构建', gapsToClose: '启动前还需补充 {{count}} 项差距。', credibleRoute: '当前公司资料与该项目有可信的匹配路径，请在提交前补齐证据。', needsEvidenceBeforePriority: '当前资料还需要更多证据，暂不建议优先申请该项目。', officialSource: '官方来源', fundingProgramProfile: '融资项目资料', provider: '资金提供方', maximumFunding: '最高资助金额', deadline: '截止日期', programCoverage: '项目覆盖范围', companyProfile: '公司资料', scoutEvaluation: '匹配评估', noDescription: '尚未添加公司简介。', notProvided: '未提供', noProducts: '尚未添加产品或服务。', noFundingUsage: '尚未选择资金用途。', noMission: '尚未添加使命。', noVision: '尚未添加愿景。', busyAndSlow: '忙季和淡季', valuesAndTeam: '价值观和团队', noValues: '尚未添加价值观。', noTeam: '尚未添加团队介绍。', linkedApplication: '关联申请', complete: '已完成', whyScore: '为什么是这个分数？', strengths: '优势', gapsToCloseHeading: '需要补齐的差距', recommendedNextMove: '建议的下一步', continueApplication: '继续申请', buildApplication: '创建申请',
+      title: '发现', description: '在创建申请前，将融资项目与公司资料进行匹配。', browsePrograms: '浏览融资项目', notEnoughData: '数据不足，无法进行匹配分析', catalogAndCompanies: '请确认融资目录和我的公司中都有记录。', company: '公司', matchScore: '匹配分数', strongFit: '高度匹配', promisingFit: '有潜力的匹配', needsEvidence: '需要补充证据', weakFit: '匹配度较低', requirements: '要求', eligibleUses: '允许用途', bestSuitedTo: '最适合', requiredEvidence: '所需证据', editCompany: '编辑公司', noLinkedApplication: '此匹配暂无关联申请', whyThisScore: '为什么是这个分数？', rulesBased: '基于规则且可解释',
+    },
+    quickBuild: {
+      ...enCA.workspacePages.quickBuild,
+      aboutMinutes: '大约 2 分钟', opportunityQuestion: '你正在申请哪个融资机会？', opportunityDescription: '我们会使用官方项目来源和申请金额来确定文档结构、审核语气和审批叙事。', sourceTruthDescription: '当项目来源清晰时，整个文件包会更可信。这里用于定义融资机会、申请金额和审核者预期的模板约束。', required: '必填', optional: '可选', recommendedNoTemplate: '没有官方模板时推荐使用。', pdfDocxXlsx: 'PDF、DOCX、XLSX、JPG 或 PNG', aboutFiveMinutes: '大约 5 分钟', businessQuestion: '告诉我们为什么这家公司值得获得融资。', businessDescription: '说明问题、解决方案、商业模式以及团队的执行能力。', sourceFilesNone: '未上传文件', useStructure: '使用 OpenBcon 结构', reviewDetails: '生成前检查融资机会详情。', confirmBusiness: '确认公司叙事和团队信息准确。', generateAfterReview: '只有在两步内容都反映最终概要后再生成。',
+    },
+    strategicReports: {
+      ...enCA.workspacePages.strategicReports,
+      title: '战略报告', description: '每份报告都与对应的申请、机会、公司资料和生成文件包保持关联。', generate: '生成战略报告', chooseReport: '选择一份报告以打开完整审核。', generatedInWorkspace: '在此工作区生成', linkedApplicationRecords: '关联的申请记录', acrossReports: '所有战略报告合计', openReport: '打开报告', sections: '个章节', report: '战略报告', reportCount: '{{count}} 份报告',
+    },
+    myCompanies: {
+      ...enCA.workspacePages.myCompanies,
+      title: '我的公司', description: '管理与融资工作区关联的公司，让每份资料都可以直接用于申请。', addCompany: '添加公司', companies: '公司', activeProfiles: '份有效资料', averageReadiness: '平均准备度', acrossPortfolio: '整个公司组合', needsAttention: '需要关注', incompleteProfiles: '资料不完整或已过期', portfolio: '公司组合', allCompanies: '所有公司', search: '搜索公司、行业或负责人', profileReadiness: '资料准备度', editCompany: '编辑公司', noCompanies: '未找到公司', searchHint: '尝试其他搜索或状态筛选。',
+    },
+    savedPrograms: {
+      ...enCA.workspacePages.savedPrograms,
+      title: '融资候选清单', description: '优先处理值得申请的融资机会，跟踪申请准备度，并及时关注下一个截止日期。', discover: '发现更多项目', savedPrograms: '候选融资机会', readyToApply: '个可以申请', potentialFunding: '潜在融资', maximumCombined: '最高合计金额', averageMatch: '平均匹配度', acrossShortlist: '当前候选清单', fixedDeadlines: '固定截止日期', calendarReview: '需要日历检查', search: '搜索候选融资机会', applicationStage: '按申请阶段筛选', fundingType: '按融资类型筛选', sort: '排序候选融资机会', allStages: '全部阶段', allTypes: '全部类型', grants: '补助', loans: '贷款', recentlySaved: '最近加入', highestMatch: '匹配度最高', largestAmount: '金额最高', shortlist: '候选清单', stage: '阶段', funding: '融资', match: '匹配度', noMatch: '没有匹配的候选融资机会', resetHint: '尝试其他搜索，或重置阶段和类型筛选。', reset: '重置筛选', recommended: '推荐下一步', strongestMatch: '把最匹配的项目推进到准备阶段。', startPreparing: '开始准备', pipeline: '进度', focused: '保持候选清单聚焦', focusedHint: '建议保持 3–6 个项目，并明确负责人和下一步行动。',
+    },
+    applications: {
+      ...enCA.workspacePages.applications,
+      title: '我的申请', description: '在一个工作流中管理草稿、审核、提交、截止日期和融资结果。', newApplication: '新建申请', active: '进行中的申请', draftReview: '草稿和审核阶段合计', dueSoon: '60 天内到期', deadlineAttention: '需要关注截止日期', submittedAwarded: '已提交或已获批', completedWork: '已完成的申请工作', awardedPipeline: '已获批金额', confirmedValue: '已确认融资金额', search: '搜索申请、项目或公司', statusFilter: '按状态筛选申请', companyFilter: '按公司筛选申请', sort: '排序申请', allStatuses: '全部状态', allCompanies: '所有公司', nearestDeadline: '最近截止日期', recentlyUpdated: '最近更新', largestFunding: '融资金额最高', applicationView: '申请视图', listView: '列表视图', boardView: '看板视图', application: '申请', status: '状态', progress: '进度', deadline: '截止日期', funding: '融资', noMatch: '没有匹配的申请', clearHint: '清除当前筛选以返回完整申请流程。', deadlineRadar: '截止日期雷达', next120Days: '未来 120 天', portfolioHealth: '申请组合健康度', averageCompletion: '平均完成度', noApplications: '暂无申请',
+    },
+    grantsLoans: {
+      ...enCA.workspacePages.grantsLoans,
+      title: '补助与贷款', description: '查看发现工作区中当前可用的所有补助和贷款机会。', available: '可用机会', activeCatalogs: '所有有效目录合计', potentialFunding: '潜在融资', maximumCombined: '最高合计金额', search: '按项目、提供方、地区或来源搜索', refine: '细化机会', refineHint: '组合筛选条件，缩小完整项目目录。', region: '地区', allRegions: '全部地区', dataSource: '数据源', allSources: '全部来源', fundingAmount: '融资金额', anyAmount: '不限金额', under50: '低于 $50K', amount50to100: '$50K–$99K', amount100Plus: '$100K+', minimumMatch: '最低匹配度', anyMatch: '不限匹配度', match80: '80% 或更高', match90: '90% 或更高', deadline: '截止日期', anyDeadline: '不限截止日期', openRolling: '开放或滚动', fixedDeadline: '固定截止日期', activeSources: '有效数据源', chooseDataSource: '选择融资数据源', chooseDataSourceDescription: '选择管理员配置的有效补助与贷款数据源。', allEnabledCatalogs: '显示所有已启用目录中的机会', loading: '正在加载融资项目', readingDatabase: '正在从当前数据库读取有效项目。', noMatch: '没有匹配的融资项目', noMatchHint: '尝试其他搜索，或包含所有融资类型。', grants: '补助', loans: '贷款', import: '导入融资项目', manualImport: '手动导入', programDescription: '将完整项目资料添加到工作区目录。', chooseSource: '融资数据源', allActiveSources: '所有有效数据源',
+    },
+    templates: {
+      ...enCA.workspacePages.templates,
+      title: '模板', description: '使用管理员启用的所有来源中的融资商业计划、申请叙事、预测和清单。', available: '可用模板', activeLibraries: '所有有效模板库合计', communityUsage: '社区使用量', templateStarts: '模板启动次数', freeTemplates: '免费模板', readyImmediately: '可以立即使用', search: '搜索模板、格式、分类或来源', refine: '细化模板库', refineHint: '找到适合这个文档包的起点。', allProfileTypes: '全部资料类型', allCategories: '全部分类', allFormats: '全部格式', allAudiences: '全部适用对象', mostUsed: '使用最多', all: '全部', featured: '精选', free: '免费', pro: '专业版',
+    },
+    socialResources: {
+      ...enCA.workspacePages.socialResources,
+      title: '社交资源', description: '发现与公司和融资阶段相关的投资人、基金、顾问、加速器和企业。', networkRecords: '网络记录', peopleOrganizations: '个人和组织', verifiedProfiles: '已验证资料', reviewedByNetwork: '网络已审核', organizations: '组织', fundsAccelerators: '基金、加速器和企业', markets: '覆盖市场', search: '搜索个人、组织、行业或地点', refine: '细化网络', refineHint: '找到符合行业、阶段和市场的联系人。', profileType: '资料类型', allProfileTypes: '全部资料类型', location: '地点', allLocations: '全部地点', investmentStage: '投资阶段', allStages: '全部阶段', sector: '领域', allSectors: '全部领域', sortBy: '排序方式', verifiedFirst: '已验证优先', aToZ: 'A–Z', save: '保存', saved: '已保存', viewProfile: '查看资料',
+    },
+    tools: {
+      ...enCA.workspacePages.tools,
+      title: '工具', description: '探索软件、云服务、金融产品和商业信用卡。', available: '可用工具', categories: '分类', search: '搜索工具、分类或使用场景', refine: '细化工具箱', refineHint: '找到符合运营模式和发展阶段的产品。', category: '分类', allCategories: '全部分类', pricing: '价格', allPricing: '全部价格', free: '免费', freePlans: '免费方案', businessCategories: '企业分类', paid: '付费', sortBy: '排序方式', mostUsed: '使用最多', save: '保存', saved: '已保存', viewTool: '查看工具',
+    },
   },
   forecast: {
     visualisation: '预测可视化',
