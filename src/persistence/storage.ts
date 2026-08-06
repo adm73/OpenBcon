@@ -64,6 +64,8 @@ const localOnlyStateKeys = new Set([
 ])
 
 const apiBaseUrl = import.meta.env.VITE_API_URL ?? '/api'
+const companyPortfolioStorageKey = 'bconomics-company-portfolio-v1'
+const fundingProgramStorageKey = 'bconomics-synced-funding-programs-v1'
 const persistenceEnabled =
   import.meta.env.VITE_PERSISTENCE_ENABLED !== 'false'
 const pendingMutations = new Map<string, PendingMutation>()
@@ -253,6 +255,36 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
 
     const bootstrap = (await response.json()) as BootstrapResponse
     const remoteValues = bootstrap.values ?? {}
+    let companiesLoaded = false
+    let fundingProgramsLoaded = false
+    const companiesResponse = await fetch(`${apiBaseUrl}/companies`, {
+      signal: AbortSignal.timeout(3_000),
+      credentials: 'include',
+      headers: getEnvironmentModeHeaders(),
+    })
+    if (companiesResponse.ok) {
+      const companiesBody = (await companiesResponse.json()) as {
+        companies?: unknown[]
+      }
+      remoteValues[companyPortfolioStorageKey] = Array.isArray(companiesBody.companies)
+        ? companiesBody.companies
+        : []
+      companiesLoaded = true
+    }
+    const fundingProgramsResponse = await fetch(`${apiBaseUrl}/funding-programs`, {
+      signal: AbortSignal.timeout(3_000),
+      credentials: 'include',
+      headers: getEnvironmentModeHeaders(),
+    })
+    if (fundingProgramsResponse.ok) {
+      const fundingProgramsBody = (await fundingProgramsResponse.json()) as {
+        programs?: unknown[]
+      }
+      remoteValues[fundingProgramStorageKey] = Array.isArray(fundingProgramsBody.programs)
+        ? fundingProgramsBody.programs
+        : []
+      fundingProgramsLoaded = true
+    }
     const localPlatformConfig = localValues[platformConfigStorageKey]
     for (const [key, value] of Object.entries(remoteValues)) {
       const nextValue =
@@ -269,7 +301,12 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
     // from one mode into the other mode's database during hydration.
     const localValuesToSync: PendingMutation[] = []
     for (const key of Object.keys(localValues)) {
-      if (key !== platformConfigStorageKey && !(key in remoteValues)) {
+      if (
+        key !== platformConfigStorageKey &&
+        !(key in remoteValues) &&
+        !(key === companyPortfolioStorageKey && !companiesLoaded) &&
+        !(key === fundingProgramStorageKey && !fundingProgramsLoaded)
+      ) {
         if (key === 'bconomics-user-settings-v1') {
           localValuesToSync.push({
             operation: 'upsert',

@@ -55,12 +55,14 @@ import {
   findFundingProgramByName,
   loadFundingPrograms,
   loadResourceRecords,
+  replaceFundingProgramCache,
   type DataSourceModule,
   type FundingProgramRecord,
 } from '../data/fundingSources'
 import {
   addSavedProgram,
   loadSavedProgramEntries,
+  persistSavedProgramEntries,
   saveSavedProgramEntries,
   type SavedProgramEntry,
   type SavedProgramPriority,
@@ -783,223 +785,19 @@ const companyPeriodOptions = [
   { value: 'december', label: 'December' },
 ] as const
 
-function createMockCompanyLogo(mark: string, background: string) {
-  return `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><rect width="128" height="128" rx="30" fill="${background}"/><circle cx="64" cy="48" r="24" fill="#ffffff" opacity=".92"/><path d="M32 92c8-18 20-27 32-27s24 9 32 27" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round"/><text x="64" y="116" fill="#ffffff" font-family="Arial,sans-serif" font-size="18" font-weight="700" text-anchor="middle">${mark}</text></svg>`,
-  )}`
-}
-
-function createGenericCompanyMockData(company: CompanyRecord): Partial<CompanyRecord> {
-  const words = company.name.trim().split(/\s+/u).filter(Boolean)
-  const mark = words.map((word) => word[0]).join('').slice(0, 2).toUpperCase() || 'CO'
-  const slug =
-    company.name
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/gu, '-')
-      .replace(/^-|-$/gu, '') || 'sample-company'
-
-  return {
-    logo: createMockCompanyLogo(mark, '#5570c8'),
-    legalName: `${company.name || 'Sample Company'} Ltd.`,
-    corporationDate: '2020-01',
-    legalStructure: 'Corporation',
-    sector: 'Tertiary',
-    industry: '54 - Professional, scientific and technical services',
-    stage: 'Growth',
-    location: 'Toronto, Ontario',
-    website: `${slug}.example.com`,
-    description:
-      'Mockup company profile for testing discovery, applications, strategic reports, and financial planning workflows.',
-    productsOrServices:
-      'Professional products and services with project-based pricing, recurring customer support, and a planning gross margin of 40%.',
-    busyPeriods: ['all-year'],
-    slowPeriods: ['december'],
-    mission: 'Deliver practical solutions that help customers operate and grow with confidence.',
-    vision: 'Become a trusted partner for measurable, sustainable business improvement.',
-    values: 'Clarity, reliability, customer focus, and responsible growth.',
-    owner: 'Alex Morgan',
-    email: `${slug}@example.com`,
-    emailVerified: false,
-    phone: '+1 416 555 0199',
-    employees: '5',
-    monthlyRevenue: '25,000',
-    fundingUsage: ['hiring', 'advertising'],
-    teamIntro:
-      'A small cross-functional team combining customer insight, delivery expertise, and disciplined operations.',
-    teamMembers: [
-      {
-        id: `${slug}-alex-morgan`,
-        name: 'Alex Morgan',
-        title: 'Founder and Managing Director',
-        responsibilities:
-          'Leads strategy, customer relationships, and operating performance.',
-      },
-    ],
-    fundingTarget: '100,000',
-    readiness: 68,
-    status: 'Active',
-    updatedAt: 'Mock data updated',
-  }
-}
-
-const initialCompanies: CompanyRecord[] = [
-  {
-    id: 'northstar-foods',
-    logo: createMockCompanyLogo('NF', '#1b6c63'),
-    name: 'Northstar Foods',
-    legalName: 'Northstar Foods Inc.',
-    corporationDate: '2019-06',
-    legalStructure: 'Corporation',
-    sector: 'Secondary',
-    industry: '31-33 Manufacturing',
-    stage: 'Growth',
-    location: 'Toronto, Ontario',
-    website: 'northstarfoods.ca',
-    description:
-      'Locally sourced functional snacks for busy families, sold through retail pilots and a recurring subscription model.',
-    productsOrServices:
-      'Functional snack boxes and wholesale snack packs. Average order value is CAD 42 with an estimated gross margin of 58%.',
-    busyPeriods: ['november', 'december'],
-    slowPeriods: ['january', 'february'],
-    mission: 'Make better everyday nutrition accessible to busy families.',
-    vision: 'Build the most trusted locally sourced snack brand in Canada.',
-    values: 'Practicality, transparency, customer care, and responsible growth.',
-    owner: 'Ava Lin',
-    email: 'ava@northstarfoods.ca',
-    emailVerified: true,
-    phone: '+1 416 555 0184',
-    employees: '4',
-    monthlyRevenue: '18,000',
-    fundingUsage: ['inventory', 'advertising', 'payroll'],
-    teamIntro:
-      'A hands-on food manufacturing team focused on reliable production, customer insight, and disciplined growth.',
-    teamMembers: [
-      {
-        id: 'northstar-ava-lin',
-        name: 'Ava Lin',
-        title: 'Founder and CEO',
-        responsibilities: 'Leads strategy, partnerships, and operating decisions.',
-      },
-    ],
-    fundingTarget: '250,000',
-    readiness: 84,
-    status: 'Active',
-    updatedAt: 'Updated 2 hours ago',
-  },
-  {
-    id: 'greenline-hvac',
-    logo: createMockCompanyLogo('GH', '#286a8d'),
-    name: 'Greenline HVAC',
-    legalName: 'Greenline Mechanical Solutions Ltd.',
-    corporationDate: '2017-03',
-    legalStructure: 'Corporation',
-    sector: 'Secondary',
-    industry: '23 Construction',
-    stage: 'Growth',
-    location: 'Mississauga, Ontario',
-    website: 'greenlinehvac.ca',
-    description:
-      'Commercial heat-pump installation and energy retrofit services for small and mid-sized buildings.',
-    productsOrServices:
-      'Heat-pump installation, retrofit planning, and maintenance services. Typical projects range from CAD 18,000 to CAD 75,000 with a 32% gross margin.',
-    busyPeriods: ['march', 'april', 'may', 'june'],
-    slowPeriods: ['december', 'january'],
-    mission: 'Help commercial buildings lower energy costs through practical electrification.',
-    vision: 'Make efficient building systems the default across small and mid-sized properties.',
-    values: 'Reliability, measurable impact, safety, and long-term partnerships.',
-    owner: 'Morgan Chen',
-    email: 'morgan@greenlinehvac.ca',
-    emailVerified: true,
-    phone: '+1 905 555 0142',
-    employees: '11',
-    monthlyRevenue: '86,000',
-    fundingUsage: ['equipment', 'hiring', 'advertising'],
-    teamIntro:
-      'An experienced retrofit delivery team combining field installation, energy analysis, and customer success.',
-    teamMembers: [
-      {
-        id: 'greenline-morgan-chen',
-        name: 'Morgan Chen',
-        title: 'Managing Director',
-        responsibilities: 'Owns delivery quality, sales operations, and strategic accounts.',
-      },
-    ],
-    fundingTarget: '500,000',
-    readiness: 72,
-    status: 'Needs review',
-    updatedAt: 'Updated yesterday',
-  },
-  {
-    id: 'fieldnote-ai',
-    logo: createMockCompanyLogo('FA', '#654aa5'),
-    name: 'Fieldnote AI',
-    legalName: 'Fieldnote Intelligence Corp.',
-    corporationDate: '2024-09',
-    legalStructure: 'Corporation',
-    sector: 'Quaternary',
-    industry: '51 - Information and cultural industries',
-    stage: 'Launch',
-    location: 'Waterloo, Ontario',
-    website: 'fieldnote.ai',
-    description:
-      'AI-assisted field reporting for construction and infrastructure inspection teams.',
-    productsOrServices:
-      'Subscription software for field reporting, priced per active seat with implementation support and usage-based expansion.',
-    busyPeriods: ['all-year'],
-    slowPeriods: ['december'],
-    mission: 'Turn field observations into clear, actionable project intelligence.',
-    vision: 'Help every infrastructure team make faster decisions from better field data.',
-    values: 'Clarity, useful automation, trust, and customer-led learning.',
-    owner: 'Jordan Smith',
-    email: 'jordan@fieldnote.ai',
-    emailVerified: false,
-    phone: '+1 519 555 0168',
-    employees: '2',
-    monthlyRevenue: '0',
-    fundingUsage: ['hiring', 'advertising', 'payroll'],
-    teamIntro:
-      'A compact product and engineering team focused on practical automation for infrastructure inspection workflows.',
-    teamMembers: [
-      {
-        id: 'fieldnote-jordan-smith',
-        name: 'Jordan Smith',
-        title: 'Co-founder and CEO',
-        responsibilities: 'Leads customer discovery, product direction, and commercial partnerships.',
-      },
-      {
-        id: 'fieldnote-priya-nair',
-        name: 'Priya Nair',
-        title: 'Co-founder and CTO',
-        responsibilities: 'Owns platform architecture, AI quality, and secure product delivery.',
-      },
-    ],
-    fundingTarget: '150,000',
-    readiness: 46,
-    status: 'Draft',
-    updatedAt: 'Updated Jul 22',
-  },
-]
-
 const companyStorageKey = 'bconomics-company-portfolio-v1'
 
 function loadCompanyRecords(): CompanyRecord[] {
-  if (typeof window === 'undefined') {
-    return initialCompanies.map(normalizeCompanyRecord)
-  }
+  if (typeof window === 'undefined') return []
 
   const savedCompanies = window.localStorage.getItem(companyStorageKey)
-  if (!savedCompanies) {
-    return initialCompanies.map(normalizeCompanyRecord)
-  }
+  if (!savedCompanies) return []
 
   try {
     const parsedCompanies = JSON.parse(savedCompanies) as CompanyRecord[]
-    return Array.isArray(parsedCompanies) && parsedCompanies.length > 0
-      ? parsedCompanies.map(normalizeCompanyRecord)
-      : initialCompanies.map(normalizeCompanyRecord)
+    return Array.isArray(parsedCompanies) ? parsedCompanies.map(normalizeCompanyRecord) : []
   } catch {
-    return initialCompanies.map(normalizeCompanyRecord)
+    return []
   }
 }
 
@@ -1044,21 +842,17 @@ function normalizeCompanyIndustry(value: string) {
   return ''
 }
 
-function normalizeCompanyPeriods(value: string[] | undefined, fallback: string[] = []) {
+function normalizeCompanyPeriods(value: string[] | undefined) {
   const validPeriods = new Set<string>(
     companyPeriodOptions.map((option) => option.value),
   )
   const normalized = Array.isArray(value)
     ? value.filter((period) => validPeriods.has(period))
     : []
-  return normalized.length ? normalized : fallback
+  return normalized
 }
 
 function normalizeCompanyRecord(company: CompanyRecord): CompanyRecord {
-  const baseline = initialCompanies.find(
-    (candidate) => candidate.name.trim().toLowerCase() === company.name.trim().toLowerCase(),
-  )
-  const mockDefaults = baseline ?? createGenericCompanyMockData(company)
   const normalizedFundingUsage = Array.isArray(company.fundingUsage)
     ? company.fundingUsage.filter((value): value is string =>
         fundingUsageOptions.some((option) => option.value === value),
@@ -1067,46 +861,35 @@ function normalizeCompanyRecord(company: CompanyRecord): CompanyRecord {
 
   return {
     ...company,
-    logo: company.logo || mockDefaults.logo || '',
-    legalName: company.legalName || mockDefaults.legalName || '',
-    corporationDate: company.corporationDate || mockDefaults.corporationDate || '',
-    legalStructure: company.legalStructure || mockDefaults.legalStructure || '',
-    sector: normalizeCompanySector(company.sector || mockDefaults.sector || ''),
-    industry: normalizeCompanyIndustry(company.industry || mockDefaults.industry || ''),
-    stage: normalizeCompanyStage(company.stage || mockDefaults.stage || ''),
-    location: company.location || mockDefaults.location || '',
-    website: company.website || mockDefaults.website || '',
-    description: company.description || mockDefaults.description || '',
-    productsOrServices:
-      company.productsOrServices || mockDefaults.productsOrServices || '',
-    busyPeriods: normalizeCompanyPeriods(
-      company.busyPeriods,
-      mockDefaults.busyPeriods ?? [],
-    ),
-    slowPeriods: normalizeCompanyPeriods(
-      company.slowPeriods,
-      mockDefaults.slowPeriods ?? [],
-    ),
-    mission: company.mission || mockDefaults.mission || '',
-    vision: company.vision || mockDefaults.vision || '',
-    values: company.values || mockDefaults.values || '',
-    owner: company.owner || mockDefaults.owner || '',
-    email: company.email || mockDefaults.email || '',
-    emailVerified: company.emailVerified ?? mockDefaults.emailVerified ?? false,
-    phone: company.phone || mockDefaults.phone || '',
-    employees: company.employees || mockDefaults.employees || '',
-    monthlyRevenue: company.monthlyRevenue || mockDefaults.monthlyRevenue || '',
-    fundingUsage: normalizedFundingUsage.length
-      ? normalizedFundingUsage
-      : mockDefaults.fundingUsage ?? [],
-    teamIntro: company.teamIntro || mockDefaults.teamIntro || '',
-    teamMembers: company.teamMembers?.length
-      ? company.teamMembers
-      : mockDefaults.teamMembers ?? [],
-    fundingTarget: company.fundingTarget || mockDefaults.fundingTarget || '',
-    readiness: company.readiness || mockDefaults.readiness || 20,
-    status: company.status || mockDefaults.status || 'Draft',
-    updatedAt: company.updatedAt || mockDefaults.updatedAt || 'Mock data',
+    logo: company.logo || '',
+    legalName: company.legalName || '',
+    corporationDate: company.corporationDate || '',
+    legalStructure: company.legalStructure || '',
+    sector: normalizeCompanySector(company.sector || ''),
+    industry: normalizeCompanyIndustry(company.industry || ''),
+    stage: normalizeCompanyStage(company.stage || ''),
+    location: company.location || '',
+    website: company.website || '',
+    description: company.description || '',
+    productsOrServices: company.productsOrServices || '',
+    busyPeriods: normalizeCompanyPeriods(company.busyPeriods),
+    slowPeriods: normalizeCompanyPeriods(company.slowPeriods),
+    mission: company.mission || '',
+    vision: company.vision || '',
+    values: company.values || '',
+    owner: company.owner || '',
+    email: company.email || '',
+    emailVerified: company.emailVerified ?? false,
+    phone: company.phone || '',
+    employees: company.employees || '',
+    monthlyRevenue: company.monthlyRevenue || '',
+    fundingUsage: normalizedFundingUsage,
+    teamIntro: company.teamIntro || '',
+    teamMembers: company.teamMembers ?? [],
+    fundingTarget: company.fundingTarget || '',
+    readiness: company.readiness ?? 20,
+    status: company.status || 'Draft',
+    updatedAt: company.updatedAt || 'Synced from database',
   }
 }
 
@@ -1161,58 +944,8 @@ function MyCompanyPage() {
     void loadCompaniesViaApi()
       .then((remoteCompanies) => {
         if (cancelled) return
-        if (remoteCompanies.length === 0) {
-          setRemoteCompaniesLoaded(true)
-          return
-        }
-
         const normalizedRemoteCompanies = remoteCompanies.map(normalizeCompanyRecord)
-
-        setCompanies((currentCompanies) => {
-          const remoteByName = new Map(
-            normalizedRemoteCompanies.map((company) => [company.name.trim().toLowerCase(), company]),
-          )
-          const merged = currentCompanies.map((localCompany) => {
-            const key = localCompany.name.trim().toLowerCase()
-            const remoteCompany = remoteByName.get(key)
-            if (!remoteCompany) return localCompany
-            remoteByName.delete(key)
-            return {
-              ...localCompany,
-              ...remoteCompany,
-              logo: remoteCompany.logo || localCompany.logo,
-              corporationDate: remoteCompany.corporationDate || localCompany.corporationDate,
-              legalStructure: remoteCompany.legalStructure || localCompany.legalStructure,
-              sector: remoteCompany.sector || localCompany.sector,
-              productsOrServices:
-                remoteCompany.productsOrServices || localCompany.productsOrServices,
-              busyPeriods: remoteCompany.busyPeriods.length
-                ? remoteCompany.busyPeriods
-                : localCompany.busyPeriods,
-              slowPeriods: remoteCompany.slowPeriods.length
-                ? remoteCompany.slowPeriods
-                : localCompany.slowPeriods,
-              mission: remoteCompany.mission || localCompany.mission,
-              vision: remoteCompany.vision || localCompany.vision,
-              values: remoteCompany.values || localCompany.values,
-              emailVerified: remoteCompany.emailVerified || localCompany.emailVerified,
-              fundingUsage: remoteCompany.fundingUsage.length
-                ? remoteCompany.fundingUsage
-                : localCompany.fundingUsage,
-              teamIntro: remoteCompany.teamIntro || localCompany.teamIntro,
-              teamMembers: remoteCompany.teamMembers.length
-                ? remoteCompany.teamMembers
-                : localCompany.teamMembers,
-            }
-          })
-
-          return [
-            ...merged,
-            ...normalizedRemoteCompanies.filter((company) =>
-              remoteByName.has(company.name.trim().toLowerCase()),
-            ),
-          ]
-        })
+        setCompanies(normalizedRemoteCompanies)
         setRemoteCompaniesLoaded(true)
       })
       .catch(() => {
@@ -1878,9 +1611,8 @@ function MyCompanyPage() {
 
   return (
     <section className="company-manager">
-      <header className="workspace-listing-header">
+      <header className="workspace-listing-header is-my-companies-topbar">
         <div className="workspace-listing-heading">
-          <p className="workspace-eyebrow">Company portfolio</p>
           <h1>My Companies</h1>
           <p>Manage the businesses connected to your funding workspace and keep every profile application-ready.</p>
         </div>
@@ -2260,11 +1992,10 @@ function FundingReadinessPage() {
   if (!selectedProgram || !selectedCompany) {
     return (
       <section className="scouting-page">
-        <header className="scouting-header">
+        <header className="scouting-header is-discovery-topbar">
           <div>
-            <p className="scouting-eyebrow">Funding Centre</p>
-            <h1>Funding Match Scouting Report</h1>
-            <p>Add a funding program and company before starting a match report.</p>
+            <h1>Discovery</h1>
+            <p>Match funding programs with your company profile before building an application.</p>
           </div>
           <Link className="scouting-header-action" to="/grants-loans">
             Browse funding programs <Glyph type="arrow" />
@@ -2342,11 +2073,10 @@ function FundingReadinessPage() {
 
   return (
     <section className="scouting-page">
-      <header className="scouting-header">
+      <header className="scouting-header is-discovery-topbar">
         <div>
-          <p className="scouting-eyebrow">Funding Centre / Discovery</p>
-          <h1>Funding Match Scouting Report</h1>
-          <p>Scout the fit between one funding program and one company before you build the application.</p>
+          <h1>Discovery</h1>
+          <p>Match funding programs with your company profile before building an application.</p>
         </div>
         <Link className="scouting-header-action" to="/grants-loans">
           Browse programs <Glyph type="arrow" />
@@ -2397,10 +2127,16 @@ function FundingReadinessPage() {
         </header>
 
         <section className={`scouting-hero is-${tone}`}>
-        <div className="scouting-score-badge" aria-label={`Match score ${scouting.overall} out of 100`}>
+        <div
+          className="scouting-score-badge"
+          style={{ '--score-progress': `${scouting.overall}%` } as CSSProperties}
+          aria-label={`Match score ${scouting.overall} out of 100`}
+        >
           <span>Match score</span>
-          <strong>{scouting.overall}</strong>
-          <small>/ 100</small>
+          <div className="scouting-score-value">
+            <strong>{scouting.overall}</strong>
+            <small>/100</small>
+          </div>
         </div>
         <div className="scouting-hero-copy">
           <span className="scouting-fit-badge">{conclusion}</span>
@@ -2549,13 +2285,13 @@ function FundingReadinessPage() {
 
 function SavedProgramsPage() {
   const navigate = useNavigate()
-  const { config } = usePlatformConfig()
-  const enabledSourceIds = config.dataSources
-    .filter((source) => source.enabled && source.module === 'grants-loans')
-    .map((source) => source.id)
-  const programs = loadFundingPrograms(enabledSourceIds)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const closingPidRef = useRef('')
+  const [programs, setPrograms] = useState<FundingProgramRecord[]>(() =>
+    loadFundingPrograms(),
+  )
   const [entries, setEntries] = useState<SavedProgramEntry[]>(() =>
-    loadSavedProgramEntries(programs),
+    loadSavedProgramEntries(),
   )
   const [query, setQuery] = useState('')
   const [stage, setStage] = useState<'All' | SavedProgramStage>('All')
@@ -2568,6 +2304,24 @@ function SavedProgramsPage() {
   useEffect(() => {
     saveSavedProgramEntries(entries)
   }, [entries])
+
+  useEffect(() => {
+    let isCurrent = true
+
+    loadFundingProgramsViaApi()
+      .then((nextPrograms) => {
+        if (!isCurrent) return
+        replaceFundingProgramCache(nextPrograms)
+        setPrograms(nextPrograms)
+      })
+      .catch(() => {
+        // Keep the cached catalog available when the database is temporarily unavailable.
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
 
   useEffect(() => {
     const { company, owner } = resolveDefaultApplicationCompany()
@@ -2669,6 +2423,20 @@ function SavedProgramsPage() {
     ({ program }) => !/open|rolling/i.test(program.deadline),
   ).length
 
+  useEffect(() => {
+    const pid = searchParams.get('pid')?.trim()
+    if (!pid) {
+      closingPidRef.current = ''
+      return
+    }
+    if (closingPidRef.current === pid) return
+
+    const matchingProgram = savedPrograms.find(({ program }) => program.pid === pid)
+    if (matchingProgram && matchingProgram.program.id !== selectedId) {
+      setSelectedId(matchingProgram.program.id)
+    }
+  }, [savedPrograms, searchParams, selectedId])
+
   function updateEntry(
     programId: string,
     updates: Partial<Omit<SavedProgramEntry, 'programId'>>,
@@ -2684,7 +2452,24 @@ function SavedProgramsPage() {
     setEntries((current) =>
       current.filter((entry) => entry.programId !== programId),
     )
+    closeSavedProgram()
+  }
+
+  function openSavedProgram(program: FundingProgramRecord) {
+    setSelectedId(program.id)
+    if (!program.pid) return
+
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.set('pid', program.pid)
+    setSearchParams(nextSearchParams, { replace: true })
+  }
+
+  function closeSavedProgram() {
+    closingPidRef.current = searchParams.get('pid')?.trim() ?? ''
     setSelectedId('')
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('pid')
+    setSearchParams(nextSearchParams, { replace: true })
   }
 
   function openSavedProgramApplication(programId: string) {
@@ -2699,10 +2484,9 @@ function SavedProgramsPage() {
 
   return (
     <section className="saved-programs-page">
-      <header className="saved-programs-header">
+      <header className="saved-programs-header is-listing-topbar">
         <div>
-          <p className="workspace-eyebrow">Funding shortlist</p>
-          <h1>Your saved opportunities</h1>
+          <h1>Saved Programs</h1>
           <p>
             Prioritize the programs worth pursuing, track application readiness,
             and keep the next deadline in sight.
@@ -2813,7 +2597,7 @@ function SavedProgramsPage() {
                 <button
                   type="button"
                   className="saved-program-main"
-                  onClick={() => setSelectedId(program.id)}
+                  onClick={() => openSavedProgram(program)}
                 >
                   <span className={`saved-program-type is-${program.type.toLowerCase()}`}>
                     {program.type.charAt(0)}
@@ -2934,33 +2718,67 @@ function SavedProgramsPage() {
         <div
           className="clone-record-dialog-backdrop"
           role="presentation"
-          onMouseDown={() => setSelectedId('')}
+          onMouseDown={closeSavedProgram}
         >
           <section
-            className="clone-record-dialog saved-program-dialog"
+            className="clone-record-dialog funding-program-detail"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="saved-program-dialog-title"
+            aria-labelledby="saved-funding-program-detail-title"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               className="clone-dialog-close"
-              aria-label="Close saved program"
-              onClick={() => setSelectedId('')}
+              aria-label="Close program"
+              onClick={closeSavedProgram}
             >
               <Glyph type="close" />
             </button>
-            <span className="clone-record-status">
-              {selectedProgram.entry.priority} priority
-            </span>
-            <h2 id="saved-program-dialog-title">{selectedProgram.program.name}</h2>
-            <p>{selectedProgram.program.provider}</p>
+            <div className="funding-program-detail-header">
+              <div className="funding-program-detail-heading">
+                <span className="clone-record-status">{selectedProgram.program.type}</span>
+                <h2 id="saved-funding-program-detail-title">{selectedProgram.program.name}</h2>
+              </div>
+              <div className="funding-program-identifiers" aria-label="Program identifiers">
+                <div>
+                  <span>PID</span>
+                  <strong>{selectedProgram.program.pid || 'Not available'}</strong>
+                </div>
+                <div>
+                  <span>Data source</span>
+                  <strong>{selectedProgram.program.sourceName || 'Not specified'}</strong>
+                </div>
+              </div>
+            </div>
             <dl>
-              <div><dt>Funding</dt><dd>${selectedProgram.program.amount.toLocaleString('en-CA')}</dd></div>
-              <div><dt>Match</dt><dd>{selectedProgram.program.match}%</dd></div>
-              <div><dt>Deadline</dt><dd>{selectedProgram.program.deadline}</dd></div>
-              <div><dt>Saved</dt><dd>{selectedProgram.entry.savedAt}</dd></div>
+              <div className="funding-program-detail-field-wide"><dt>Funding provider</dt><dd>{selectedProgram.program.provider || 'Not specified'}</dd></div>
+              <div className="funding-program-detail-field-wide"><dt>Description</dt><dd>{selectedProgram.program.description || 'Not provided'}</dd></div>
+              <div className="funding-program-detail-field-wide"><dt>Eligibility</dt><dd>{selectedProgram.program.eligibility || 'Not provided'}</dd></div>
+              <div className="funding-program-how-to-start funding-program-detail-field-wide">
+                <dt>How to start</dt>
+                <dd>{selectedProgram.program.process || 'Not provided'}</dd>
+              </div>
+              <div><dt>Maximum funding</dt><dd>${selectedProgram.program.amount.toLocaleString('en-CA')}</dd></div>
+              <div>
+                <dt>Status</dt>
+                <dd>
+                  <span
+                    className={`funding-program-status-indicator ${
+                      selectedProgram.program.status === 'active' ? 'is-active' : 'is-archived'
+                    }`}
+                  >
+                    <i aria-hidden="true" />
+                    {selectedProgram.program.status === 'active' ? 'Active' : 'Archived'}
+                  </span>
+                </dd>
+              </div>
+              <div><dt>Location</dt><dd>{selectedProgram.program.location}</dd></div>
+              <div><dt>Country</dt><dd>{selectedProgram.program.country || 'Not specified'}</dd></div>
+              <div className="funding-program-url"><dt>Official program site</dt><dd>{selectedProgram.program.url || 'Not provided'}</dd></div>
+              <div className="funding-program-detail-field-wide"><dt>Eligible uses</dt><dd>{selectedProgram.program.eligibleUses || 'Not provided'}</dd></div>
+              <div className="funding-program-detail-field-wide"><dt>Target company types</dt><dd>{selectedProgram.program.targetCompanyTypes || 'Not provided'}</dd></div>
+              <div className="funding-program-detail-field-wide"><dt>Required evidence</dt><dd>{selectedProgram.program.requiredEvidence || 'Not provided'}</dd></div>
             </dl>
             <div className="saved-program-dialog-controls">
               <label>
@@ -2991,7 +2809,7 @@ function SavedProgramsPage() {
                 />
               </label>
             </div>
-            <div className="saved-program-dialog-actions">
+            <div className="funding-program-detail-actions">
               <button
                 type="button"
                 onClick={() => removeProgram(selectedProgram.program.id)}
@@ -3002,7 +2820,7 @@ function SavedProgramsPage() {
                 to={selectedApplicationPath}
                 onClick={() => openSavedProgramApplication(selectedProgram.program.id)}
               >
-                Build application
+                Use in Quick Build
               </Link>
             </div>
           </section>
@@ -3096,10 +2914,9 @@ function MyApplicationsPage() {
 
   return (
     <section className="applications-page">
-      <header className="applications-header">
+      <header className="applications-header is-listing-topbar">
         <div>
-          <p className="workspace-eyebrow">Application command centre</p>
-          <h1>Move every application forward.</h1>
+          <h1>My Applications</h1>
           <p>
             Manage drafts, reviews, submissions, deadlines, and funding outcomes
             from one operational pipeline.
@@ -3620,7 +3437,8 @@ function GrantsLoansPage() {
       .then((nextPrograms) => {
         if (!isCurrent) return
         setPrograms(nextPrograms)
-        setSavedEntries(loadSavedProgramEntries(nextPrograms))
+        replaceFundingProgramCache(nextPrograms)
+        setSavedEntries(loadSavedProgramEntries())
       })
       .catch((error: unknown) => {
         if (!isCurrent) return
@@ -3752,7 +3570,11 @@ function GrantsLoansPage() {
         amount,
         matchScore,
       })
-      setPrograms((current) => [program, ...current])
+      setPrograms((current) => {
+        const nextPrograms = [program, ...current.filter((item) => item.id !== program.id)]
+        replaceFundingProgramCache(nextPrograms)
+        return nextPrograms
+      })
       setImportDraft(createEmptyManualFundingProgram())
       setImportProgramOpen(false)
     } catch (error) {
@@ -3788,6 +3610,7 @@ function GrantsLoansPage() {
       if (existingEntry) {
         const next = current.filter((entry) => entry.programId !== programId)
         saveSavedProgramEntries(next)
+        void persistSavedProgramEntries(next).catch(() => undefined)
         return next
       }
 
@@ -3798,6 +3621,7 @@ function GrantsLoansPage() {
 
       if (!program || !newEntry || !company) {
         saveSavedProgramEntries(next)
+        void persistSavedProgramEntries(next).catch(() => undefined)
         return next
       }
 
@@ -3823,15 +3647,15 @@ function GrantsLoansPage() {
       )
 
       saveSavedProgramEntries(nextWithApplication)
+      void persistSavedProgramEntries(nextWithApplication).catch(() => undefined)
       return nextWithApplication
     })
   }
 
   return (
     <section className="funding-directory">
-      <header className="funding-directory-header">
+      <header className="funding-directory-header is-listing-topbar">
         <div>
-          <p className="workspace-eyebrow">Opportunity directory</p>
           <h1>Grants &amp; Loans</h1>
           <p>
             Search the {platformName} catalog and every external source enabled by your
@@ -4596,10 +4420,9 @@ function TemplatesPage() {
 
   return (
     <section className="template-directory">
-      <header className="funding-directory-header template-directory-header">
+      <header className="funding-directory-header template-directory-header is-listing-topbar">
         <div>
-          <p className="workspace-eyebrow">Template library</p>
-          <h1>Start with a proven structure.</h1>
+          <h1>Templates</h1>
           <p>
             Use funding-ready business plans, application narratives, forecasts,
             and checklists from every source enabled by your administrator.
@@ -5059,10 +4882,9 @@ function SocialResourcesPage() {
 
   return (
     <section className="social-directory">
-      <header className="funding-directory-header social-directory-header">
+      <header className="funding-directory-header social-directory-header is-listing-topbar">
         <div>
-          <p className="workspace-eyebrow">People & organization network</p>
-          <h1>Find the right people to move forward.</h1>
+          <h1>Social Resources</h1>
           <p>
             Discover investors, venture funds, advisors, accelerators, and
             companies relevant to your business and funding stage.
@@ -5542,10 +5364,9 @@ function ToolsPage() {
 
   return (
     <section className="tool-directory">
-      <header className="funding-directory-header tool-directory-header">
+      <header className="funding-directory-header tool-directory-header is-listing-topbar">
         <div>
-          <p className="workspace-eyebrow">Founder tools directory</p>
-          <h1>Build the stack behind your business.</h1>
+          <h1>Tools</h1>
           <p>
             Explore software, cloud services, financial platforms, and business
             credit cards selected for entrepreneurs and growing companies.
@@ -6787,10 +6608,9 @@ function SettingsPage() {
 
   return (
     <section className="settings-centre">
-      <header className="settings-centre-header">
+      <header className="settings-centre-header is-listing-topbar">
         <div>
-          <p className="workspace-eyebrow">{t('settings.accountCentre')}</p>
-          <h1>{t('settings.title')}</h1>
+          <h1>Settings</h1>
           <p>
             Manage your profile, workspace preferences, security, and
             subscription from one place.
@@ -8512,10 +8332,9 @@ function StrategicReportsPage() {
 
   return (
     <section className="strategic-reports-page">
-      <header className="strategic-reports-header">
+      <header className="strategic-reports-header is-listing-topbar">
         <div>
-          <p className="workspace-eyebrow">Strategic Reports</p>
-          <h1>Review your strategic reports.</h1>
+          <h1>Strategic Reports</h1>
           <p>Every report stays linked to its application, opportunity, business profile, and generated package.</p>
         </div>
         <Link to="/quick-build" className="strategic-reports-primary-action">
@@ -9041,10 +8860,6 @@ function QuickBuildPage({
             : workspacePhase === 'reviewing'
               ? 92
               : 100
-  const completion =
-    workspacePhase === 'complete' || isGenerating
-      ? workspaceProgress
-      : Math.round(((programComplete + businessComplete) / 7) * 100)
   const visibleCompanyOptions = companyOptions.filter((company) =>
     `${company.name} ${company.legalName} ${company.industry} ${company.owner}`
       .toLowerCase()
@@ -9917,15 +9732,15 @@ function QuickBuildPage({
 
   return (
     <section className="generator-page">
-      <header className="generator-header">
+      <header className={`generator-header ${showsStrategicReviewListing ? 'is-report-listing' : 'is-quick-build'}`}>
         <div>
-          <p className="generator-eyebrow">
-            {showsStrategicReviewListing ? t('quickBuild.advisoryHub') : t('quickBuild.fundingStudio')}
-          </p>
+          {showsStrategicReviewListing ? (
+            <p className="generator-eyebrow">{t('quickBuild.advisoryHub')}</p>
+          ) : null}
           <h1>
             {showsStrategicReviewListing
               ? t('quickBuild.reportsTitle')
-              : t('quickBuild.title')}
+              : t('navigation.items.quickBuild')}
           </h1>
           <p>
             {showsStrategicReviewListing
@@ -9962,7 +9777,7 @@ function QuickBuildPage({
       <div
         className={`generator-shell ${activeStep === 'workspace' ? 'is-workspace' : ''} ${
           showsStrategicReviewListing ? 'is-report-listing' : ''
-        }`}
+        } is-sidebar-hidden`}
       >
         <div className={`generator-workspace ${activeStep === 'workspace' ? 'is-ai-workspace' : ''}`}>
           {showsStrategicReviewListing ? (
@@ -10742,189 +10557,6 @@ function QuickBuildPage({
           ) : null}
         </div>
 
-        {!showsStrategicReviewListing ? (
-          <aside className="generator-sidebar">
-          <div className="generator-stepper">
-            {(
-              [
-                {
-                  id: 1,
-                  label: 'Funding program',
-                  helper: `${programComplete}/3 required fields`,
-                  icon: 'search' as const,
-                  complete: programComplete === 3,
-                },
-                {
-                  id: 2,
-                  label: 'Business profile',
-                  helper: `${businessComplete}/4 required fields`,
-                  icon: 'grid' as const,
-                  complete: businessComplete === 4,
-                },
-                {
-                  id: 3,
-                  label: 'Review & launch',
-                  helper:
-                    activeStep === 'workspace'
-                      ? workspacePhase === 'complete'
-                        ? 'Package ready'
-                        : 'Generation in progress'
-                      : 'Final review',
-                  icon: 'spark' as const,
-                  complete: activeStep === 'workspace' || !!generatedPackage || isGenerating,
-                },
-              ] as const
-            ).map((step, index) => {
-              const stepLabel = typeof step.id === 'number' ? `0${step.id}` : `0${index + 1}`
-              const isActive = activeStep === step.id || (activeStep === 'workspace' && step.id === 3)
-              return (
-                <button
-                  key={step.label}
-                  type="button"
-                  className={`generator-step ${isActive ? 'is-active' : ''} ${
-                    step.complete ? 'is-complete' : ''
-                  }`}
-                  aria-current={isActive ? 'step' : undefined}
-                  onClick={() => {
-                    setActiveStep(step.id)
-                  }}
-                >
-                  <span className="generator-step-icon">
-                    <Glyph type={step.icon} />
-                  </span>
-                  <span>
-                    <strong>{step.label}</strong>
-                    <small>{step.helper}</small>
-                  </span>
-                  <b>{stepLabel}</b>
-                </button>
-              )
-            })}
-
-            {activeStep === 'workspace' ? (
-              <div className="generator-assurance">
-                <Glyph type="spark" />
-                <div>
-                  <strong>{t('advisory.advisoryMode')}</strong>
-                  <p>{t('advisory.advisoryModeDescription')}</p>
-                </div>
-              </div>
-            ) : (
-              <div className="generator-assurance">
-                <Glyph type="spark" />
-                <div>
-                  <strong>Your data stays editable</strong>
-                  <p>Review every section before exporting or sharing.</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className={`generator-summary ${activeStep === 'workspace' ? 'is-live' : ''}`}>
-            <div className="generator-summary-heading">
-              <span>{t('advisory.packageProgress')}</span>
-              <strong>
-                {workspacePhase === 'complete'
-                  ? t('advisory.ready')
-                  : isGenerating
-                    ? 'Generation in progress'
-                    : activeStep === 3
-                      ? 'Ready to generate'
-                      : 'In progress'}
-              </strong>
-            </div>
-            <div className="generator-completion generator-completion-sidebar">
-              <div>
-                <span>{t('advisory.overallCompletion')}</span>
-                <strong>{completion}%</strong>
-              </div>
-              <div>
-                <i style={{ width: `${completion}%` }} />
-              </div>
-            </div>
-
-            {activeStep === 'workspace' ? (
-              <>
-                <div className="generator-summary-checks">
-                  <span className={quickBuildPhaseRank[workspacePhase] >= 2 ? 'is-complete' : ''}>
-                    <i>{quickBuildPhaseRank[workspacePhase] >= 2 ? '✓' : '1'}</i>
-                    Opportunity analyzed
-                  </span>
-                  <span className={quickBuildPhaseRank[workspacePhase] >= 3 ? 'is-complete' : ''}>
-                    <i>{quickBuildPhaseRank[workspacePhase] >= 3 ? '✓' : '2'}</i>
-                    Strategy built
-                  </span>
-                  <span
-                    className={
-                      workspaceSections.every((section) => section.status === 'complete')
-                        ? 'is-complete'
-                        : ''
-                    }
-                  >
-                    <i>
-                      {workspaceSections.every((section) => section.status === 'complete')
-                        ? '✓'
-                        : '3'}
-                    </i>
-                    Section generation
-                  </span>
-                  <span className={workspacePhase === 'complete' ? 'is-complete' : ''}>
-                    <i>{workspacePhase === 'complete' ? '✓' : '4'}</i>
-                    Package review
-                  </span>
-                </div>
-
-                <div className="generator-summary-package">
-                  <strong>Workspace stats</strong>
-                  <div>
-                    <span>{t('advisory.sections')}</span>
-                    <b>{workspaceSections.length}</b>
-                  </div>
-                  <div>
-                    <span>{t('advisory.model')}</span>
-                    <b>{config.ai.defaultModel}</b>
-                  </div>
-                  <div>
-                    <span>{t('advisory.completed')}</span>
-                    <b>
-                      {generatedPackage
-                        ? new Intl.DateTimeFormat(locale, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                          }).format(new Date(generatedPackage.completedAt))
-                        : 'Not yet'}
-                    </b>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="generator-summary-checks">
-                  <span className={programComplete === 3 ? 'is-complete' : ''}>
-                    <i>{programComplete === 3 ? '✓' : '1'}</i>
-                    Program details
-                  </span>
-                  <span className={businessComplete === 4 ? 'is-complete' : ''}>
-                    <i>{businessComplete === 4 ? '✓' : '2'}</i>
-                    Business profile
-                  </span>
-                  <span className={activeStep === 3 ? 'is-complete' : ''}>
-                    <i>{activeStep === 3 ? '✓' : '3'}</i>
-                    Review package
-                  </span>
-                </div>
-                <p>
-                  Model: {config.ai.defaultModel}
-                  <br />
-                  Estimated generation time: 30–60 seconds
-                </p>
-              </>
-            )}
-          </div>
-          </aside>
-        ) : null}
       </div>
 
       {programPickerOpen ? (
@@ -11116,16 +10748,6 @@ function QuickBuildPage({
         </div>
       ) : null}
 
-      <button
-        type="button"
-        className="clone-report-bug"
-        onClick={() => {
-          window.location.href =
-            'mailto:support@bconomics.ai?subject=Bconomics%20bug%20report'
-        }}
-      >
-        Report a bug
-      </button>
     </section>
   )
 }
@@ -11206,7 +10828,7 @@ function OverviewPage({ userName }: { userName?: string }) {
     .filter((source) => source.enabled)
     .map((source) => source.id)
   const fundingPrograms = loadFundingPrograms(enabledSourceIds)
-  const savedProgramEntries = loadSavedProgramEntries(fundingPrograms)
+  const savedProgramEntries = loadSavedProgramEntries()
   const savedProgramIds = new Set(savedProgramEntries.map((entry) => entry.programId))
   const savedPrograms = fundingPrograms.filter((program) => savedProgramIds.has(program.id))
   const reports = getStrategicReviewReports(applications)
@@ -11231,9 +10853,26 @@ function OverviewPage({ userName }: { userName?: string }) {
     (total, report) => total + report.generatedPackage.documents.length,
     0,
   )
-  const readinessScore = currentCompany?.readiness ?? 0
+  const discoveryProgram = fundingPrograms[0] ?? null
+  const discoveryApplication = discoveryProgram && currentCompany
+    ? applications.find(
+        (application) =>
+          application.programName === discoveryProgram.name &&
+          application.company === currentCompany.name,
+      ) ?? null
+    : null
+  const readinessScore = discoveryProgram && currentCompany
+    ? calculateScoutingScores(
+        discoveryProgram,
+        currentCompany,
+        discoveryApplication,
+      ).overall
+    : 0
   const readinessTarget = 80
   const readinessReached = readinessScore >= readinessTarget
+  const readinessPath = discoveryProgram && currentCompany
+    ? `/discovery?program_id=${encodeURIComponent(discoveryProgram.id)}&company_id=${encodeURIComponent(currentCompany.id)}`
+    : '/discovery'
   const activityItems = [
     currentCompany
       ? {
@@ -11261,25 +10900,24 @@ function OverviewPage({ userName }: { userName?: string }) {
   return (
     <section className="workspace-dashboard">
       <header className="workspace-dashboard-header">
-        <div>
-          <p className="workspace-eyebrow">{formatDashboardDate()}</p>
-          <h1>
-            {getDashboardGreeting()}
-            {firstName ? `, ${firstName}.` : '.'}
-          </h1>
+        <div className="workspace-dashboard-heading">
+          <h1>Dashboard</h1>
           <p>Here is what needs your attention across the funding workspace.</p>
         </div>
-        <Link to="/quick-build" className="workspace-primary-action">
-          <Glyph type="spark" />
-          <span>Create funding package</span>
-        </Link>
+        <div className="workspace-dashboard-greeting">
+          <p className="workspace-eyebrow">{formatDashboardDate()}</p>
+          <strong>
+            {getDashboardGreeting()}
+            {firstName ? `, ${firstName}.` : '.'}
+          </strong>
+        </div>
       </header>
 
       <div className="dashboard-command-grid">
         <article className="dashboard-readiness-card">
           <div className="dashboard-card-topline">
             <span>Funding readiness</span>
-            <Link to="/discovery">View assessment</Link>
+            <Link to={readinessPath}>View assessment</Link>
           </div>
           <div className="dashboard-readiness-content">
             <div className="dashboard-score-ring">
@@ -11293,7 +10931,7 @@ function OverviewPage({ userName }: { userName?: string }) {
                   ? `Your company profile has reached the recommended score of ${readinessTarget}.`
                   : `Complete your company profile and application details to reach the recommended score of ${readinessTarget}.`}
               </span>
-              <Link to="/discovery">
+              <Link to={readinessPath}>
                 Continue assessment <Glyph type="arrow" />
               </Link>
             </div>
@@ -12000,7 +11638,7 @@ export function DashboardPage() {
             ) : null}
           </div>
         ) : null}
-        <div className="clone-main-inner">
+        <div className={`clone-main-inner ${isQuickBuild ? 'is-quick-build' : ''}`}>
           {isOverview ? (
             <OverviewPage userName={currentAuthUser?.fullName} />
           ) : isDiscovery ? (

@@ -1,5 +1,7 @@
-import type { FundingProgramRecord } from './fundingSources'
-import { setPersistentItem } from '../persistence/storage'
+import {
+  persistPersistentItem,
+  setPersistentItem,
+} from '../persistence/storage'
 
 export type SavedProgramStage = 'Researching' | 'Preparing' | 'Ready to apply'
 export type SavedProgramPriority = 'High' | 'Medium' | 'Low'
@@ -15,46 +17,23 @@ export type SavedProgramEntry = {
 
 export const savedProgramsStorageKey = 'bconomics-saved-programs-v1'
 
-function createDefaultEntries(programs: FundingProgramRecord[]): SavedProgramEntry[] {
-  const stages: SavedProgramStage[] = [
-    'Preparing',
-    'Researching',
-    'Ready to apply',
-    'Researching',
-  ]
-  const priorities: SavedProgramPriority[] = ['High', 'Medium', 'High', 'Low']
-
-  return programs.slice(0, 4).map((program, index) => ({
-    programId: program.id,
-    stage: stages[index] ?? 'Researching',
-    priority: priorities[index] ?? 'Medium',
-    note:
-      index === 0
-        ? 'Confirm eligible project costs with the finance team.'
-        : index === 1
-          ? 'Review the application guide and required attachments.'
-          : '',
-    savedAt: ['Jul 28, 2026', 'Jul 26, 2026', 'Jul 22, 2026', 'Jul 18, 2026'][
-      index
-    ],
-  }))
-}
-
-export function loadSavedProgramEntries(programs: FundingProgramRecord[]) {
-  if (typeof window === 'undefined') return createDefaultEntries(programs)
+export function loadSavedProgramEntries() {
+  if (typeof window === 'undefined') return []
 
   try {
     const saved = window.localStorage.getItem(savedProgramsStorageKey)
-    return saved
-      ? (JSON.parse(saved) as SavedProgramEntry[])
-      : createDefaultEntries(programs)
+    return saved ? (JSON.parse(saved) as SavedProgramEntry[]) : []
   } catch {
-    return createDefaultEntries(programs)
+    return []
   }
 }
 
 export function saveSavedProgramEntries(entries: SavedProgramEntry[]) {
   setPersistentItem(savedProgramsStorageKey, JSON.stringify(entries))
+}
+
+export async function persistSavedProgramEntries(entries: SavedProgramEntry[]) {
+  return persistPersistentItem(savedProgramsStorageKey, JSON.stringify(entries))
 }
 
 export function addSavedProgram(

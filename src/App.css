@@ -539,6 +539,35 @@
   align-items: center;
 }
 
+.workspace-dashboard-heading {
+  max-width: 720px;
+}
+
+.workspace-dashboard-heading h1 {
+  font-size: clamp(2.7rem, 5vw, 4rem);
+}
+
+.workspace-dashboard-heading > p:last-child {
+  font-size: 0.82rem;
+}
+
+.workspace-dashboard-greeting {
+  flex: 0 0 auto;
+  max-width: none;
+  text-align: right;
+}
+
+.workspace-dashboard-greeting .workspace-eyebrow {
+  margin: 0 0 6px;
+}
+
+.workspace-dashboard-greeting strong {
+  display: block;
+  color: #18213d;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
 .dashboard-command-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(290px, 0.75fr);
@@ -1109,6 +1138,10 @@
     width: 100%;
   }
 
+  .workspace-dashboard-greeting {
+    text-align: left;
+  }
+
   .workspace-metric-grid,
   .dashboard-metrics {
     grid-template-columns: 1fr;
@@ -1392,7 +1425,7 @@
   border-radius: 999px;
   background: rgba(15, 118, 110, 0.08);
   color: var(--accent);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 700;
 }
 
@@ -3472,6 +3505,27 @@
   line-height: 1.55;
 }
 
+.scouting-header.is-discovery-topbar {
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.scouting-header.is-discovery-topbar h1 {
+  margin: 0 0 8px;
+  font-family: var(--sans);
+  font-size: clamp(2.7rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+}
+
+.scouting-header.is-discovery-topbar > div > p:last-child {
+  max-width: 720px;
+  color: #697086;
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+
 .scouting-header-action,
 .scouting-next-action a {
   display: inline-flex;
@@ -3883,30 +3937,75 @@
 }
 
 .scouting-score-badge {
+  position: relative;
   display: grid;
-  align-content: center;
-  justify-items: center;
-  width: 132px;
-  height: 132px;
-  border: 1px solid rgba(173, 190, 255, 0.5);
+  place-items: center;
+  width: 144px;
+  height: 144px;
+  border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 0 0 10px rgba(255, 255, 255, 0.04);
+  background:
+    conic-gradient(
+      from -38deg,
+      #8ff0bd 0 var(--score-progress),
+      rgba(255, 255, 255, 0.16) var(--score-progress) 100%
+    );
+  box-shadow:
+    0 0 0 1px rgba(143, 240, 189, 0.2),
+    0 0 28px rgba(97, 231, 177, 0.22);
 }
 
-.scouting-score-badge span,
-.scouting-score-badge small {
+.scouting-score-badge::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border: 1px solid rgba(197, 210, 255, 0.22);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #2d4678, #17233c 72%);
+  box-shadow:
+    inset 0 0 0 8px rgba(8, 17, 39, 0.2),
+    inset 0 0 24px rgba(8, 17, 39, 0.34);
+}
+
+.scouting-score-badge::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.scouting-score-badge span {
+  position: relative;
+  z-index: 1;
+  align-self: end;
+  margin-bottom: 3px;
   color: #b9c5ef;
   font-size: 0.66rem;
   font-weight: 800;
 }
 
-.scouting-score-badge strong {
-  margin: 2px 0 0;
+.scouting-score-value {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  align-self: start;
+}
+
+.scouting-score-value strong {
   color: #fff;
   font-size: 2.65rem;
   line-height: 1;
   letter-spacing: -0.08em;
+}
+
+.scouting-score-value small {
+  color: #b9c5ef;
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .scouting-hero-copy h2 {
@@ -4345,6 +4444,11 @@
     grid-template-columns: 132px minmax(0, 1fr);
   }
 
+  .scouting-score-badge {
+    width: 132px;
+    height: 132px;
+  }
+
   .scouting-verdict {
     grid-column: 1 / -1;
     min-height: 0;
@@ -4450,6 +4554,14 @@
     height: 116px;
   }
 
+  .scouting-score-badge::before {
+    inset: 8px;
+  }
+
+  .scouting-score-value strong {
+    font-size: 2.2rem;
+  }
+
   .scouting-score-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -4485,7 +4597,7 @@
 .generator-page::before {
   content: '';
   position: absolute;
-  inset: -48px -32px auto;
+  inset: -48px 0 auto;
   height: 360px;
   z-index: -1;
   background:
@@ -4493,6 +4605,10 @@
     radial-gradient(circle at 88% 0, rgba(32, 184, 123, 0.1), transparent 18rem),
     linear-gradient(180deg, #f7f9ff 0%, rgba(247, 249, 255, 0) 100%);
   pointer-events: none;
+}
+
+.clone-main-inner.is-quick-build {
+  background: #ffffff;
 }
 
 .generator-command-deck {
@@ -4672,6 +4788,21 @@
   font-size: 0.84rem;
 }
 
+.generator-header.is-quick-build h1 {
+  margin: 0 0 8px;
+  font-family: var(--sans);
+  font-size: clamp(2.7rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+}
+
+.generator-header.is-quick-build > div > p:last-child {
+  color: #697086;
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
 .generator-eyebrow {
   color: #69738a;
   font-size: 0.66rem;
@@ -4727,6 +4858,10 @@
 }
 
 .generator-shell.is-report-listing {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.generator-shell.is-sidebar-hidden {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -4933,7 +5068,7 @@
   min-height: 560px;
   display: flex;
   flex-direction: column;
-  padding: clamp(22px, 4vw, 36px);
+  padding: clamp(22px, 3vw, 28px);
 }
 
 .advisory-report-listing-stage {
@@ -5292,7 +5427,7 @@
 
 .generator-stage-panel {
   display: grid;
-  grid-template-columns: minmax(220px, 0.42fr) minmax(0, 0.58fr);
+  grid-template-columns: minmax(220px, 0.36fr) minmax(0, 0.64fr);
   gap: 18px;
   padding: 18px;
   border: 1px solid #dde4ef;
@@ -10273,6 +10408,26 @@
   letter-spacing: -0.05em;
 }
 
+.company-manager .workspace-listing-header.is-my-companies-topbar {
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.company-manager .workspace-listing-header.is-my-companies-topbar .workspace-listing-heading h1 {
+  margin: 0 0 8px;
+  font-size: clamp(2.7rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+}
+
+.company-manager .workspace-listing-header.is-my-companies-topbar .workspace-listing-heading > p:last-child {
+  max-width: 720px;
+  color: #697086;
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+
 .company-portfolio-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -13865,6 +14020,27 @@
   margin: 0;
   color: #737b8e;
   font-size: 0.72rem;
+  line-height: 1.65;
+}
+
+.strategic-reports-header.is-listing-topbar {
+  align-items: center;
+  padding: 0;
+}
+
+.strategic-reports-header.is-listing-topbar h1 {
+  margin: 0 0 8px;
+  font-family: var(--sans);
+  font-size: clamp(2.7rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+}
+
+.strategic-reports-header.is-listing-topbar > div:first-child > p:last-child {
+  max-width: 720px;
+  color: #697086;
+  font-size: 0.82rem;
   line-height: 1.65;
 }
 
@@ -19423,6 +19599,48 @@
   color: #737b8e;
   font-size: 0.72rem;
   line-height: 1.65;
+}
+
+.saved-programs-header.is-listing-topbar,
+.applications-header.is-listing-topbar,
+.funding-directory-header.is-listing-topbar,
+.settings-centre-header.is-listing-topbar {
+  align-items: center;
+  padding: 0;
+}
+
+.saved-programs-header.is-listing-topbar h1,
+.applications-header.is-listing-topbar h1,
+.funding-directory-header.is-listing-topbar h1,
+.settings-centre-header.is-listing-topbar h1 {
+  margin: 0 0 8px;
+  color: #171b2b;
+  font-family: var(--sans);
+  font-size: clamp(2.7rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.045em;
+}
+
+.saved-programs-header.is-listing-topbar > div > p:last-child,
+.applications-header.is-listing-topbar > div > p:last-child,
+.funding-directory-header.is-listing-topbar > div > p:last-child,
+.settings-centre-header.is-listing-topbar > div > p:last-child {
+  max-width: 720px;
+  margin: 0;
+  color: #697086;
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+
+@media (max-width: 760px) {
+  .saved-programs-header.is-listing-topbar,
+  .applications-header.is-listing-topbar,
+  .funding-directory-header.is-listing-topbar,
+  .settings-centre-header.is-listing-topbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 .settings-notice {

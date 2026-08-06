@@ -1,22 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { builtInFundingPrograms } from './fundingSources'
-import { addSavedProgram, loadSavedProgramEntries } from './savedPrograms'
+import {
+  addSavedProgram,
+  loadSavedProgramEntries,
+  type SavedProgramEntry,
+} from './savedPrograms'
 
 describe('saved programs', () => {
-  it('creates a focused default shortlist', () => {
-    const entries = loadSavedProgramEntries(builtInFundingPrograms)
-
-    expect(entries).toHaveLength(4)
-    expect(entries[0]).toMatchObject({
-      programId: builtInFundingPrograms[0].id,
-      stage: 'Preparing',
-      priority: 'High',
-    })
+  it('starts empty when no saved program cache exists', () => {
+    expect(loadSavedProgramEntries()).toEqual([])
   })
 
   it('adds new programs to the top without creating duplicates', () => {
-    const initial = loadSavedProgramEntries(builtInFundingPrograms)
-    const newProgramId = builtInFundingPrograms[5].id
+    const initial: SavedProgramEntry[] = []
+    const newProgramId = 'program-1'
     const added = addSavedProgram(initial, newProgramId)
     const duplicate = addSavedProgram(added, newProgramId)
 

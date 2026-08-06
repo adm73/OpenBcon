@@ -2,13 +2,36 @@ import { describe, expect, it } from 'vitest'
 import {
   findApplicationRecordByPublicId,
   getStrategicReviewReports,
-  initialApplications,
   loadApplications,
   materializeSavedProgramApplication,
   upsertGeneratedApplication,
   updateApplicationRecord,
 } from './applications'
+import type { ApplicationRecord } from './applications'
 import type { GeneratedPackage } from '../types'
+
+const initialApplications: ApplicationRecord[] = [
+  {
+    id: '2',
+    appId: 'demo-application-2',
+    title: 'Growth project application',
+    programName: 'FedDev Ontario Growth Program',
+    programUrl: 'https://feddev-ontario.canada.ca/en/funding',
+    company: 'Northstar Foods',
+    fundingType: 'Grant',
+    amount: 250000,
+    status: 'In Review',
+    progress: 72,
+    deadline: 'Aug 31, 2026',
+    deadlineOrder: 34,
+    owner: 'Ava Lin',
+    updatedAt: '2026-07-28T12:00:00.000Z',
+    documentsComplete: 6,
+    documentsTotal: 8,
+    nextAction: 'Review eligible project costs',
+    note: 'Finance team is validating equipment quotes and matching funds.',
+  },
+]
 
 const testGeneratedPackage: GeneratedPackage = {
   title: 'Atlantic Innovation Fund Funding Package',
@@ -24,14 +47,10 @@ const testGeneratedPackage: GeneratedPackage = {
 }
 
 describe('applications', () => {
-  it('provides a complete demo pipeline', () => {
+  it('does not provide a frontend mock fallback when the cache is empty', () => {
     const applications = loadApplications()
 
-    expect(applications).toHaveLength(6)
-    expect(new Set(applications.map((application) => application.status))).toEqual(
-      new Set(['Draft', 'In Review', 'Ready', 'Submitted', 'Awarded']),
-    )
-    expect(applications[0]?.programUrl).toBe('https://feddev-ontario.canada.ca/en/funding')
+    expect(applications).toEqual([])
   })
 
   it('updates one application without mutating the original list', () => {

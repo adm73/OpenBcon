@@ -153,6 +153,7 @@ The current repository snapshot includes the landing experience, dashboard works
 
 - Responsive landing page and dashboard shell
 - Mobile drawer navigation and collapsible sidebar groups
+- Consistent Dashboard-style topbars across workspace pages, with clear page names and supporting descriptions
 - Configurable branding, logo, and public messaging
 - Admin-managed landing page header, content, footer navigation, and legal-link configuration
 - Admin-managed pricing catalog with free, monthly, annual, and one-time offers
@@ -161,6 +162,7 @@ The current repository snapshot includes the landing experience, dashboard works
 - Searchable and filterable listing views with record details
 - Three-step Quick Build workflow with validation, company import, application restore, and generated previews
 - Discovery presents one program-matching scouting report card at a time, with company switching, program profiles, match indicators, and non-circular Previous/Next navigation
+- Discovery displays the match score as a dynamic progress ring with the score rendered inside the circle
 - Discovery cards expose the company profile used for matching, including legal structure, sector, industry, stage, products or services, funding usage, seasonal periods, mission, vision, values, and team information
 - Dedicated Strategic Reports route (`/strategic-reports`) for reopening the latest generated package outside the form flow
 - Strategic Report generation driven by configurable sections, document types, agents, roles, prompts, and workflow ordering

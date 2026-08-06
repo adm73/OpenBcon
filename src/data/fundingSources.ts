@@ -740,6 +740,10 @@ export function saveSyncedFundingPrograms(
   )
 }
 
+export function replaceFundingProgramCache(programs: FundingProgramRecord[]) {
+  setPersistentItem(fundingProgramStorageKey, JSON.stringify(programs))
+}
+
 export function removeSyncedFundingPrograms(sourceId: string) {
   const nextPrograms = loadSyncedFundingPrograms().filter(
     (program) => program.sourceId !== sourceId,
@@ -790,16 +794,10 @@ export function loadResourceRecords(
 }
 
 export function loadFundingPrograms(enabledSourceIds?: string[]) {
-  const syncedPrograms = loadSyncedFundingPrograms().filter(
-    (program) =>
-      !enabledSourceIds ||
-      !program.sourceId ||
-      enabledSourceIds.includes(program.sourceId),
-  )
-  return [
-    ...builtInFundingPrograms.map(ensureFundingProgramCompleteness),
-    ...syncedPrograms,
-  ]
+  // The database API has already applied the active data-source policy. Its
+  // source IDs are catalog record IDs, not the UI configuration IDs.
+  void enabledSourceIds
+  return loadSyncedFundingPrograms()
 }
 
 export function findFundingProgramByName(
