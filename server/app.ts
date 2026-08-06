@@ -147,14 +147,46 @@ const applicationCreateSchema = z.object({
   programUrl: z.string().trim().max(2000).default(''),
   provider: z.string().trim().max(160).default(''),
   location: z.string().trim().max(160).default(''),
+  country: z.string().trim().max(160).default('Canada'),
   fundingType: z.enum(['Grant', 'Loan']),
   amount: z.number().finite().nonnegative().max(1_000_000_000_000),
   deadline: z.string().trim().max(160).default('Open'),
   deadlineOrder: z.number().int().min(0).max(999).default(999),
+  description: z.string().trim().max(4000).default(''),
+  process: z.string().trim().max(6000).default(''),
+  eligibility: z.string().trim().max(4000).default(''),
+  eligibleUses: z.string().trim().max(4000).default(''),
+  targetCompanyTypes: z.string().trim().max(4000).default(''),
+  requiredEvidence: z.string().trim().max(4000).default(''),
+  matchScore: z.number().int().min(0).max(100).default(0),
+  sourceType: z
+    .enum(['builtin', 'google-sheets', 'airtable', 'manual'])
+    .default('manual'),
+  sourceId: z.string().trim().max(160).default(''),
+  sourceRecordId: z.string().trim().max(240).default(''),
+  sourceVersion: z.string().trim().max(240).default(''),
+  recordVersion: z.string().trim().max(240).default(''),
   company: z.string().trim().min(1).max(160),
   founderName: z.string().trim().min(1).max(120),
   businessSummary: z.string().trim().min(1).max(4000),
   teamBackground: z.string().trim().max(4000).default(''),
+})
+const manualFundingProgramCreateSchema = z.object({
+  name: z.string().trim().min(1).max(160),
+  fundingType: z.enum(['Grant', 'Loan']),
+  provider: z.string().trim().max(160).default(''),
+  amount: z.number().finite().nonnegative().max(1_000_000_000_000),
+  deadline: z.string().trim().max(160).default('Open'),
+  programUrl: z.string().trim().max(2000).default(''),
+  location: z.string().trim().max(160).default(''),
+  country: z.string().trim().max(160).default('Canada'),
+  description: z.string().trim().max(4000).default(''),
+  process: z.string().trim().max(6000).default(''),
+  eligibility: z.string().trim().max(4000).default(''),
+  eligibleUses: z.string().trim().max(4000).default(''),
+  targetCompanyTypes: z.string().trim().max(4000).default(''),
+  requiredEvidence: z.string().trim().max(4000).default(''),
+  matchScore: z.number().int().min(0).max(100).default(0),
 })
 const companySaveSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -213,6 +245,32 @@ type CompanyApiRow = {
   monthly_revenue: string | number | null
   employee_count: number | null
   metadata: unknown
+}
+
+type FundingProgramApiRow = {
+  id: string
+  pid: string
+  name: string
+  provider: string | null
+  category: string | null
+  funding_amount: string | number | null
+  deadline: string | null
+  match_score: number | null
+  program_url: string | null
+  location: string | null
+  country: string | null
+  description: string | null
+  process: string | null
+  eligibility: string | null
+  eligible_uses: string | null
+  target_company_types: string | null
+  required_evidence: string | null
+  source_type: string | null
+  source_id: string | null
+  source_record_id: string | null
+  source_version: string | null
+  record_version: string | null
+  status: string | null
 }
 
 function asCompanyMetadata(value: unknown) {
@@ -318,6 +376,39 @@ function mapCompanyRow(row: CompanyApiRow) {
       typeof metadata.updatedAt === 'string' && metadata.updatedAt.length > 0
         ? metadata.updatedAt
         : 'Synced from database',
+  }
+}
+
+function mapFundingProgramRow(row: FundingProgramApiRow) {
+  const type = row.category?.trim().toLowerCase() === 'loan' ? 'Loan' : 'Grant'
+  const sourceType = row.source_type?.trim() || 'manual'
+  const sourceName = row.source_id?.trim() || `${sourceType} catalog`
+
+  return {
+    id: row.id,
+    pid: row.pid,
+    name: row.name,
+    type,
+    provider: row.provider ?? '',
+    amount: Number(row.funding_amount ?? 0),
+    deadline: row.deadline ?? 'Open',
+    match: Number(row.match_score ?? 0),
+    url: row.program_url ?? '',
+    location: row.location ?? '',
+    country: row.country ?? 'Canada',
+    description: row.description ?? '',
+    process: row.process ?? '',
+    eligibility: row.eligibility ?? '',
+    eligibleUses: row.eligible_uses ?? '',
+    targetCompanyTypes: row.target_company_types ?? '',
+    requiredEvidence: row.required_evidence ?? '',
+    sourceId: row.source_id ?? undefined,
+    sourceName,
+    sourceType,
+    sourceRecordId: row.source_record_id ?? undefined,
+    sourceVersion: row.source_version ?? undefined,
+    recordVersion: row.record_version ?? undefined,
+    status: row.status === 'archived' ? 'archived' : 'active',
   }
 }
 
@@ -451,6 +542,161 @@ export function createApp(
         database: 'unavailable',
         timestamp: new Date().toISOString(),
       })
+    }
+  })
+
+  app.get('/api/funding-programs', async (request, response, next) => {
+    try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
+
+      const result = await database.query<FundingProgramApiRow>(
+        `
+          SELECT
+            funding_programs.id::text,
+            funding_programs.pid,
+            funding_programs.name,
+            funding_programs.provider,
+            funding_programs.category,
+            funding_programs.funding_amount::text,
+            funding_programs.deadline,
+            funding_programs.match_score,
+            funding_programs.program_url,
+            funding_programs.location,
+            funding_programs.country,
+            funding_programs.description,
+            funding_programs.process,
+            funding_programs.eligibility,
+            funding_programs.eligible_uses,
+            funding_programs.target_company_types,
+            funding_programs.required_evidence,
+            funding_programs.source_type,
+            funding_programs.source_id,
+            funding_programs.source_record_id,
+            funding_programs.source_version,
+            funding_programs.record_version,
+            funding_programs.status
+          FROM funding_programs
+          WHERE funding_programs.status = 'active'
+            AND (
+              funding_programs.workspace_id = $1
+              OR funding_programs.workspace_id IS NULL
+            )
+          ORDER BY funding_programs.updated_at DESC, funding_programs.name ASC
+        `,
+        [context.workspaceId],
+      )
+
+      response.json({
+        programs: result.rows.map(mapFundingProgramRow),
+      })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  app.post('/api/funding-programs', async (request, response, next) => {
+    const parsed = manualFundingProgramCreateSchema.safeParse(request.body)
+    if (!parsed.success) {
+      sendValidationError(response, parsed.error)
+      return
+    }
+
+    try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
+
+      const sourceRecordId = `manual-${randomUUID()}`
+      const recordVersion = `manual-${new Date().toISOString()}`
+      const result = await database.query<FundingProgramApiRow>(
+        `
+          INSERT INTO funding_programs (
+            workspace_id,
+            name,
+            provider,
+            category,
+            program_url,
+            funding_amount,
+            location,
+            country,
+            description,
+            process,
+            deadline,
+            eligibility,
+            eligible_uses,
+            target_company_types,
+            required_evidence,
+            match_score,
+            source_type,
+            source_id,
+            source_record_id,
+            source_version,
+            record_version,
+            status,
+            created_by,
+            updated_by
+          )
+          VALUES (
+            $1, $2, NULLIF($3, ''), $4, NULLIF($5, ''), $6, NULLIF($7, ''), $8,
+            $9, $10, $11, $12, $13, $14, $15, $16, 'manual', 'manual-import',
+            $17, 'manual-v1', $18, 'active', $19, $19
+          )
+          RETURNING
+            id::text,
+            pid,
+            name,
+            provider,
+            category,
+            funding_amount::text,
+            deadline,
+            match_score,
+            program_url,
+            location,
+            country,
+            description,
+            process,
+            eligibility,
+            eligible_uses,
+            target_company_types,
+            required_evidence,
+            source_type,
+            source_id,
+            source_record_id,
+            source_version,
+            record_version,
+            status
+        `,
+        [
+          context.workspaceId,
+          parsed.data.name,
+          parsed.data.provider,
+          parsed.data.fundingType,
+          parsed.data.programUrl,
+          parsed.data.amount,
+          parsed.data.location,
+          parsed.data.country,
+          parsed.data.description,
+          parsed.data.process,
+          parsed.data.deadline,
+          parsed.data.eligibility,
+          parsed.data.eligibleUses,
+          parsed.data.targetCompanyTypes,
+          parsed.data.requiredEvidence,
+          parsed.data.matchScore,
+          sourceRecordId,
+          recordVersion,
+          context.userId,
+        ],
+      )
+
+      const program = result.rows[0]
+      if (!program) {
+        throw new Error('The funding program could not be imported.')
+      }
+
+      response.status(201).json({ program: mapFundingProgramRow(program) })
+    } catch (error) {
+      next(error)
     }
   })
 
@@ -885,10 +1131,28 @@ export function createApp(
               program_url,
               funding_amount,
               location,
+              country,
+              description,
+              process,
+              deadline,
+              eligibility,
+              eligible_uses,
+              target_company_types,
+              required_evidence,
+              match_score,
+              source_type,
+              source_id,
+              source_record_id,
+              source_version,
+              record_version,
               created_by,
               updated_by
             )
-            VALUES ($1, $2, NULLIF($3, ''), $4, NULLIF($5, ''), $6, NULLIF($7, ''), $8, $8)
+            VALUES (
+              $1, $2, NULLIF($3, ''), $4, NULLIF($5, ''), $6, NULLIF($7, ''),
+              NULLIF($8, ''), $9, $10, $11, $12, $13, $14, $15, $16, $17,
+              NULLIF($18, ''), NULLIF($19, ''), NULLIF($20, ''), NULLIF($21, ''), $22, $22
+            )
             RETURNING id::text
           `,
           [
@@ -899,6 +1163,20 @@ export function createApp(
             parsed.data.programUrl,
             parsed.data.amount,
             parsed.data.location,
+            parsed.data.country,
+            parsed.data.description,
+            parsed.data.process,
+            parsed.data.deadline,
+            parsed.data.eligibility,
+            parsed.data.eligibleUses,
+            parsed.data.targetCompanyTypes,
+            parsed.data.requiredEvidence,
+            parsed.data.matchScore,
+            parsed.data.sourceType,
+            parsed.data.sourceId,
+            parsed.data.sourceRecordId,
+            parsed.data.sourceVersion,
+            parsed.data.recordVersion,
             context.userId,
           ],
         )

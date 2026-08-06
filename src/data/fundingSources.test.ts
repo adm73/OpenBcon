@@ -53,6 +53,7 @@ describe('funding data sources', () => {
       location: 'Ontario',
       sourceId: 'test-source',
     })
+    expect(program?.process).toContain('Contact the program administrator')
   })
 
   it('sends Airtable metadata to the secure proxy and maps returned fields', async () => {

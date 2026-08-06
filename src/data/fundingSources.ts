@@ -2,6 +2,7 @@ import { setPersistentItem } from '../persistence/storage'
 
 export type FundingProgramRecord = {
   id: string
+  pid?: string
   name: string
   type: 'Grant' | 'Loan'
   provider: string
@@ -10,8 +11,16 @@ export type FundingProgramRecord = {
   match: number
   url: string
   location: string
+  country: string
+  description?: string
+  process?: string
   sourceId?: string
   sourceName?: string
+  sourceType?: 'builtin' | 'google-sheets' | 'airtable' | 'manual'
+  sourceRecordId?: string
+  sourceVersion?: string
+  recordVersion?: string
+  status?: 'active' | 'archived'
   eligibility?: string
   eligibleUses?: string
   targetCompanyTypes?: string
@@ -161,6 +170,7 @@ export const defaultFundingDataSources: FundingDataSource[] = [
 export const builtInFundingPrograms: FundingProgramRecord[] = [
   {
     id: 'feddev-growth',
+    pid: '1000000000000001',
     name: 'FedDev Ontario Growth Program',
     type: 'Grant',
     provider: 'Federal Economic Development Agency',
@@ -169,7 +179,16 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     match: 94,
     url: 'https://feddev-ontario.canada.ca/en/funding',
     location: 'Ontario',
+    country: 'Canada',
+    description:
+      'A mock growth funding opportunity for Ontario businesses commercializing products, expanding markets, and improving productivity.',
+    sourceId: 'builtin-catalog',
     sourceName: 'Bconomics catalog',
+    sourceType: 'builtin',
+    sourceRecordId: 'feddev-growth',
+    sourceVersion: 'mock-v1',
+    recordVersion: 'mock-v1-feddev-growth',
+    status: 'active',
     eligibility: 'Ontario-based incorporated businesses with a scalable growth project.',
     eligibleUses: 'Productivity improvements, commercialization, market expansion, and equipment.',
     targetCompanyTypes: 'Revenue-generating Ontario businesses pursuing growth.',
@@ -177,6 +196,7 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
   },
   {
     id: 'digital-adoption',
+    pid: '1000000000000002',
     name: 'Canada Digital Adoption Program',
     type: 'Grant',
     provider: 'Government of Canada',
@@ -185,7 +205,16 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     match: 91,
     url: 'https://ised-isde.canada.ca/site/canada-digital-adoption-program/en',
     location: 'Canada',
+    country: 'Canada',
+    description:
+      'A mock digital adoption grant helping Canadian small and medium-sized businesses plan, purchase, and implement practical technology improvements.',
+    sourceId: 'builtin-catalog',
     sourceName: 'Bconomics catalog',
+    sourceType: 'builtin',
+    sourceRecordId: 'digital-adoption',
+    sourceVersion: 'mock-v1',
+    recordVersion: 'mock-v1-digital-adoption',
+    status: 'active',
     eligibility: 'Canadian-owned small and medium-sized businesses adopting digital tools.',
     eligibleUses: 'Digital tools, e-commerce, cybersecurity, and technology advisory support.',
     targetCompanyTypes: 'Canadian small and medium-sized businesses ready to improve digital capability.',
@@ -193,6 +222,7 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
   },
   {
     id: 'ontario-expansion',
+    pid: '1000000000000003',
     name: 'Ontario Business Expansion Fund',
     type: 'Grant',
     provider: 'Government of Ontario',
@@ -201,7 +231,16 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     match: 86,
     url: 'https://www.ontario.ca/page/business-and-economy',
     location: 'Ontario',
+    country: 'Canada',
+    description:
+      'A mock expansion grant for Ontario companies adding capacity, entering new markets, or scaling a proven operating model.',
+    sourceId: 'builtin-catalog',
     sourceName: 'Bconomics catalog',
+    sourceType: 'builtin',
+    sourceRecordId: 'ontario-expansion',
+    sourceVersion: 'mock-v1',
+    recordVersion: 'mock-v1-ontario-expansion',
+    status: 'active',
     eligibility: 'Ontario businesses expanding operations, markets, or production capacity.',
     eligibleUses: 'Expansion costs, equipment, hiring, market development, and implementation.',
     targetCompanyTypes: 'Ontario businesses with an operating history and a documented growth plan.',
@@ -209,6 +248,7 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
   },
   {
     id: 'bdc-small-business',
+    pid: '1000000000000004',
     name: 'BDC Small Business Loan',
     type: 'Loan',
     provider: 'Business Development Bank of Canada',
@@ -217,7 +257,16 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     match: 89,
     url: 'https://www.bdc.ca/en/financing/small-business-loan',
     location: 'Canada',
+    country: 'Canada',
+    description:
+      'A mock flexible financing option for established Canadian businesses funding working capital, equipment, and measured growth.',
+    sourceId: 'builtin-catalog',
     sourceName: 'Bconomics catalog',
+    sourceType: 'builtin',
+    sourceRecordId: 'bdc-small-business',
+    sourceVersion: 'mock-v1',
+    recordVersion: 'mock-v1-bdc-small-business',
+    status: 'active',
     eligibility: 'Canadian businesses with a viable plan and demonstrated ability to repay financing.',
     eligibleUses: 'Working capital, equipment, inventory, hiring, and business expansion.',
     targetCompanyTypes: 'Established Canadian businesses seeking flexible growth financing.',
@@ -225,6 +274,7 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
   },
   {
     id: 'futurpreneur-financing',
+    pid: '1000000000000005',
     name: 'Futurpreneur Startup Financing',
     type: 'Loan',
     provider: 'Futurpreneur Canada',
@@ -233,7 +283,16 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     match: 82,
     url: 'https://futurpreneur.ca/en/offering/financing/',
     location: 'Canada',
+    country: 'Canada',
+    description:
+      'A mock startup financing program for Canadian founders building an early-stage company with a practical launch plan.',
+    sourceId: 'builtin-catalog',
     sourceName: 'Bconomics catalog',
+    sourceType: 'builtin',
+    sourceRecordId: 'futurpreneur-financing',
+    sourceVersion: 'mock-v1',
+    recordVersion: 'mock-v1-futurpreneur-financing',
+    status: 'active',
     eligibility: 'Canadian founders building an early-stage business with a credible launch plan.',
     eligibleUses: 'Startup costs, working capital, equipment, and early customer acquisition.',
     targetCompanyTypes: 'Early-stage Canadian businesses and founders under the program age threshold.',
@@ -241,6 +300,7 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
   },
   {
     id: 'women-enterprise-loan',
+    pid: '1000000000000006',
     name: 'Women Enterprise Loan Fund',
     type: 'Loan',
     provider: 'Women Enterprise Organizations of Canada',
@@ -249,7 +309,16 @@ export const builtInFundingPrograms: FundingProgramRecord[] = [
     match: 78,
     url: 'https://weoc.ca/',
     location: 'Canada',
+    country: 'Canada',
+    description:
+      'A mock financing program for women-led Canadian businesses seeking capital for operations, marketing, hiring, or expansion.',
+    sourceId: 'builtin-catalog',
     sourceName: 'Bconomics catalog',
+    sourceType: 'builtin',
+    sourceRecordId: 'women-enterprise-loan',
+    sourceVersion: 'mock-v1',
+    recordVersion: 'mock-v1-women-enterprise-loan',
+    status: 'active',
     eligibility: 'Canadian women-led businesses seeking growth or operating capital.',
     eligibleUses: 'Working capital, equipment, hiring, marketing, and business development.',
     targetCompanyTypes: 'Women-led Canadian businesses with a clear financing need.',
@@ -297,6 +366,73 @@ function makeRecordId(sourceId: string, name: string, index: number) {
   return `${sourceId}-${slug || 'program'}-${index + 1}`
 }
 
+function makeMockProgramPid(seed: string) {
+  let hash = 0
+  for (const character of seed) {
+    hash = (hash * 31 + character.charCodeAt(0)) % 9000000000000000
+  }
+  return String(1000000000000000 + hash)
+}
+
+function mockProgramDetails(
+  name: string,
+  type: FundingProgramRecord['type'],
+  location: string,
+  recordId: string,
+) {
+  const fundingLabel = type === 'Loan' ? 'financing' : 'funding'
+  return {
+    description: `Mock ${fundingLabel} opportunity for ${location} businesses seeking practical growth support through ${name}.`,
+    process: type === 'Loan'
+      ? 'Start with an eligibility and borrowing conversation with the funding provider. Prepare financial statements, a cash flow forecast, ownership details, and a use-of-funds plan. Contact the provider to confirm the application route, submit the package, and respond to underwriting questions.'
+      : 'Review the eligibility requirements, confirm the program contact and intake route, and prepare the required evidence. Contact the program administrator before submitting the application, then follow the published review process and respond to any requests for clarification.',
+    eligibility: `Businesses operating in ${location} with a documented need, an accountable owner, and a credible plan for using the funds.`,
+    eligibleUses: type === 'Loan'
+      ? 'Working capital, equipment, inventory, hiring, marketing, and business expansion.'
+      : 'Equipment, technology, hiring, marketing, market development, and implementation costs.',
+    targetCompanyTypes: `Small and medium-sized ${location} businesses with a clear operating model and measurable next steps.`,
+    requiredEvidence: 'Business profile, ownership details, financial information, project budget, and measurable milestones.',
+    sourceVersion: 'mock-v1',
+    recordVersion: `mock-v1-${recordId}`,
+    status: 'active' as const,
+  }
+}
+
+function ensureFundingProgramCompleteness(
+  program: FundingProgramRecord,
+  index: number,
+): FundingProgramRecord {
+  const recordId = program.id || `stored-program-${index + 1}`
+  const location = program.location || 'Canada'
+  const details = mockProgramDetails(program.name, program.type, location, recordId)
+
+  return {
+    ...details,
+    ...program,
+    pid: program.pid && /^[0-9]{16}$/.test(program.pid)
+      ? program.pid
+      : makeMockProgramPid(`stored:${recordId}`),
+    deadline: program.deadline || 'Open',
+    match: Number.isFinite(program.match) && program.match > 0 ? program.match : 75,
+    url: program.url || `https://example.com/funding-programs/${recordId}`,
+    location,
+    country: program.country || 'Canada',
+    description: program.description || details.description,
+    process: program.process || details.process,
+    sourceId: program.sourceId || 'manual-catalog',
+    sourceName: program.sourceName || 'Mock funding catalog',
+    sourceType: program.sourceType || 'manual',
+    sourceRecordId: program.sourceRecordId || recordId,
+    sourceVersion: program.sourceVersion || details.sourceVersion,
+    recordVersion: program.recordVersion || details.recordVersion,
+    status: program.status === 'archived' ? 'archived' : 'active',
+    eligibility: program.eligibility || details.eligibility,
+    eligibleUses: program.eligibleUses || details.eligibleUses,
+    targetCompanyTypes: program.targetCompanyTypes || details.targetCompanyTypes,
+    requiredEvidence: program.requiredEvidence || details.requiredEvidence,
+  }
+}
+
 export function normalizeFundingRecords(
   rows: Array<Record<string, unknown>>,
   source: FundingDataSource,
@@ -326,32 +462,89 @@ export function normalizeFundingRecords(
         location:
           readField(row, ['location', 'region', 'province', 'eligibility region']) ||
           'Canada',
+        country: readField(row, ['country', 'nation']) || 'Canada',
+        ...mockProgramDetails(
+          name,
+          type,
+          readField(row, ['location', 'region', 'province', 'eligibility region']) || 'Canada',
+          makeRecordId(source.id, name, index),
+        ),
+        description:
+          readField(row, ['description', 'summary', 'program description']) ||
+          mockProgramDetails(
+            name,
+            type,
+            readField(row, ['location', 'region', 'province', 'eligibility region']) || 'Canada',
+            makeRecordId(source.id, name, index),
+          ).description,
+        process:
+          readField(row, ['process', 'application process', 'how to apply']) ||
+          mockProgramDetails(
+            name,
+            type,
+            readField(row, ['location', 'region', 'province', 'eligibility region']) || 'Canada',
+            makeRecordId(source.id, name, index),
+          ).process,
+        pid: /^[0-9]{16}$/.test(readField(row, ['pid', 'public id', 'public program id']))
+          ? readField(row, ['pid', 'public id', 'public program id'])
+          : makeMockProgramPid(`${source.id}:${name}:${index}`),
         sourceId: source.id,
         sourceName: source.name,
+        sourceType: source.provider,
+        sourceRecordId:
+          readField(row, ['source record id', 'record id', 'row id', 'id']) ||
+          makeRecordId(source.id, name, index),
+        sourceVersion: readField(row, ['source version', 'version']) || 'mock-v1',
+        recordVersion:
+          readField(row, ['record version', 'row version']) ||
+          `mock-v1-${makeRecordId(source.id, name, index)}`,
+        status: readField(row, ['status', 'state']).toLowerCase() === 'archived'
+          ? 'archived'
+          : 'active',
         eligibility: readField(row, [
           'eligibility',
           'eligibility requirements',
           'requirements',
           'who is eligible',
-        ]),
+        ]) || mockProgramDetails(
+          name,
+          type,
+          readField(row, ['location', 'region', 'province', 'eligibility region']) || 'Canada',
+          makeRecordId(source.id, name, index),
+        ).eligibility,
         eligibleUses: readField(row, [
           'eligible uses',
           'eligible use',
           'use of funds',
           'funding uses',
-        ]),
+        ]) || mockProgramDetails(
+          name,
+          type,
+          readField(row, ['location', 'region', 'province', 'eligibility region']) || 'Canada',
+          makeRecordId(source.id, name, index),
+        ).eligibleUses,
         targetCompanyTypes: readField(row, [
           'target company types',
           'company types',
           'target businesses',
           'ideal applicant',
-        ]),
+        ]) || mockProgramDetails(
+          name,
+          type,
+          readField(row, ['location', 'region', 'province', 'eligibility region']) || 'Canada',
+          makeRecordId(source.id, name, index),
+        ).targetCompanyTypes,
         requiredEvidence: readField(row, [
           'required evidence',
           'required documents',
           'supporting documents',
           'evidence required',
-        ]),
+        ]) || mockProgramDetails(
+          name,
+          type,
+          readField(row, ['location', 'region', 'province', 'eligibility region']) || 'Canada',
+          makeRecordId(source.id, name, index),
+        ).requiredEvidence,
       }
     })
     .filter((record): record is FundingProgramRecord => record !== null)
@@ -526,7 +719,9 @@ export function loadSyncedFundingPrograms() {
 
   try {
     const saved = window.localStorage.getItem(fundingProgramStorageKey)
-    return saved ? (JSON.parse(saved) as FundingProgramRecord[]) : []
+    return saved
+      ? (JSON.parse(saved) as FundingProgramRecord[]).map(ensureFundingProgramCompleteness)
+      : []
   } catch {
     return []
   }
@@ -601,7 +796,10 @@ export function loadFundingPrograms(enabledSourceIds?: string[]) {
       !program.sourceId ||
       enabledSourceIds.includes(program.sourceId),
   )
-  return [...builtInFundingPrograms, ...syncedPrograms]
+  return [
+    ...builtInFundingPrograms.map(ensureFundingProgramCompleteness),
+    ...syncedPrograms,
+  ]
 }
 
 export function findFundingProgramByName(

@@ -14,6 +14,7 @@ import {
   useLocation,
   useNavigate,
   useParams,
+  useSearchParams,
 } from 'react-router-dom'
 import {
   hasAdminAccess,
@@ -70,6 +71,11 @@ import {
   createStripeCheckoutSession,
   lookupStripeCheckoutSession,
 } from '../lib/stripeBillingApi'
+import {
+  createManualFundingProgramViaApi,
+  loadFundingProgramsViaApi,
+  type ManualFundingProgramInput,
+} from '../lib/fundingProgramsApi'
 import { renderFormattedContent } from '../lib/legalContent'
 import { cssDeclarationsToStyle } from '../lib/layoutStyles'
 import { createApplicationViaApi } from '../lib/applicationsApi'
@@ -2317,19 +2323,6 @@ function FundingReadinessPage() {
     selectedProgram.requiredEvidence,
     'Required evidence has not been provided by this program source.',
   )
-  const programMatchRows = programs.map((program) => {
-    const application = applications.find(
-      (candidate) =>
-        candidate.programName === program.name &&
-        candidate.company === selectedCompany.name,
-    ) ?? null
-    const matchScore = calculateScoutingScores(program, selectedCompany, application).overall
-    return {
-      program,
-      matchScore,
-      isMatch: matchScore >= 70,
-    }
-  })
   const selectedCompanyFundingUsage = selectedCompany.fundingUsage
     .map((usage) => scoutingFundingUsageLabels.get(usage) ?? usage)
     .join(', ')
@@ -2337,9 +2330,6 @@ function FundingReadinessPage() {
     0,
     programs.findIndex((program) => program.id === selectedProgram.id),
   )
-  const selectedProgramMatch = programMatchRows.find(
-    ({ program }) => program.id === selectedProgram.id,
-  ) ?? programMatchRows[0]
   function changeProgram(offset: number) {
     if (programs.length < 2) return
     setProgramTransitionDirection(offset > 0 ? 'next' : 'previous')
@@ -2386,7 +2376,6 @@ function FundingReadinessPage() {
           <div className="scouting-report-card-title">
             <span>Program matching</span>
             <h2>{selectedProgram.name}</h2>
-            <p>{selectedProgram.provider} · {selectedProgram.type} · {selectedProgram.location}</p>
           </div>
           <div className="scouting-program-pager" aria-label="Funding program navigation">
             <button type="button" onClick={() => changeProgram(-1)} disabled={selectedProgramIndex === 0}>
@@ -2405,12 +2394,6 @@ function FundingReadinessPage() {
               ))}
             </select>
           </label>
-          <span
-            className={`scouting-report-match-status ${selectedProgramMatch?.isMatch ? 'is-match' : ''}`}
-          >
-            <span aria-hidden="true">{selectedProgramMatch?.isMatch ? '✓' : '!'}</span>
-            {selectedProgramMatch?.matchScore ?? scouting.overall}% match
-          </span>
         </header>
 
         <section className={`scouting-hero is-${tone}`}>
@@ -2725,7 +2708,7 @@ function SavedProgramsPage() {
             and keep the next deadline in sight.
           </p>
         </div>
-        <Link to="/grants-loans">
+        <Link to="/grants-loans" className="saved-programs-header-action">
           <Glyph type="search" />
           Discover more programs
         </Link>
@@ -3572,6 +3555,31 @@ function MyApplicationsPage() {
 
 const selectedFundingProgramStorageKey = 'bconomics-selected-funding-program-v1'
 
+type ManualFundingProgramDraft = Omit<ManualFundingProgramInput, 'amount' | 'matchScore'> & {
+  amount: string
+  matchScore: string
+}
+
+function createEmptyManualFundingProgram(): ManualFundingProgramDraft {
+  return {
+    name: '',
+    fundingType: 'Grant',
+    provider: '',
+    amount: '',
+    deadline: 'Open',
+    programUrl: '',
+    location: '',
+    country: 'Canada',
+    description: '',
+    process: '',
+    eligibility: '',
+    eligibleUses: '',
+    targetCompanyTypes: '',
+    requiredEvidence: '',
+    matchScore: '0',
+  }
+}
+
 function GrantsLoansPage() {
   const { config } = usePlatformConfig()
   const platformName = getPlatformDisplayName(config)
@@ -3589,17 +3597,62 @@ function GrantsLoansPage() {
   )
   const [selectedProgram, setSelectedProgram] =
     useState<FundingProgramRecord | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [sourcePickerOpen, setSourcePickerOpen] = useState(false)
-  const enabledSourceIds = config.dataSources
-    .filter((source) => source.enabled)
-    .map((source) => source.id)
-  const programs = loadFundingPrograms(enabledSourceIds)
+  const [importProgramOpen, setImportProgramOpen] = useState(false)
+  const [importProgramSubmitting, setImportProgramSubmitting] = useState(false)
+  const [importProgramError, setImportProgramError] = useState('')
+  const [importDraft, setImportDraft] = useState<ManualFundingProgramDraft>(
+    createEmptyManualFundingProgram,
+  )
+  const [programs, setPrograms] = useState<FundingProgramRecord[]>([])
+  const [programsLoading, setProgramsLoading] = useState(true)
+  const [programsError, setProgramsError] = useState('')
   const activeFundingDataSources = config.dataSources.filter(
     (source) => source.module === 'grants-loans' && source.enabled,
   )
-  const [savedEntries, setSavedEntries] = useState<SavedProgramEntry[]>(() =>
-    loadSavedProgramEntries(programs),
-  )
+  const [savedEntries, setSavedEntries] = useState<SavedProgramEntry[]>([])
+
+  useEffect(() => {
+    let isCurrent = true
+
+    loadFundingProgramsViaApi()
+      .then((nextPrograms) => {
+        if (!isCurrent) return
+        setPrograms(nextPrograms)
+        setSavedEntries(loadSavedProgramEntries(nextPrograms))
+      })
+      .catch((error: unknown) => {
+        if (!isCurrent) return
+        setProgramsError(
+          error instanceof Error
+            ? error.message
+            : 'Funding programs could not be loaded from the database.',
+        )
+      })
+      .finally(() => {
+        if (isCurrent) setProgramsLoading(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (programsLoading) return
+
+    const pid = searchParams.get('pid')
+    if (!pid) {
+      setSelectedProgram(null)
+      return
+    }
+
+    setSelectedProgram(
+      programs.find((program) => program.pid === pid) ?? null,
+    )
+  }, [programs, programsLoading, searchParams])
+
   const locations = [...new Set(programs.map((program) => program.location))].sort()
   const sources = [
     ...new Set(
@@ -3666,6 +3719,69 @@ function GrantsLoansPage() {
     setDeadlineType('All')
   }
 
+  function updateImportDraft(
+    field: keyof ManualFundingProgramDraft,
+    value: string,
+  ) {
+    setImportDraft((current) => ({ ...current, [field]: value }))
+    setImportProgramError('')
+  }
+
+  async function submitManualFundingProgram(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const amount = Number(importDraft.amount.replace(/,/g, ''))
+    const matchScore = Number(importDraft.matchScore || 0)
+    if (!importDraft.name.trim()) {
+      setImportProgramError('Program name is required.')
+      return
+    }
+    if (!Number.isFinite(amount) || amount < 0) {
+      setImportProgramError('Enter a valid maximum funding amount.')
+      return
+    }
+    if (!Number.isInteger(matchScore) || matchScore < 0 || matchScore > 100) {
+      setImportProgramError('Match score must be a whole number from 0 to 100.')
+      return
+    }
+
+    setImportProgramSubmitting(true)
+    setImportProgramError('')
+    try {
+      const program = await createManualFundingProgramViaApi({
+        ...importDraft,
+        amount,
+        matchScore,
+      })
+      setPrograms((current) => [program, ...current])
+      setImportDraft(createEmptyManualFundingProgram())
+      setImportProgramOpen(false)
+    } catch (error) {
+      setImportProgramError(
+        error instanceof Error
+          ? error.message
+          : 'The funding program could not be imported.',
+      )
+    } finally {
+      setImportProgramSubmitting(false)
+    }
+  }
+
+  function openFundingProgram(program: FundingProgramRecord) {
+    if (!program.pid) return
+
+    setSelectedProgram(program)
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.set('pid', program.pid)
+    setSearchParams(nextSearchParams, { replace: true })
+  }
+
+  function closeFundingProgram() {
+    setSelectedProgram(null)
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('pid')
+    setSearchParams(nextSearchParams, { replace: true })
+  }
+
   function toggleSavedProgram(programId: string) {
     setSavedEntries((current) => {
       const existingEntry = current.find((entry) => entry.programId === programId)
@@ -3722,14 +3838,27 @@ function GrantsLoansPage() {
             workspace administrator.
           </p>
         </div>
-        <button
-          type="button"
-          className="funding-directory-admin"
-          onClick={() => setSourcePickerOpen(true)}
-        >
-          <Glyph type="settings" />
-          Manage data sources
-        </button>
+        <div className="funding-directory-header-actions">
+          <button
+            type="button"
+            className="funding-directory-admin saved-programs-header-action"
+            onClick={() => {
+              setImportProgramError('')
+              setImportProgramOpen(true)
+            }}
+          >
+            <Glyph type="file" />
+            Import
+          </button>
+          <button
+            type="button"
+            className="funding-directory-admin saved-programs-header-action"
+            onClick={() => setSourcePickerOpen(true)}
+          >
+            <Glyph type="settings" />
+            Manage data sources
+          </button>
+        </div>
       </header>
 
       <div className="funding-directory-metrics">
@@ -3765,6 +3894,20 @@ function GrantsLoansPage() {
       </div>
 
       <section className="funding-directory-results">
+        {programsError ? (
+          <div className="workspace-empty funding-directory-error" role="alert">
+            <span><Glyph type="close" /></span>
+            <strong>Funding programs could not be loaded</strong>
+            <p>{programsError}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+
         <div className="funding-directory-toolbar">
           <label>
             <Glyph type="search" />
@@ -3801,7 +3944,9 @@ function GrantsLoansPage() {
             {activeFilterCount > 0 ? <b>{activeFilterCount}</b> : null}
           </button>
           <span>
-            {visiblePrograms.length} {visiblePrograms.length === 1 ? 'result' : 'results'}
+            {programsLoading
+              ? 'Loading database catalog...'
+              : `${visiblePrograms.length} ${visiblePrograms.length === 1 ? 'result' : 'results'}`}
           </span>
         </div>
 
@@ -3934,7 +4079,13 @@ function GrantsLoansPage() {
         ) : null}
 
         <div className="funding-directory-grid">
-          {visiblePrograms.map((program) => (
+          {programsLoading ? (
+            <div className="workspace-empty">
+              <strong>Loading funding programs</strong>
+              <p>Reading active programs from the current database.</p>
+            </div>
+          ) : null}
+          {!programsLoading ? visiblePrograms.map((program) => (
             <article key={program.id} className="funding-directory-card">
               <div className="funding-card-topline">
                 <span className={`funding-card-type is-${program.type.toLowerCase()}`}>
@@ -3962,15 +4113,15 @@ function GrantsLoansPage() {
                   <i className={program.sourceId ? 'is-external' : ''} />
                   {program.sourceName ?? `${platformName} catalog`}
                 </span>
-                <button type="button" onClick={() => setSelectedProgram(program)}>
+                <button type="button" onClick={() => openFundingProgram(program)}>
                   View details
                 </button>
               </footer>
             </article>
-          ))}
+          )) : null}
         </div>
 
-        {visiblePrograms.length === 0 ? (
+        {!programsLoading && !programsError && visiblePrograms.length === 0 ? (
           <div className="workspace-empty">
             <span><Glyph type="search" /></span>
             <strong>No matching funding programs</strong>
@@ -3988,11 +4139,197 @@ function GrantsLoansPage() {
         ) : null}
       </section>
 
+      {importProgramOpen ? (
+        <div
+          className="clone-record-dialog-backdrop"
+          role="presentation"
+          onMouseDown={() => {
+            if (!importProgramSubmitting) setImportProgramOpen(false)
+          }}
+        >
+          <section
+            className="clone-record-dialog funding-program-import-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="funding-program-import-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="clone-dialog-close"
+              aria-label="Close import program dialog"
+              onClick={() => setImportProgramOpen(false)}
+              disabled={importProgramSubmitting}
+            >
+              <Glyph type="close" />
+            </button>
+            <span className="clone-record-status">Manual import</span>
+            <h2 id="funding-program-import-title">Import funding program</h2>
+            <p>Add the full program profile to your workspace catalog.</p>
+            <form onSubmit={submitManualFundingProgram}>
+              <div className="funding-program-import-grid">
+                <label className="funding-program-import-field-wide">
+                  <span>Program name *</span>
+                  <input
+                    required
+                    value={importDraft.name}
+                    onChange={(event) => updateImportDraft('name', event.target.value)}
+                    placeholder="e.g. Ontario Market Expansion Grant"
+                  />
+                </label>
+                <label>
+                  <span>Funding type *</span>
+                  <select
+                    value={importDraft.fundingType}
+                    onChange={(event) =>
+                      updateImportDraft('fundingType', event.target.value)
+                    }
+                  >
+                    <option value="Grant">Grant</option>
+                    <option value="Loan">Loan</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Funding provider</span>
+                  <input
+                    value={importDraft.provider}
+                    onChange={(event) => updateImportDraft('provider', event.target.value)}
+                    placeholder="Organization or agency"
+                  />
+                </label>
+                <label>
+                  <span>Maximum funding (CAD) *</span>
+                  <input
+                    required
+                    min="0"
+                    step="0.01"
+                    type="number"
+                    value={importDraft.amount}
+                    onChange={(event) => updateImportDraft('amount', event.target.value)}
+                    placeholder="250000"
+                  />
+                </label>
+                <label>
+                  <span>Deadline</span>
+                  <input
+                    value={importDraft.deadline}
+                    onChange={(event) => updateImportDraft('deadline', event.target.value)}
+                    placeholder="Open or Aug 31, 2026"
+                  />
+                </label>
+                <label>
+                  <span>Official program site</span>
+                  <input
+                    type="url"
+                    value={importDraft.programUrl}
+                    onChange={(event) => updateImportDraft('programUrl', event.target.value)}
+                    placeholder="https://example.ca/program"
+                  />
+                </label>
+                <label>
+                  <span>Location</span>
+                  <input
+                    value={importDraft.location}
+                    onChange={(event) => updateImportDraft('location', event.target.value)}
+                    placeholder="Ontario or Canada"
+                  />
+                </label>
+                <label>
+                  <span>Country</span>
+                  <input
+                    value={importDraft.country}
+                    onChange={(event) => updateImportDraft('country', event.target.value)}
+                    placeholder="Canada"
+                  />
+                </label>
+                <label className="funding-program-import-field-wide">
+                  <span>Description</span>
+                  <textarea
+                    value={importDraft.description}
+                    onChange={(event) => updateImportDraft('description', event.target.value)}
+                    placeholder="What this program supports and why it exists."
+                  />
+                </label>
+                <label className="funding-program-import-field-wide">
+                  <span>How to start</span>
+                  <textarea
+                    value={importDraft.process}
+                    onChange={(event) => updateImportDraft('process', event.target.value)}
+                    placeholder="How to begin, who to contact, what to prepare, and how to submit."
+                  />
+                </label>
+                <label className="funding-program-import-field-wide">
+                  <span>Eligibility</span>
+                  <textarea
+                    value={importDraft.eligibility}
+                    onChange={(event) => updateImportDraft('eligibility', event.target.value)}
+                    placeholder="Who can apply and what requirements apply."
+                  />
+                </label>
+                <label className="funding-program-import-field-wide">
+                  <span>Eligible uses</span>
+                  <textarea
+                    value={importDraft.eligibleUses}
+                    onChange={(event) => updateImportDraft('eligibleUses', event.target.value)}
+                    placeholder="Equipment, hiring, marketing, working capital, or other approved uses."
+                  />
+                </label>
+                <label className="funding-program-import-field-wide">
+                  <span>Target company types</span>
+                  <textarea
+                    value={importDraft.targetCompanyTypes}
+                    onChange={(event) => updateImportDraft('targetCompanyTypes', event.target.value)}
+                    placeholder="The companies this program is designed for."
+                  />
+                </label>
+                <label className="funding-program-import-field-wide">
+                  <span>Required evidence</span>
+                  <textarea
+                    value={importDraft.requiredEvidence}
+                    onChange={(event) => updateImportDraft('requiredEvidence', event.target.value)}
+                    placeholder="Business plan, financial statements, quotes, milestones, and other evidence."
+                  />
+                </label>
+                <label>
+                  <span>Match score</span>
+                  <input
+                    min="0"
+                    max="100"
+                    step="1"
+                    type="number"
+                    value={importDraft.matchScore}
+                    onChange={(event) => updateImportDraft('matchScore', event.target.value)}
+                    placeholder="0"
+                  />
+                </label>
+              </div>
+              {importProgramError ? (
+                <p className="funding-program-import-error" role="alert">
+                  {importProgramError}
+                </p>
+              ) : null}
+              <div className="funding-program-import-actions">
+                <button
+                  type="button"
+                  onClick={() => setImportProgramOpen(false)}
+                  disabled={importProgramSubmitting}
+                >
+                  Cancel
+                </button>
+                <button type="submit" disabled={importProgramSubmitting}>
+                  {importProgramSubmitting ? 'Importing...' : 'Import program'}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      ) : null}
+
       {selectedProgram ? (
         <div
           className="clone-record-dialog-backdrop"
           role="presentation"
-          onMouseDown={() => setSelectedProgram(null)}
+          onMouseDown={closeFundingProgram}
         >
           <section
             className="clone-record-dialog funding-program-detail"
@@ -4005,18 +4342,54 @@ function GrantsLoansPage() {
               type="button"
               className="clone-dialog-close"
               aria-label="Close program"
-              onClick={() => setSelectedProgram(null)}
+              onClick={closeFundingProgram}
             >
               <Glyph type="close" />
             </button>
-            <span className="clone-record-status">{selectedProgram.type}</span>
-            <h2 id="funding-program-detail-title">{selectedProgram.name}</h2>
-            <p>{selectedProgram.provider}</p>
+            <div className="funding-program-detail-header">
+              <div className="funding-program-detail-heading">
+                <span className="clone-record-status">{selectedProgram.type}</span>
+                <h2 id="funding-program-detail-title">{selectedProgram.name}</h2>
+              </div>
+              <div className="funding-program-identifiers" aria-label="Program identifiers">
+                <div>
+                  <span>PID</span>
+                  <strong>{selectedProgram.pid || 'Not available'}</strong>
+                </div>
+                <div>
+                  <span>Data source</span>
+                  <strong>{selectedProgram.sourceName || 'Not specified'}</strong>
+                </div>
+              </div>
+            </div>
             <dl>
+              <div className="funding-program-detail-field-wide"><dt>Funding provider</dt><dd>{selectedProgram.provider || 'Not specified'}</dd></div>
+              <div className="funding-program-detail-field-wide"><dt>Description</dt><dd>{selectedProgram.description || 'Not provided'}</dd></div>
+              <div className="funding-program-detail-field-wide"><dt>Eligibility</dt><dd>{selectedProgram.eligibility || 'Not provided'}</dd></div>
+              <div className="funding-program-how-to-start funding-program-detail-field-wide">
+                <dt>How to start</dt>
+                <dd>{selectedProgram.process || 'Not provided'}</dd>
+              </div>
               <div><dt>Maximum funding</dt><dd>${selectedProgram.amount.toLocaleString('en-CA')}</dd></div>
-              <div><dt>Deadline</dt><dd>{selectedProgram.deadline}</dd></div>
+              <div>
+                <dt>Status</dt>
+                <dd>
+                  <span
+                    className={`funding-program-status-indicator ${
+                      selectedProgram.status === 'active' ? 'is-active' : 'is-archived'
+                    }`}
+                  >
+                    <i aria-hidden="true" />
+                    {selectedProgram.status === 'active' ? 'Active' : 'Archived'}
+                  </span>
+                </dd>
+              </div>
               <div><dt>Location</dt><dd>{selectedProgram.location}</dd></div>
-              <div><dt>Data source</dt><dd>{selectedProgram.sourceName}</dd></div>
+              <div><dt>Country</dt><dd>{selectedProgram.country || 'Not specified'}</dd></div>
+              <div className="funding-program-url"><dt>Official program site</dt><dd>{selectedProgram.url || 'Not provided'}</dd></div>
+              <div className="funding-program-detail-field-wide"><dt>Eligible uses</dt><dd>{selectedProgram.eligibleUses || 'Not provided'}</dd></div>
+              <div className="funding-program-detail-field-wide"><dt>Target company types</dt><dd>{selectedProgram.targetCompanyTypes || 'Not provided'}</dd></div>
+              <div className="funding-program-detail-field-wide"><dt>Required evidence</dt><dd>{selectedProgram.requiredEvidence || 'Not provided'}</dd></div>
             </dl>
             <div className="funding-program-detail-actions">
               <button
@@ -4047,11 +4420,6 @@ function GrantsLoansPage() {
               >
                 Use in Quick Build
               </Link>
-              {selectedProgram.url ? (
-                <a href={selectedProgram.url} target="_blank" rel="noreferrer">
-                  Official program site
-                </a>
-              ) : null}
             </div>
           </section>
         </div>

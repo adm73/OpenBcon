@@ -74,6 +74,133 @@ describe('persistence API', () => {
     expect(response.body.database).toBe('connected')
   })
 
+  it('returns active funding programs from the current workspace database', async () => {
+    const database = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('FROM funding_programs')) {
+          return {
+            rows: [{
+              id: 'program-1',
+              pid: '1000000000000001',
+              name: 'Database Growth Grant',
+              provider: 'Database Provider',
+              category: 'Grant',
+              funding_amount: '125000',
+              deadline: 'Open',
+              match_score: 88,
+              program_url: 'https://example.com/program',
+              location: 'Ontario',
+              country: 'Canada',
+              description: 'A database-backed opportunity.',
+              process: 'Contact the provider, prepare the evidence, and submit the application.',
+              eligibility: 'Ontario businesses.',
+              eligible_uses: 'Equipment and hiring.',
+              target_company_types: 'Growth businesses.',
+              required_evidence: 'Business plan.',
+              source_type: 'manual',
+              source_id: 'database-catalog',
+              source_record_id: 'program-1',
+              source_version: 'v1',
+              record_version: 'v1-program-1',
+              status: 'active',
+            }],
+            rowCount: 1,
+          }
+        }
+        return { rows: [], rowCount: 1 }
+      }),
+    } as unknown as Pool
+
+    const response = await request(createApp(database)).get(
+      '/api/funding-programs',
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.body.programs).toEqual([
+      expect.objectContaining({
+        id: 'program-1',
+        pid: '1000000000000001',
+        name: 'Database Growth Grant',
+        type: 'Grant',
+        amount: 125000,
+        country: 'Canada',
+        process: 'Contact the provider, prepare the evidence, and submit the application.',
+        sourceName: 'database-catalog',
+      }),
+    ])
+  })
+
+  it('imports a manual funding program into the workspace database', async () => {
+    const database = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('INSERT INTO funding_programs')) {
+          return {
+            rows: [{
+              id: 'program-manual-1',
+              pid: '1000000000000014',
+              name: 'Manual Equipment Grant',
+              provider: 'Local Growth Agency',
+              category: 'Grant',
+              funding_amount: '75000',
+              deadline: 'Open',
+              match_score: 80,
+              program_url: 'https://example.com/manual-program',
+              location: 'Ontario',
+              country: 'Canada',
+              description: 'A manually imported program.',
+              process: 'Contact the agency and submit the project budget.',
+              eligibility: 'Ontario businesses.',
+              eligible_uses: 'Equipment.',
+              target_company_types: 'Growth businesses.',
+              required_evidence: 'Budget and business profile.',
+              source_type: 'manual',
+              source_id: 'manual-import',
+              source_record_id: 'manual-record-1',
+              source_version: 'manual-v1',
+              record_version: 'manual-record-v1',
+              status: 'active',
+            }],
+            rowCount: 1,
+          }
+        }
+        return { rows: [], rowCount: 1 }
+      }),
+    } as unknown as Pool
+
+    const response = await request(createApp(database))
+      .post('/api/funding-programs')
+      .send({
+        name: 'Manual Equipment Grant',
+        fundingType: 'Grant',
+        provider: 'Local Growth Agency',
+        amount: 75000,
+        deadline: 'Open',
+        programUrl: 'https://example.com/manual-program',
+        location: 'Ontario',
+        country: 'Canada',
+        description: 'A manually imported program.',
+        process: 'Contact the agency and submit the project budget.',
+        eligibility: 'Ontario businesses.',
+        eligibleUses: 'Equipment.',
+        targetCompanyTypes: 'Growth businesses.',
+        requiredEvidence: 'Budget and business profile.',
+        matchScore: 80,
+      })
+
+    expect(response.status).toBe(201)
+    expect(response.body.program).toEqual(expect.objectContaining({
+      id: 'program-manual-1',
+      pid: '1000000000000014',
+      name: 'Manual Equipment Grant',
+      sourceType: 'manual',
+      sourceName: 'manual-import',
+    }))
+    expect(database.query).toHaveBeenCalledWith(
+      expect.stringContaining("'manual'"),
+      expect.any(Array),
+    )
+  })
+
   it('returns the latest OpenBcon commit for the admin update check', async () => {
     const latestCommit = 'd'.repeat(40)
     const fetcher = vi.fn(async () => new Response(JSON.stringify({
