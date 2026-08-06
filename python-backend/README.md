@@ -98,8 +98,10 @@ OPENBCON_MONGODB_DATABASE_LIVE=bconomics_live
 OPENBCON_API_HOST=0.0.0.0
 OPENBCON_API_PORT=8010
 OPENBCON_RUNTIME_ENV=production
-OPENBCON_ALLOWED_AI_ENDPOINT_HOSTS=api.openai.com,api.anthropic.com,generativelanguage.googleapis.com
+OPENBCON_ALLOWED_AI_ENDPOINT_HOSTS=api.openai.com,api.anthropic.com,generativelanguage.googleapis.com,openrouter.ai
 OPENBCON_ALLOW_PRIVATE_AI_ENDPOINTS=false
+OPENBCON_OLLAMA_BASE_URL=http://127.0.0.1:11434
+OPENBCON_OLLAMA_MODEL=smollm2:135m
 ```
 
 If you want to test without a model key, set:

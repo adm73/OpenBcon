@@ -3,7 +3,7 @@ from typing import Literal
 
 from fastapi import Request
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,11 +30,39 @@ class Settings(BaseSettings):
     mongodb_database_test: str | None = None
     mongodb_database_live: str | None = None
     platform_config_key: str = "bconomics-platform-config-v1"
+    app_state_encryption_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "APP_STATE_ENCRYPTION_KEY",
+            "OPENBCON_APP_STATE_ENCRYPTION_KEY",
+        ),
+    )
     openai_api_key: str | None = None
+    openrouter_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "OPENROUTER_API_KEY",
+            "OPENBCON_OPENROUTER_API_KEY",
+        ),
+    )
+    ollama_base_url: str = Field(
+        default="http://127.0.0.1:11434",
+        validation_alias=AliasChoices(
+            "OLLAMA_BASE_URL",
+            "OPENBCON_OLLAMA_BASE_URL",
+        ),
+    )
+    ollama_model: str = Field(
+        default="smollm2:135m",
+        validation_alias=AliasChoices(
+            "OLLAMA_MODEL",
+            "OPENBCON_OLLAMA_MODEL",
+        ),
+    )
     openai_model: str = "gpt-5"
     use_mock_llm: bool = False
     allowed_ai_endpoint_hosts: str = (
-        "api.openai.com,api.anthropic.com,generativelanguage.googleapis.com"
+        "api.openai.com,api.anthropic.com,generativelanguage.googleapis.com,openrouter.ai,api.tokenrouter.com"
     )
     allow_private_ai_endpoints: bool = False
 

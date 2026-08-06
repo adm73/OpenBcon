@@ -1,8 +1,12 @@
 import {
   secureConfigValuePlaceholder,
+  type AIModelConfig,
   type PaymentConfig,
   type PlatformConfig,
 } from './platform'
+import {
+  getEnvironmentModeHeaders,
+} from '../lib/environmentMode'
 
 const secureConfigDatabaseName = 'bconomics-local-secure-config'
 const secureConfigStoreName = 'entries'
@@ -18,7 +22,9 @@ const securePaymentFields = [
 ] as const
 
 type SecurePaymentField = (typeof securePaymentFields)[number]
-type StoredSecureSecrets = Partial<Pick<PaymentConfig, SecurePaymentField>>
+type StoredSecureSecrets = Partial<Pick<PaymentConfig, SecurePaymentField>> & {
+  aiModelKeys?: Array<Pick<AIModelConfig, 'id' | 'apiKey'>>
+}
 
 type EncryptedPayload = {
   version: 1
@@ -28,6 +34,10 @@ type EncryptedPayload = {
 
 function isEnvironmentReference(value: string) {
   return /^[A-Z][A-Z0-9_]*$/u.test(value.trim())
+}
+
+function isAPIKeyTemplate(value: string) {
+  return value.trim() === '{{apiKey}}'
 }
 
 function toBase64(bytes: Uint8Array) {
@@ -150,13 +160,14 @@ async function getOrCreateEncryptionKey() {
 }
 
 function extractSecureSecrets(config: PlatformConfig): StoredSecureSecrets {
-  return Object.fromEntries(
+  const paymentSecrets = Object.fromEntries(
     securePaymentFields.flatMap((field) => {
       const value = config.payments[field].trim()
 
       if (
         !value ||
         value === secureConfigValuePlaceholder ||
+        isAPIKeyTemplate(value) ||
         isEnvironmentReference(value)
       ) {
         return []
@@ -165,6 +176,24 @@ function extractSecureSecrets(config: PlatformConfig): StoredSecureSecrets {
       return [[field, value]]
     }),
   ) as StoredSecureSecrets
+
+  const aiModelKeys = config.ai.models.flatMap((model) => {
+    const value = model.apiKey.trim()
+    if (
+      !value ||
+      value === secureConfigValuePlaceholder ||
+      isAPIKeyTemplate(value) ||
+      isEnvironmentReference(value)
+    ) {
+      return []
+    }
+    return [{ id: model.id, apiKey: value }]
+  })
+
+  return {
+    ...paymentSecrets,
+    ...(aiModelKeys.length > 0 ? { aiModelKeys } : {}),
+  }
 }
 
 function mergeSecureSecrets(
@@ -183,9 +212,24 @@ function mergeSecureSecrets(
     nextPayments[field] = secretValue
   }
 
+  const nextModels = config.ai.models.map((model) => {
+    const storedModel = secrets.aiModelKeys?.find((candidate) => candidate.id === model.id)
+    const currentValue = model.apiKey.trim()
+    if (
+      !storedModel?.apiKey ||
+      (currentValue &&
+        currentValue !== secureConfigValuePlaceholder &&
+        !isAPIKeyTemplate(currentValue))
+    ) {
+      return model
+    }
+    return { ...model, apiKey: storedModel.apiKey }
+  })
+
   return {
     ...config,
     payments: nextPayments,
+    ai: { ...config.ai, models: nextModels },
   } satisfies PlatformConfig
 }
 
@@ -227,6 +271,37 @@ async function decryptSecureSecrets(payload: EncryptedPayload) {
   ) as StoredSecureSecrets
 }
 
+async function syncRemoteAIModelKeys(config: PlatformConfig) {
+  const models = config.ai.models.flatMap((model) => {
+    const apiKey = model.apiKey.trim()
+    if (
+      !apiKey ||
+      apiKey === secureConfigValuePlaceholder ||
+      isAPIKeyTemplate(apiKey) ||
+      isEnvironmentReference(apiKey)
+    ) {
+      return []
+    }
+    return [{ id: model.id, apiKey }]
+  })
+
+  if (models.length === 0) return
+
+  try {
+    await fetch('/api/platform/ai-secrets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getEnvironmentModeHeaders(),
+      },
+      credentials: 'include',
+      body: JSON.stringify({ models }),
+    })
+  } catch {
+    // Local secure storage remains the fallback when the API is unavailable.
+  }
+}
+
 export async function persistLocalPlatformSecureConfig(config: PlatformConfig) {
   if (
     typeof window === 'undefined' ||
@@ -244,6 +319,7 @@ export async function persistLocalPlatformSecureConfig(config: PlatformConfig) {
   }
 
   await encryptSecureSecrets(secrets)
+  await syncRemoteAIModelKeys(config)
 }
 
 export async function loadLocalPlatformSecureConfig(config: PlatformConfig) {

@@ -1,17 +1,22 @@
 import json
 import re
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler
 from urllib.request import Request as URLRequest
 from urllib.request import build_opener
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
+from psycopg import OperationalError
 
 from .config import get_environment_mode, get_settings
 from .db import get_connection
-from .advisory_config import load_advisory_hub_configuration
+from .advisory_config import (
+    load_advisory_hub_configuration,
+    load_generation_configuration,
+    load_model_api_key,
+)
 from .auth import require_application_access, require_authenticated
 from .forecast import build_financial_forecast
 from .graph import build_plan_graph
@@ -49,7 +54,11 @@ def generate_financial_forecast(
     request: Request,
     payload: GeneratePlanRequest,
 ) -> FinancialForecast:
-    with get_connection(get_environment_mode(request)) as connection:
+    settings = get_settings()
+    environment_mode = get_environment_mode(request)
+    system_language, _ = load_generation_configuration(settings, environment_mode)
+    payload = payload.model_copy(update={"language": system_language})
+    with get_connection(environment_mode) as connection:
         try:
             workspace = require_application_access(request, connection, payload.app_id)
             context = FundingPlanRepository(connection).load_generation_context(
@@ -173,6 +182,10 @@ def regenerate_business_plan_section(
 ) -> StrategicReportSectionResult:
     settings = get_settings()
     environment_mode = get_environment_mode(request)
+    system_language, model_config = load_generation_configuration(settings, environment_mode)
+    payload = payload.model_copy(
+        update={"language": system_language, "model": model_config}
+    )
     with get_connection(environment_mode) as connection:
         workspace = require_application_access(request, connection, payload.app_id)
         repository = FundingPlanRepository(connection)
@@ -201,7 +214,7 @@ def regenerate_business_plan_section(
             report,
             payload.section_key,
         )
-        gateway = build_model_gateway(settings, environment_mode)
+        gateway = build_model_gateway(settings, environment_mode, payload.model)
         program_analysis, company_analysis = _report_analysis(report, context, gateway)
         generated = gateway.generate_section(
             context,
@@ -264,54 +277,119 @@ def _build_ai_request(
     request: AIConnectionTestRequest,
     allowed_hosts: set[str],
     allow_private_endpoints: bool,
+    fallback_api_key: str | None = None,
+    ollama_base_url: str | None = None,
 ) -> URLRequest:
-    parsed_url = urlsplit(request.url)
+    request_url = request.url
+    parsed_url = urlsplit(request_url)
+    provider_id = request.provider_id.lower()
+    if provider_id == "ollama" and ollama_base_url:
+        configured = urlsplit(ollama_base_url)
+        if (
+            parsed_url.hostname in {"ollama", "localhost", "127.0.0.1"}
+            and configured.scheme
+            and configured.netloc
+        ):
+            request_url = urlunsplit(
+                (
+                    configured.scheme,
+                    configured.netloc,
+                    parsed_url.path,
+                    parsed_url.query,
+                    parsed_url.fragment,
+                )
+            )
+            parsed_url = urlsplit(request_url)
     hostname = (parsed_url.hostname or "").lower().rstrip(".")
     if parsed_url.scheme not in {"http", "https"} or not hostname:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The model endpoint must be an absolute HTTP or HTTPS URL.",
         )
+    is_local_ollama = provider_id == "ollama" and hostname in {
+        "ollama",
+        "localhost",
+        "127.0.0.1",
+    }
     if not allow_private_endpoints and (
-        parsed_url.scheme != "https" or hostname not in allowed_hosts
+        (parsed_url.scheme != "https" or hostname not in allowed_hosts)
+        and not is_local_ollama
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The model endpoint is not in the server AI host allowlist.",
         )
 
-    provider_id = request.provider_id.lower()
     url = request.url.lower()
     api_key = request.api_key.get_secret_value()
+    if api_key == "__stored_securely__":
+        api_key = ""
+    if not api_key:
+        api_key = fallback_api_key or ""
+    if api_key == "{{apiKey}}":
+        api_key = ""
+    if provider_id in {"openai", "openrouter"} and not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No API key is configured for the selected model.",
+        )
+    temperature = request.temperature if request.temperature is not None else 0.2
     headers = {"Content-Type": "application/json"}
 
-    if provider_id == "anthropic" or "anthropic" in url:
+    if provider_id == "ollama":
+        payload = {
+            "model": request.model_name,
+            "stream": False,
+            "messages": [{"role": "user", "content": request.message}],
+            "options": {
+                "temperature": temperature,
+                "num_predict": request.max_tokens,
+            },
+        }
+    elif provider_id == "anthropic" or "anthropic" in url:
         if api_key:
             headers["x-api-key"] = api_key
         headers["anthropic-version"] = "2023-06-01"
         payload = {
             "model": request.model_name,
-            "max_tokens": 64,
+            "max_tokens": request.max_tokens,
+            "temperature": temperature,
             "messages": [{"role": "user", "content": request.message}],
         }
     elif provider_id == "google" or "generativelanguage.googleapis.com" in url:
         if api_key:
             headers["x-goog-api-key"] = api_key
-        payload = {"contents": [{"parts": [{"text": request.message}]}]}
+        payload = {
+            "contents": [{"parts": [{"text": request.message}]}],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": request.max_tokens,
+            },
+        }
     elif "/responses" in url:
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
-        payload = {"model": request.model_name, "input": request.message}
+        payload = {
+            "model": request.model_name,
+            "input": request.message,
+            "temperature": temperature,
+        }
     else:
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
         payload = {
             "model": request.model_name,
+            # OpenRouter follows the OpenAI-compatible chat API. An explicit
+            # limit avoids provider-specific failures for free model routes.
+            "max_tokens": request.max_tokens,
+            "temperature": temperature,
             "messages": [{"role": "user", "content": request.message}],
         }
+        if (provider_id == "openrouter" or "openrouter.ai" in url) and request.reasoning_enabled:
+            payload["reasoning"] = {"enabled": True}
 
     return URLRequest(
-        request.url,
+        request_url,
         data=json.dumps(payload).encode("utf-8"),
         headers=headers,
         method="POST",
@@ -324,6 +402,7 @@ def _build_ai_request(
     responses={
         400: {"model": ErrorResponse},
         502: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
         504: {"model": ErrorResponse},
     },
 )
@@ -332,24 +411,42 @@ def test_ai_connection(
     payload: AIConnectionTestRequest,
 ) -> AIConnectionTestResponse:
     environment_mode = get_environment_mode(request)
-    with get_connection(environment_mode) as connection:
-        require_authenticated(request, connection)
-
     settings = get_settings()
+    # Development and test mode use the demo admin identity. Do not make a
+    # live model connection test depend on a local PostgreSQL container.
+    # Production still requires the normal authenticated database session.
+    if settings.runtime_env == "production":
+        try:
+            with get_connection(environment_mode) as connection:
+                require_authenticated(request, connection)
+        except OperationalError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="The database is unavailable; model connection tests cannot be authorized.",
+            ) from error
+
     allowed_hosts = {
         host.strip().lower().rstrip(".")
         for host in settings.allowed_ai_endpoint_hosts.split(",")
         if host.strip()
     }
+    stored_api_key = load_model_api_key(
+        settings,
+        environment_mode,
+        payload.model_name,
+        payload.provider_id,
+    )
     upstream_request = _build_ai_request(
         payload,
         allowed_hosts,
         settings.allow_private_ai_endpoints,
+        stored_api_key,
+        settings.ollama_base_url,
     )
 
     try:
         opener = build_opener(_NoRedirectHandler)
-        with opener.open(upstream_request, timeout=15) as upstream_response:
+        with opener.open(upstream_request, timeout=60) as upstream_response:
             response_body = upstream_response.read().decode("utf-8", errors="replace")
             return AIConnectionTestResponse(
                 response=response_body,
@@ -364,7 +461,7 @@ def test_ai_connection(
     except TimeoutError as error:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="The model request timed out after 15 seconds.",
+            detail="The model request timed out after 60 seconds.",
         ) from error
     except URLError as error:
         raise HTTPException(
@@ -389,14 +486,22 @@ def generate_business_plan(
     environment_mode = get_environment_mode(request)
     strategic_report_id: UUID | None = None
     graph_trace: dict = {}
+    gateway = None
 
     with get_connection(environment_mode) as connection:
         repository = FundingPlanRepository(connection)
 
         try:
+            system_language, model_config = load_generation_configuration(
+                settings,
+                environment_mode,
+            )
+            payload = payload.model_copy(
+                update={"language": system_language, "model": model_config}
+            )
             workspace = require_application_access(request, connection, payload.app_id)
             context = repository.load_generation_context(payload, workspace.workspace_id)
-            gateway = build_model_gateway(settings, environment_mode)
+            gateway = build_model_gateway(settings, environment_mode, payload.model)
             graph = build_plan_graph(PlanNodes(gateway))
             context = repository.ensure_context_records(context)
             advisory_hub = load_advisory_hub_configuration(settings, environment_mode)
@@ -423,6 +528,10 @@ def generate_business_plan(
                 graph_trace,
                 document,
             )
+            repository.save_llm_usage(
+                strategic_report_id,
+                getattr(gateway, "usage_records", []),
+            )
             return GenerationRunResult(
                 strategic_report_id=strategic_report_id,
                 status="completed",
@@ -437,6 +546,10 @@ def generate_business_plan(
                     safe_error,
                     graph_trace,
                 )
+                repository.save_llm_usage(
+                    strategic_report_id,
+                    getattr(gateway, "usage_records", []),
+                )
             if strategic_report_id:
                 connection.commit()
             raise HTTPException(
@@ -450,6 +563,10 @@ def generate_business_plan(
                     strategic_report_id,
                     safe_error,
                     graph_trace,
+                )
+                repository.save_llm_usage(
+                    strategic_report_id,
+                    getattr(gateway, "usage_records", []),
                 )
             if strategic_report_id:
                 connection.commit()

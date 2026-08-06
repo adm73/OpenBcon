@@ -7444,7 +7444,6 @@ function StrategicReportSectionEditorDialog({
   onClose: () => void
   onSaved: (section: GeneratedPackageSection) => void
 }) {
-  const { locale } = useLocale()
   const [content, setContent] = useState(section.body)
   const [layoutId, setLayoutId] = useState<AdvisoryHubSectionLayout>(
     getSectionLayoutId(section),
@@ -7467,7 +7466,6 @@ function StrategicReportSectionEditorDialog({
               section_key: section.id,
               content,
               layout: layoutId,
-              language: locale,
             })
           : await regenerateStrategicReportSectionViaApi({
               app_id: appId,
@@ -7475,7 +7473,6 @@ function StrategicReportSectionEditorDialog({
               section_key: section.id,
               content,
               layout: layoutId,
-              language: locale,
             })
       const updatedSection: GeneratedPackageSection = {
         ...section,
@@ -7911,7 +7908,11 @@ function StrategicReportsPage() {
   )
 
   useEffect(() => {
-    if (!requestedAppId || !selectedApplicationId || hasSelectedReport) {
+    if (
+      !requestedAppId ||
+      !selectedApplicationId ||
+      hasSelectedReport
+    ) {
       return
     }
     if (generationApplicationRef.current === selectedApplicationId) {
@@ -7929,7 +7930,6 @@ function StrategicReportsPage() {
         const applicationId = selectedApplicationAppId || selectedApplicationId
         const response = await generateBusinessPlanViaApi({
           app_id: applicationId,
-          language: locale,
           signal: abortController.signal,
         })
         const nextPackage = createGeneratedPackageFromBackend(
@@ -9192,7 +9192,6 @@ function QuickBuildPage({
           try {
             const financialForecast = await generateFinancialForecastViaApi({
               app_id: application.appId ?? application.id,
-              language: locale,
             })
           const nextPackage = { ...packageRecord, financialForecast }
           const nextApplications = loadApplications().map((currentApplication) =>

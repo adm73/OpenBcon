@@ -148,6 +148,7 @@ Business name: {company.name}
 Program name: {program.name}
 Section key: {outline_item.section_key}
 Section title: {outline_item.title}
+Section priority: {outline_item.priority}
 Section objective: {outline_item.objective}
 Section guidance: {outline_item.guidance}
 Assigned agent name: {agent.name}

@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "provider": {
+    "id": "openrouter",
+    "name": "OpenRouter"
+  },
+  "model": {
+    "id": "openai/gpt-oss-20b:free",
+    "name": "openai/gpt-oss-20b:free",
+    "providerId": "openrouter",
+    "context": "128K",
+    "description": "OpenAI-compatible multi-provider routing",
+    "apiKey": "",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "endpoint": "/chat/completions",
+    "url": "https://openrouter.ai/api/v1/chat/completions",
+    "temperature": "0.2",
+    "maxTokens": "1024",
+    "contentType": "application/json",
+    "authorization": "Bearer {{apiKey}}",
+    "bodyType": "JSON",
+    "bodyParameters": "{}",
+    "enabled": true
+  }
+}

@@ -66,6 +66,12 @@ class PlanNodes:
                 + "."
             )
 
+        priority_order = {"high": 0, "default": 1, "low": 2}
+        ordered_sections = sorted(
+            enumerate(context.advisory_sections),
+            key=lambda item: (priority_order[item[1].priority], item[0]),
+        )
+
         return {
             "outline": DocumentOutline(
                 sections=[
@@ -74,6 +80,7 @@ class PlanNodes:
                         title=section.title,
                         objective=section.prompt,
                         agent_id=section.agent_id,
+                        priority=section.priority,
                         guidance=(
                             "Follow the section configuration from the Admin Console. "
                             f"Document type: {section.document_type_id}. "
@@ -82,7 +89,7 @@ class PlanNodes:
                             f"Agent instructions: {agents_by_id[section.agent_id].prompt}"
                         ),
                     )
-                    for section in context.advisory_sections
+                    for _, section in ordered_sections
                 ],
             )
         }

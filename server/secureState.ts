@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
 import { environment } from './config'
 
-const encryptedValuePrefix = 'enc::v1'
+const encryptedValuePrefix = 'enc:v1'
 export const secureConfigValuePlaceholder = '__stored_securely__'
 
 const sensitivePlatformConfigPaths = [
@@ -27,7 +27,7 @@ function isEnvironmentReference(value: string) {
 }
 
 function isEncryptedValue(value: string) {
-  return value.startsWith(`${encryptedValuePrefix}:`)
+  return value.startsWith('enc:v1:') || value.startsWith('enc::v1:')
 }
 
 function getDerivedEncryptionKey() {
@@ -62,7 +62,10 @@ export function decryptStoredConfigValue(value: string) {
     )
   }
 
-  const [, ivPart, authTagPart, encryptedPart] = value.split(':')
+  const parts = value.split(':')
+  const ivPart = parts.at(-3)
+  const authTagPart = parts.at(-2)
+  const encryptedPart = parts.at(-1)
   if (!ivPart || !authTagPart || !encryptedPart) {
     throw new Error('Encrypted payment key payload is malformed.')
   }
@@ -119,7 +122,8 @@ function normalizeSensitiveValueForStorage(
 ) {
   const trimmed = nextValue?.trim() ?? ''
 
-  if (!trimmed) return ''
+  if (!trimmed) return existingValue?.trim() ?? ''
+  if (trimmed === '{{apiKey}}') return existingValue?.trim() ?? ''
   if (trimmed === secureConfigValuePlaceholder) return existingValue?.trim() ?? ''
   if (isEnvironmentReference(trimmed)) return trimmed
   if (isEncryptedValue(trimmed)) return trimmed
@@ -141,16 +145,24 @@ function secureAIModelKeysForPersistence(
   nextConfig: JsonRecord,
   existingConfig: unknown,
 ) {
-  const models = nextConfig.aiModels
-  if (!Array.isArray(models)) return
+  const ai = isJsonRecord(nextConfig.ai) ? nextConfig.ai : null
+  const models = ai?.models
+  if (!ai || !Array.isArray(models)) return
 
-  const existingModels = isJsonRecord(existingConfig) && Array.isArray(existingConfig.aiModels)
-    ? existingConfig.aiModels
+  const existingAI = isJsonRecord(existingConfig) ? existingConfig.ai : undefined
+  const existingModels = isJsonRecord(existingAI) && Array.isArray(existingAI.models)
+    ? existingAI.models
     : []
 
-  nextConfig.aiModels = models.map((model, index) => {
+  const securedModels = models.map((model, index) => {
     if (!isJsonRecord(model)) return model
-    const existingModel = isJsonRecord(existingModels[index]) ? existingModels[index] : undefined
+    const modelId = typeof model.id === 'string' ? model.id : ''
+    const existingModel = existingModels.find(
+      (candidate) =>
+        isJsonRecord(candidate) &&
+        typeof candidate.id === 'string' &&
+        candidate.id === modelId,
+    ) ?? (isJsonRecord(existingModels[index]) ? existingModels[index] : undefined)
     return {
       ...model,
       apiKey: normalizeSensitiveValueForStorage(
@@ -159,12 +171,14 @@ function secureAIModelKeysForPersistence(
       ),
     }
   })
+  ai.models = securedModels
 }
 
 function redactAIModelKeysForClient(nextConfig: JsonRecord) {
-  if (!Array.isArray(nextConfig.aiModels)) return
+  const ai = nextConfig.ai
+  if (!isJsonRecord(ai) || !Array.isArray(ai.models)) return
 
-  nextConfig.aiModels = nextConfig.aiModels.map((model) => {
+  ai.models = ai.models.map((model) => {
     if (!isJsonRecord(model)) return model
     return {
       ...model,

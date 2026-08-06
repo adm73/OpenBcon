@@ -24,6 +24,35 @@ services:
     volumes:
       - bconomics-mongodb-data:/data/db
 
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      OLLAMA_KEEP_ALIVE: 5m
+    volumes:
+      - bconomics-ollama-data:/root/.ollama
+    expose:
+      - "11434"
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  ollama-model:
+    image: ollama/ollama:latest
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-smollm2:135m}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull \"$${OLLAMA_MODEL}\""]
+    volumes:
+      - bconomics-ollama-data:/root/.ollama
+    depends_on:
+      ollama:
+        condition: service_healthy
+
   api:
     build:
       context: ..
@@ -74,11 +103,15 @@ services:
       OPENBCON_API_HOST: 0.0.0.0
       OPENBCON_API_PORT: 8010
       OPENBCON_RUNTIME_ENV: production
+      OPENBCON_OLLAMA_BASE_URL: http://ollama:11434
+      OPENBCON_OLLAMA_MODEL: ${OLLAMA_MODEL:-smollm2:135m}
     depends_on:
       postgres:
         condition: service_healthy
       mongodb:
         condition: service_started
+      ollama-model:
+        condition: service_completed_successfully
     expose:
       - "8010"
     healthcheck:
@@ -112,5 +145,6 @@ services:
 volumes:
   bconomics-postgres-data:
   bconomics-mongodb-data:
+  bconomics-ollama-data:
   caddy-data:
   caddy-config:

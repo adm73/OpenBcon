@@ -84,6 +84,35 @@ describe('platform config persistence', () => {
     ).toBe(true)
   })
 
+  it('assigns default report section priorities', () => {
+    const sections = defaultPlatformConfig.advisoryHub.sections
+    expect(sections.find((section) => section.id === 'cover-page')?.priority).toBe('high')
+    expect(sections.find((section) => section.id === 'technology-cover-page')?.priority).toBe('high')
+    expect(sections.find((section) => section.id === 'executive-summary')?.priority).toBe('low')
+    expect(sections.find((section) => section.id === 'technology-executive-summary')?.priority).toBe('low')
+    expect(
+      sections
+        .filter(
+          (section) =>
+            !section.id.includes('cover-page') &&
+            !section.id.includes('executive-summary'),
+        )
+        .every((section) => section.priority === 'default'),
+    ).toBe(true)
+  })
+
+  it('defaults priorities when older persisted sections have no priority', () => {
+    const sections = normalizeAdvisoryHubSections(
+      defaultPlatformConfig.advisoryHub.sections.map(({ priority: _priority, ...section }) => section),
+      defaultPlatformConfig.advisoryHub.agents,
+      defaultPlatformConfig.advisoryHub.documentTypes,
+    )
+
+    expect(sections.find((section) => section.id === 'cover-page')?.priority).toBe('high')
+    expect(sections.find((section) => section.id === 'executive-summary')?.priority).toBe('low')
+    expect(sections.find((section) => section.id === 'business-overview')?.priority).toBe('default')
+  })
+
   it('provides editable definitions for the report layouts', () => {
     expect(defaultPlatformConfig.advisoryHub.layouts.map((layout) => layout.id)).toEqual([
       'cover-page',

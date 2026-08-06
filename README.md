@@ -265,12 +265,44 @@ Chinese. Change the language from Settings; the preference is persisted for the
 current browser profile and is used for workspace labels, dates, numbers,
 currency formatting, and generated forecast language.
 
+## Security and production safety
+
+OpenBcon keeps provider keys and application encryption secrets on the server.
+Admin configuration is redacted before it is returned to the browser, and
+production session cookies are `HttpOnly`, `Secure`, and `SameSite=Lax`.
+Production startup rejects placeholder encryption keys, wildcard or local CORS
+origins, and demo-data seeding. The Python service also fails closed if its
+production CORS configuration is missing or is not an explicit HTTPS origin.
+
+Configured AI endpoints are restricted to the allowlisted provider hosts by
+default, and private AI endpoints are disabled in production. PostgreSQL,
+MongoDB, Ollama, and the internal API services are kept on the private Docker
+network; only the reverse proxy is exposed publicly.
+
+Before deploying, run the checks locally:
+
+```bash
+npm audit --omit=dev --audit-level=moderate
+python-backend/.venv/bin/python -m pip install pip-audit  # one-time audit tool
+python-backend/.venv/bin/pip-audit -r python-backend/requirements.txt
+npm run check
+```
+
+The current compatible `react-router-dom` release is `7.18.2`. The audit may
+report the upstream `GHSA-qwww-vcr4-c8h2` advisory, which is limited to
+unstable React Server Components (RSC) APIs. OpenBcon is a client-side
+`BrowserRouter` SPA and does not enable those RSC APIs. Keep the dependency
+pinned and upgrade when a patched `react-router-dom` release is published.
+Do not use React Router unstable RSC or server-action APIs without repeating
+the security review.
+
 ## One-click production deployment
 
 The repository includes a Docker deployment with these services:
 
 - `api`: the built React application and Express API on the private Docker network
 - `python`: the FastAPI/LangGraph generation service on the private Docker network
+- `ollama`: private local LLM runtime, with `smollm2:135m` pulled into a persistent volume
 - `postgres` and `mongodb`: persistent application data services
 - `caddy`: same-origin routing for `/api` and `/ai-api`
 
@@ -308,14 +340,33 @@ docker compose --env-file deploy/.env.production -f deploy/docker-compose.produc
   -c "UPDATE app_users SET role = 'admin' WHERE lower(email) = lower('admin@example.com');"
 ```
 
+### Local Ollama model
+
+Both Compose files include Ollama and a one-time model pull service. The
+default local model is `smollm2:135m`; model data survives container restarts
+in the `bconomics-ollama-data` volume. Start it locally with:
+
+```bash
+docker compose up -d ollama
+docker compose run --rm ollama-model
+```
+
+In Admin Console, add or import the Ollama preset at
+`public/ai-model-presets/ollama.json`, then select `Ollama` and
+`smollm2:135m` as the default enabled model. For the host-run development API,
+use `http://127.0.0.1:11434/api/chat`; for the production Docker network, use
+`http://ollama:11434/api/chat`. The Ollama endpoint is
+kept private and does not require an API key.
+
 ### Test and Live Mode data isolation
 
 Admin Console's **Mode Switch** is also a database boundary. Every browser
 request sends the selected mode to both backend services:
 
 - **Test Mode** uses `DATABASE_URL_TEST` and `MONGODB_DATABASE_TEST`; generation
-  uses the mock model gateway and writes test applications, configuration, and
-  reports.
+  uses the configured enabled model when one is saved in Admin Console, falls
+  back to the mock gateway when no model is configured, and writes test
+  applications, configuration, and reports.
 - **Live Mode** uses `DATABASE_URL_LIVE` and `MONGODB_DATABASE_LIVE`; generation
   uses the configured real model gateway and writes only to the live stores.
 

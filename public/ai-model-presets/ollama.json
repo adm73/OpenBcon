@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "provider": {
+    "id": "ollama",
+    "name": "Ollama"
+  },
+  "model": {
+    "id": "smollm2:135m",
+    "name": "smollm2:135m",
+    "providerId": "ollama",
+    "context": "8K",
+    "description": "Local lightweight model",
+    "apiKey": "",
+    "baseUrl": "http://ollama:11434",
+    "endpoint": "/api/chat",
+    "url": "http://ollama:11434/api/chat",
+    "temperature": "0.2",
+    "maxTokens": "1024",
+    "reasoningEnabled": false,
+    "contentType": "application/json",
+    "authorization": "",
+    "bodyType": "JSON",
+    "bodyParameters": "{\n  \"model\": \"smollm2:135m\",\n  \"stream\": false,\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"hello!\"\n    }\n  ]\n}",
+    "enabled": true
+  }
+}

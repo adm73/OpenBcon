@@ -19,6 +19,8 @@ const environmentSchema = z.object({
   DATABASE_URL_TEST: z.string().min(1).optional(),
   DATABASE_URL_LIVE: z.string().min(1).optional(),
   DATABASE_SSL: booleanFromEnvironment(false),
+  DATABASE_SSL_REJECT_UNAUTHORIZED: booleanFromEnvironment(true),
+  DATABASE_SSL_CA: z.string().min(1).optional(),
   MONGODB_URL: z
     .string()
     .min(1)

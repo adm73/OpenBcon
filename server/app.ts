@@ -63,6 +63,16 @@ const mutationSchema = z.discriminatedUnion('operation', [
 const batchSchema = z.object({
   mutations: z.array(mutationSchema).max(100),
 })
+const aiModelSecretsSchema = z.object({
+  models: z
+    .array(
+      z.object({
+        id: z.string().trim().min(1).max(200),
+        apiKey: z.string().max(4000),
+      }),
+    )
+    .max(100),
+})
 
 type EnvironmentMode = 'test' | 'live'
 
@@ -1151,7 +1161,10 @@ export function createApp(
             VALUES (
               $1, $2, NULLIF($3, ''), $4, NULLIF($5, ''), $6, NULLIF($7, ''),
               NULLIF($8, ''), $9, $10, $11, $12, $13, $14, $15, $16, $17,
-              NULLIF($18, ''), NULLIF($19, ''), NULLIF($20, ''), NULLIF($21, ''), $22, $22
+              NULLIF($18, ''), NULLIF($19, ''),
+              COALESCE(NULLIF($20, ''), 'quick-build-v1'),
+              COALESCE(NULLIF($21, ''), 'quick-build-v1'),
+              $22, $22
             )
             RETURNING id::text
           `,
@@ -1306,6 +1319,72 @@ export function createApp(
       response.status(202).json({
         saved: parsed.data.mutations.length,
       })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  app.post('/api/platform/ai-secrets', async (request, response, next) => {
+    const parsed = aiModelSecretsSchema.safeParse(request.body)
+    if (!parsed.success) {
+      sendValidationError(response, parsed.error)
+      return
+    }
+
+    try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
+
+      const currentValue = await documentStore.findStateValue(
+        'platform',
+        'platform',
+        'bconomics-platform-config-v1',
+      )
+      const currentRecord =
+        currentValue && typeof currentValue === 'object' && !Array.isArray(currentValue)
+          ? (currentValue as Record<string, unknown>)
+          : null
+      const currentAI =
+        currentRecord?.ai &&
+        typeof currentRecord.ai === 'object' &&
+        !Array.isArray(currentRecord.ai)
+          ? (currentRecord.ai as Record<string, unknown>)
+          : null
+      if (
+        !currentRecord ||
+        !currentAI ||
+        !Array.isArray(currentAI.models)
+      ) {
+        response.status(409).json({
+          error: 'platform_config_missing',
+          message: 'The platform AI configuration must be saved before storing model keys.',
+        })
+        return
+      }
+
+      const submittedKeys = new Map(
+        parsed.data.models.map((model) => [model.id, model.apiKey]),
+      )
+      const currentConfig = currentRecord as Record<string, unknown>
+      const currentModels = currentAI.models as Array<Record<string, unknown>>
+      const nextConfig = {
+        ...currentConfig,
+        ai: {
+          ...currentAI,
+          models: currentModels.map((model) => {
+            const nextKey = submittedKeys.get(String(model.id ?? ''))
+            return nextKey === undefined ? model : { ...model, apiKey: nextKey }
+          }),
+        },
+      }
+
+      await applyStateMutation(database, documentStore, context, {
+        operation: 'upsert',
+        key: 'bconomics-platform-config-v1',
+        scope: 'platform',
+        value: nextConfig,
+      })
+      response.status(202).json({ saved: parsed.data.models.length })
     } catch (error) {
       next(error)
     }

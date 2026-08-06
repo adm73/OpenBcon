@@ -21,9 +21,21 @@ allowed_origins = [
     if origin.strip()
 ]
 
+if settings.runtime_env == "production":
+    if not allowed_origins or any(
+        origin == "*"
+        or not origin.startswith("https://")
+        or "localhost" in origin
+        or "127.0.0.1" in origin
+        for origin in allowed_origins
+    ):
+        raise RuntimeError(
+            "Production CORS origins must be explicit HTTPS origins."
+        )
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins or ["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

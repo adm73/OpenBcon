@@ -28,6 +28,36 @@ services:
     volumes:
       - bconomics-mongodb-data:/data/db
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: bconomics-ollama
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - bconomics-ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  ollama-model:
+    image: ollama/ollama:latest
+    container_name: bconomics-ollama-model
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-smollm2:135m}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull \"$${OLLAMA_MODEL}\""]
+    volumes:
+      - bconomics-ollama-data:/root/.ollama
+    depends_on:
+      ollama:
+        condition: service_healthy
+
 volumes:
   bconomics-postgres-data:
   bconomics-mongodb-data:
+  bconomics-ollama-data:

@@ -75,7 +75,12 @@ export type AIModelConfig = {
   context: string
   description: string
   apiKey: string
+  baseUrl: string
+  endpoint: string
   url: string
+  temperature: string
+  maxTokens: string
+  reasoningEnabled: boolean
   contentType: string
   authorization: string
   bodyType: string
@@ -122,6 +127,7 @@ export type AdvisoryHubDocumentTypeConfig = {
 }
 
 export type AdvisoryHubSectionLayout = 'cover-page' | 'main-content'
+export type AdvisoryHubSectionPriority = 'high' | 'default' | 'low'
 
 export type AdvisoryHubLayoutConfig = {
   id: AdvisoryHubSectionLayout
@@ -137,6 +143,7 @@ export type AdvisoryHubSectionConfig = {
   prompt: string
   agentId: string
   layout: AdvisoryHubSectionLayout
+  priority: AdvisoryHubSectionPriority
   enabled: boolean
 }
 
@@ -281,6 +288,17 @@ function sanitizeSecretLikeValue(value: string) {
   if (isEnvironmentReference(trimmed)) return trimmed
 
   return secureConfigValuePlaceholder
+}
+
+export function buildAIModelURL(baseUrl: string, endpoint: string) {
+  const base = baseUrl.trim().replace(/\/+$/u, '')
+  const path = endpoint.trim()
+
+  if (/^https?:\/\//iu.test(path)) return path
+  if (!base) return path
+  if (!path) return base
+
+  return `${base}/${path.replace(/^\/+/u, '')}`
 }
 
 export function sanitizePlatformConfigForPersistence(config: PlatformConfig) {
@@ -504,6 +522,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Create a clear cover page with the business, opportunity, funding request, and report date.',
     agentId: 'grant-writer',
     layout: 'cover-page',
+    priority: 'high',
     enabled: true,
   },
   {
@@ -513,6 +532,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Summarize the opportunity, business, funding ask, and reviewer case clearly.',
     agentId: 'grant-writer',
     layout: 'main-content',
+    priority: 'low',
     enabled: true,
   },
   {
@@ -522,6 +542,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Explain the company, operating model, team, and execution capability.',
     agentId: 'business-consultant',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -531,6 +552,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Describe the sales channels, marketing approach, customer acquisition plan, pipeline, and measurable growth targets.',
     agentId: 'business-consultant',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -540,6 +562,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Explain how the business will deliver its product or service, scale operations, and execute the funding plan.',
     agentId: 'business-consultant',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -549,6 +572,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Describe the leadership team, relevant experience, responsibilities, hiring needs, and execution capability.',
     agentId: 'business-consultant',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -558,6 +582,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Translate the strategy into sequenced actions, milestones, owners, timing, and measurable outcomes.',
     agentId: 'business-consultant',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -567,6 +592,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Create a clear technology analysis cover page with the business, technology context, opportunity, and report date.',
     agentId: 'program-analyst',
     layout: 'cover-page',
+    priority: 'high',
     enabled: true,
   },
   {
@@ -576,6 +602,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Summarize the current technology position, the most important findings, and the recommended technology direction.',
     agentId: 'program-analyst',
     layout: 'main-content',
+    priority: 'low',
     enabled: true,
   },
   {
@@ -585,6 +612,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Connect the business model, operating priorities, technology environment, digital capabilities, and delivery needs.',
     agentId: 'business-consultant',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -594,6 +622,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Assess the current systems, architecture, data, security, integrations, digital tools, and technology readiness.',
     agentId: 'program-analyst',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -603,6 +632,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Identify technology gaps, risks, opportunities, dependencies, and the business impact of closing each gap.',
     agentId: 'program-analyst',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -612,6 +642,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Define a sequenced technology roadmap with initiatives, milestones, owners, investment needs, and measurable outcomes.',
     agentId: 'business-consultant',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -621,6 +652,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Review the technology analysis for clarity, feasibility, security, evidence, implementation risk, and reviewer confidence.',
     agentId: 'reviewer',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -630,6 +662,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Build a credible forecast, use-of-funds logic, runway, and measurable financial assumptions.',
     agentId: 'financial-analyst',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -639,6 +672,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Turn the evidence into a focused funding narrative with milestones and reviewer-ready outcomes.',
     agentId: 'grant-writer',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
   {
@@ -648,6 +682,7 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     prompt: 'Review the package for clarity, evidence, compliance, measurable outcomes, and approval confidence.',
     agentId: 'reviewer',
     layout: 'main-content',
+    priority: 'default',
     enabled: true,
   },
 ]
@@ -793,6 +828,8 @@ const defaultAIProviders: AIProviderConfig[] = [
   { id: 'openai', name: 'OpenAI' },
   { id: 'anthropic', name: 'Anthropic' },
   { id: 'google', name: 'Google' },
+  { id: 'openrouter', name: 'OpenRouter' },
+  { id: 'ollama', name: 'Ollama' },
   { id: 'custom', name: 'OpenAI-compatible' },
 ]
 
@@ -804,7 +841,12 @@ const defaultAIModels: AIModelConfig[] = [
     context: '400K',
     description: 'Fast document drafting',
     apiKey: '',
+    baseUrl: 'https://api.openai.com/v1',
+    endpoint: '/chat/completions',
     url: 'https://api.openai.com/v1/chat/completions',
+    temperature: '0.2',
+    maxTokens: '1024',
+    reasoningEnabled: false,
     contentType: 'application/json',
     authorization: 'Bearer {{apiKey}}',
     bodyType: 'JSON',
@@ -821,7 +863,12 @@ const defaultAIModels: AIModelConfig[] = [
     context: '400K',
     description: 'Complex financial reasoning',
     apiKey: '',
+    baseUrl: 'https://api.openai.com/v1',
+    endpoint: '/chat/completions',
     url: 'https://api.openai.com/v1/chat/completions',
+    temperature: '0.2',
+    maxTokens: '1024',
+    reasoningEnabled: false,
     contentType: 'application/json',
     authorization: 'Bearer {{apiKey}}',
     bodyType: 'JSON',
@@ -838,7 +885,12 @@ const defaultAIModels: AIModelConfig[] = [
     context: '200K',
     description: 'Long-form narrative',
     apiKey: '',
+    baseUrl: 'https://api.anthropic.com/v1',
+    endpoint: '/messages',
     url: 'https://api.anthropic.com/v1/messages',
+    temperature: '0.2',
+    maxTokens: '1024',
+    reasoningEnabled: false,
     contentType: 'application/json',
     authorization: 'x-api-key {{apiKey}}',
     bodyType: 'JSON',
@@ -855,7 +907,12 @@ const defaultAIModels: AIModelConfig[] = [
     context: '1M',
     description: 'Large source packages',
     apiKey: '',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/models',
+    endpoint: '/gemini-3-flash:generateContent',
     url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent',
+    temperature: '0.2',
+    maxTokens: '1024',
+    reasoningEnabled: false,
     contentType: 'application/json',
     authorization: 'Bearer {{apiKey}}',
     bodyType: 'JSON',
@@ -1010,6 +1067,12 @@ export function normalizeAdvisoryHubSections(
           section.title,
           section.layout,
         ),
+        priority: normalizeAdvisoryHubSectionPriority(
+          previousSection?.priority,
+          section.id,
+          section.title,
+          section.priority,
+        ),
         enabled: previousSection?.enabled ?? section.enabled,
       }
     })
@@ -1068,6 +1131,12 @@ export function normalizeAdvisoryHubSections(
           requestedId || fallback.id,
           section.title || fallback.title,
           fallback.layout,
+        ),
+        priority: normalizeAdvisoryHubSectionPriority(
+          section.priority,
+          requestedId || fallback.id,
+          section.title || fallback.title,
+          requestedId && defaultsById.has(requestedId) ? fallback.priority : undefined,
         ),
         enabled: section.enabled ?? fallback.enabled,
       } satisfies AdvisoryHubSectionConfig
@@ -1259,6 +1328,35 @@ function normalizeAdvisoryHubSectionLayout(
   return fallback
 }
 
+function defaultAdvisoryHubSectionPriority(
+  sectionId: string | undefined,
+  title: string | undefined,
+): AdvisoryHubSectionPriority {
+  if (
+    /(?:^|-)(?:cover-page)$/iu.test(sectionId?.trim() || '') ||
+    /^cover page$/iu.test(title?.trim() || '')
+  ) {
+    return 'high'
+  }
+  if (
+    /(?:^|-)(?:executive-summary)$/iu.test(sectionId?.trim() || '') ||
+    /^executive summary$/iu.test(title?.trim() || '')
+  ) {
+    return 'low'
+  }
+  return 'default'
+}
+
+function normalizeAdvisoryHubSectionPriority(
+  value: unknown,
+  sectionId: string | undefined,
+  title: string | undefined,
+  fallback?: AdvisoryHubSectionPriority,
+): AdvisoryHubSectionPriority {
+  if (value === 'high' || value === 'default' || value === 'low') return value
+  return fallback ?? defaultAdvisoryHubSectionPriority(sectionId, title)
+}
+
 function normalizeAIProviders(
   providers: Partial<AIProviderConfig>[] | undefined,
 ): AIProviderConfig[] {
@@ -1282,8 +1380,12 @@ function normalizeAIProviders(
         all.findIndex((item) => item.id === provider.id) === index,
     )
 
+  const missingDefaults = defaultAIProviders.filter(
+    (defaultProvider) => !normalized.some((provider) => provider.id === defaultProvider.id),
+  )
+
   return normalized.length > 0
-    ? normalized
+    ? [...normalized, ...missingDefaults]
     : defaultAIProviders.map((provider) => ({ ...provider }))
 }
 
@@ -1310,6 +1412,32 @@ function normalizeAIModels(
       const legacyAuthorization = model.authorization?.trim() ?? ''
       const legacyApiKey =
         legacyAuthorization.match(/^(?:Bearer|x-api-key)\s+(.+)$/iu)?.[1] ?? ''
+      // The authorization field uses this template when no secret is configured.
+      // It must never be persisted or sent as the provider API key.
+      const resolvedLegacyApiKey = legacyApiKey === '{{apiKey}}' ? '' : legacyApiKey
+      const fallbackUrl = fallback?.url?.trim() || ''
+      const parsedURL = model.url?.trim() || fallbackUrl
+      const parsedURLParts = (() => {
+        if (!parsedURL || !/^https?:\/\//iu.test(parsedURL)) {
+          return { baseUrl: '', endpoint: parsedURL }
+        }
+
+        try {
+          const url = new URL(parsedURL)
+          const lastSlash = url.pathname.lastIndexOf('/')
+          const basePath = lastSlash > 0 ? url.pathname.slice(0, lastSlash) : ''
+          const endpointPath = lastSlash > 0 ? url.pathname.slice(lastSlash) : url.pathname
+          return {
+            baseUrl: `${url.origin}${basePath}`,
+            endpoint: `${endpointPath}${url.search}`,
+          }
+        } catch {
+          return { baseUrl: '', endpoint: parsedURL }
+        }
+      })()
+      const baseUrl = model.baseUrl?.trim() || parsedURLParts.baseUrl || fallback?.baseUrl || ''
+      const endpoint = model.endpoint?.trim() || parsedURLParts.endpoint || fallback?.endpoint || ''
+      const url = model.url?.trim() || buildAIModelURL(baseUrl, endpoint)
 
       return {
         id,
@@ -1318,8 +1446,16 @@ function normalizeAIModels(
         context: model.context?.trim() || fallback?.context || 'Context window',
         description:
           model.description?.trim() || fallback?.description || 'General-purpose generation model',
-        apiKey: model.apiKey?.trim() || legacyApiKey || fallback?.apiKey || '',
-        url: model.url?.trim() || fallback?.url || '',
+        apiKey: model.apiKey?.trim() || resolvedLegacyApiKey || fallback?.apiKey || '',
+        baseUrl,
+        endpoint,
+        url,
+        temperature: model.temperature?.trim() || fallback?.temperature || '0.2',
+        maxTokens: model.maxTokens?.trim() || fallback?.maxTokens || '1024',
+        reasoningEnabled:
+          model.reasoningEnabled ??
+          fallback?.reasoningEnabled ??
+          providerId === 'openrouter',
         contentType: model.contentType?.trim() || fallback?.contentType || 'application/json',
         authorization: model.authorization?.trim() || fallback?.authorization || '',
         bodyType: model.bodyType?.trim() || fallback?.bodyType || 'JSON',

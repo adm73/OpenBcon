@@ -23,6 +23,7 @@ import {
 
 export function PlatformConfigProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState(loadPlatformConfig)
+  const [secureConfigReady, setSecureConfigReady] = useState(false)
 
   useEffect(() => {
     document.documentElement.style.setProperty('--platform-primary', config.primaryColor)
@@ -45,15 +46,21 @@ export function PlatformConfigProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true
 
-    void loadLocalPlatformSecureConfig(config).then((resolvedConfig) => {
-      if (!active) return
+    void loadLocalPlatformSecureConfig(config)
+      .then((resolvedConfig) => {
+        if (!active) return
 
-      const currentSerialized = JSON.stringify(config)
-      const resolvedSerialized = JSON.stringify(resolvedConfig)
-      if (currentSerialized === resolvedSerialized) return
+        const currentSerialized = JSON.stringify(config)
+        const resolvedSerialized = JSON.stringify(resolvedConfig)
+        setSecureConfigReady(true)
+        void persistLocalPlatformSecureConfig(resolvedConfig)
+        if (currentSerialized === resolvedSerialized) return
 
-      setConfig(resolvedConfig)
-    })
+        setConfig(resolvedConfig)
+      })
+      .catch(() => {
+        if (active) setSecureConfigReady(true)
+      })
 
     return () => {
       active = false
@@ -62,6 +69,7 @@ export function PlatformConfigProvider({ children }: { children: ReactNode }) {
 
   function updateConfig(nextConfig: PlatformConfig) {
     setConfig(nextConfig)
+    setSecureConfigReady(true)
     void persistLocalPlatformSecureConfig(nextConfig)
     setPersistentItem(
       platformConfigStorageKey,
@@ -71,12 +79,15 @@ export function PlatformConfigProvider({ children }: { children: ReactNode }) {
 
   function resetConfig() {
     setConfig(defaultPlatformConfig)
+    setSecureConfigReady(true)
     void clearLocalPlatformSecureConfig()
     removePersistentItem(platformConfigStorageKey)
   }
 
   return (
-    <PlatformConfigContext.Provider value={{ config, updateConfig, resetConfig }}>
+    <PlatformConfigContext.Provider
+      value={{ config, secureConfigReady, updateConfig, resetConfig }}
+    >
       {children}
     </PlatformConfigContext.Provider>
   )

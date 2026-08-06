@@ -347,7 +347,9 @@ class FundingPlanRepository:
                 context.requested_by_user_id,
                 model_name,
                 request.language,
-                request.model_dump_json(),
+                # The browser-supplied model config may contain an API key.
+                # Keep it in memory for the provider call, never in the report.
+                request.model_dump_json(exclude={"model"}),
                 context.model_dump_json(),
             ),
         ).fetchone()
@@ -385,6 +387,41 @@ class FundingPlanRepository:
                 review_id,
             ),
         )
+
+    def save_llm_usage(
+        self,
+        strategic_report_id: UUID,
+        usage_records: list[dict],
+    ) -> None:
+        if not usage_records:
+            return
+        with self.connection.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO strategic_report_llm_usage (
+                  strategic_report_id,
+                  node_name,
+                  section_key,
+                  model_name,
+                  input_tokens,
+                  output_tokens,
+                  total_tokens
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                [
+                    (
+                        strategic_report_id,
+                        record["node_name"],
+                        record.get("section_key"),
+                        record["model_name"],
+                        record["input_tokens"],
+                        record["output_tokens"],
+                        record["total_tokens"],
+                    )
+                    for record in usage_records
+                ],
+            )
 
     def load_strategic_report(
         self,

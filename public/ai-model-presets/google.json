@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "provider": {
+    "id": "google",
+    "name": "Google"
+  },
+  "model": {
+    "id": "gemini-3-flash",
+    "name": "gemini-3-flash",
+    "providerId": "google",
+    "context": "1M",
+    "description": "Large source packages",
+    "apiKey": "",
+    "baseUrl": "https://generativelanguage.googleapis.com/v1beta/models",
+    "endpoint": "/gemini-3-flash:generateContent",
+    "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent",
+    "temperature": "0.2",
+    "maxTokens": "1024",
+    "contentType": "application/json",
+    "authorization": "Bearer {{apiKey}}",
+    "bodyType": "JSON",
+    "bodyParameters": "{}",
+    "enabled": true
+  }
+}

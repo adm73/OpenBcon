@@ -11,7 +11,10 @@ export function createDatabasePool(connectionString: string) {
     connectionTimeoutMillis: 5_000,
     ssl: environment.DATABASE_SSL
       ? {
-          rejectUnauthorized: false,
+          rejectUnauthorized: environment.DATABASE_SSL_REJECT_UNAUTHORIZED,
+          ...(environment.DATABASE_SSL_CA
+            ? { ca: environment.DATABASE_SSL_CA }
+            : {}),
         }
       : undefined,
   })

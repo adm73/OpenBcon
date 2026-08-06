@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "provider": {
+    "id": "openai",
+    "name": "OpenAI"
+  },
+  "model": {
+    "id": "gpt-5-mini",
+    "name": "gpt-5-mini",
+    "providerId": "openai",
+    "context": "400K",
+    "description": "Fast document drafting",
+    "apiKey": "",
+    "baseUrl": "https://api.openai.com/v1",
+    "endpoint": "/chat/completions",
+    "url": "https://api.openai.com/v1/chat/completions",
+    "temperature": "0.2",
+    "maxTokens": "1024",
+    "contentType": "application/json",
+    "authorization": "Bearer {{apiKey}}",
+    "bodyType": "JSON",
+    "bodyParameters": "{}",
+    "enabled": true
+  }
+}

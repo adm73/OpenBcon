@@ -1,9 +1,7 @@
-import type { SupportedLocale } from '../i18n'
 import { getEnvironmentModeHeaders } from './environmentMode'
 
 export type BusinessPlanGenerateRequest = {
   app_id: string
-  language: SupportedLocale
   signal?: AbortSignal
 }
 
@@ -22,7 +20,6 @@ export type StrategicReportSectionMutationRequest = {
   section_key: string
   content: string
   layout: StrategicReportSectionLayout
-  language: SupportedLocale
   signal?: AbortSignal
 }
 
@@ -57,7 +54,9 @@ const defaultApiBaseUrl =
   (import.meta.env.VITE_BUSINESS_PLAN_API_URL as string | undefined)?.replace(/\/$/u, '') ||
   '/ai-api'
 
-const generationTimeoutMs = 120_000
+// Sections are configured dynamically in Admin Console and are generated
+// sequentially, so larger reports need more than the original two-minute window.
+const generationTimeoutMs = 10 * 60_000
 
 async function postGenerationRequest<T>(
   path: string,
@@ -81,7 +80,6 @@ async function postGenerationRequest<T>(
       signal: controller.signal,
       body: JSON.stringify({
         app_id: payload.app_id,
-        language: payload.language,
       }),
     })
 
@@ -128,7 +126,7 @@ export async function generateBusinessPlanViaApi(
   return postGenerationRequest(
     '/api/business-plan/generate',
     payload,
-    'Strategic Report generation timed out after two minutes. Please retry.',
+    'Strategic Report generation timed out after ten minutes. Please retry.',
     parseGenerationResponse,
   )
 }
@@ -139,7 +137,7 @@ export async function generateFinancialForecastViaApi(
   return postGenerationRequest(
     '/api/business-plan/forecast',
     payload,
-    'Financial forecast generation timed out after two minutes. Please retry.',
+    'Financial forecast generation timed out after ten minutes. Please retry.',
     async (response) => {
       if (!response.ok) {
         let detail = `Financial forecast request failed with status ${response.status}.`
@@ -183,7 +181,6 @@ async function mutateStrategicReportSection(
         section_key: payload.section_key,
         content: payload.content,
         layout: payload.layout,
-        language: payload.language,
       }),
     })
 
@@ -202,7 +199,7 @@ async function mutateStrategicReportSection(
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       if (payload.signal?.aborted) throw error
-      throw new Error('Strategic Report section regeneration timed out after two minutes.')
+      throw new Error('Strategic Report section regeneration timed out after ten minutes.')
     }
     throw error
   } finally {

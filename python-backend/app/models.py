@@ -6,9 +6,22 @@ from uuid import UUID
 from pydantic import BaseModel, Field, SecretStr, field_validator
 
 
+class GenerationModelConfig(BaseModel):
+    """Resolved model settings loaded by the backend from platform configuration."""
+
+    model_name: str = Field(min_length=1, max_length=200)
+    provider_id: str = Field(default="custom", max_length=80)
+    api_key: SecretStr = SecretStr("")
+    url: str = Field(min_length=1, max_length=2000)
+    temperature: float = Field(default=0.2, ge=0, le=2)
+    max_tokens: int = Field(default=1024, ge=1, le=100000)
+    reasoning_enabled: bool = False
+
+
 class GeneratePlanRequest(BaseModel):
     app_id: str = Field(min_length=1, max_length=160)
     language: str = Field(default="en-CA", min_length=2, max_length=16)
+    model: GenerationModelConfig | None = None
 
     @field_validator("language", mode="before")
     @classmethod
@@ -83,6 +96,7 @@ class AdvisoryHubSectionConfig(BaseModel):
     prompt: str
     agent_id: str
     layout: Literal["cover-page", "main-content"] = "main-content"
+    priority: Literal["high", "default", "low"] = "default"
     enabled: bool
 
 
@@ -137,6 +151,7 @@ class OutlineItem(BaseModel):
     objective: str
     guidance: str
     agent_id: str | None = None
+    priority: Literal["high", "default", "low"] = "default"
 
 
 class DocumentOutline(BaseModel):
@@ -224,6 +239,9 @@ class AIConnectionTestRequest(BaseModel):
     provider_id: str = Field(default="custom", max_length=80)
     api_key: SecretStr = SecretStr("")
     url: str = Field(min_length=1, max_length=2000)
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    max_tokens: int = Field(default=1024, ge=1, le=100000)
+    reasoning_enabled: bool = False
     message: str = Field(min_length=1, max_length=12000)
 
 

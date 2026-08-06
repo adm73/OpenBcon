@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "provider": {
+    "id": "anthropic",
+    "name": "Anthropic"
+  },
+  "model": {
+    "id": "claude-sonnet-4-5",
+    "name": "claude-sonnet-4-5",
+    "providerId": "anthropic",
+    "context": "200K",
+    "description": "Long-form narrative",
+    "apiKey": "",
+    "baseUrl": "https://api.anthropic.com/v1",
+    "endpoint": "/messages",
+    "url": "https://api.anthropic.com/v1/messages",
+    "temperature": "0.2",
+    "maxTokens": "1024",
+    "contentType": "application/json",
+    "authorization": "x-api-key {{apiKey}}",
+    "bodyType": "JSON",
+    "bodyParameters": "{}",
+    "enabled": true
+  }
+}

@@ -9,6 +9,7 @@ import {
 import { Link } from 'react-router-dom'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import {
+  buildAIModelURL,
   type AdvisoryHubAgentConfig,
   type AdvisoryHubConfig,
   type AdvisoryHubDocumentTypeConfig,
@@ -27,6 +28,7 @@ import {
   type PaymentConfig,
   type PlatformConfig,
   type PlatformModuleId,
+  sanitizePlatformConfigForPersistence,
 } from '../config/platform'
 import {
   removeSyncedResourceRecords,
@@ -41,8 +43,12 @@ import {
   type FundingDataSourceProvider,
 } from '../data/fundingSources'
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
-import { getEnvironmentModeHeaders } from '../lib/environmentMode'
+import {
+  getEnvironmentModeHeaders,
+  platformConfigStorageKey,
+} from '../lib/environmentMode'
 import { languageOptions, normalizeLocale, useLocale } from '../i18n'
+import { persistPersistentItem } from '../persistence/storage'
 import {
   OPEN_BCON_REPO_URL,
   hasCommercialLicenseAccess,
@@ -382,17 +388,50 @@ type AIChatMessage = {
   content: string
 }
 
+const aiProviderOptions = [
+  { id: 'openai', name: 'OpenAI' },
+  { id: 'anthropic', name: 'Anthropic' },
+  { id: 'google', name: 'Google' },
+  { id: 'openrouter', name: 'OpenRouter' },
+  { id: 'ollama', name: 'Ollama' },
+  { id: 'custom', name: 'Custom' },
+] as const
+
 function getDefaultAIModelURL(providerId: string, modelId: string) {
   if (providerId === 'anthropic') return 'https://api.anthropic.com/v1/messages'
   if (providerId === 'google') {
     return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent`
   }
+  if (providerId === 'openrouter') return 'https://openrouter.ai/api/v1/chat/completions'
+  if (providerId === 'ollama') return 'http://ollama:11434/api/chat'
   if (providerId === 'custom') return '/api/ai'
   return 'https://api.openai.com/v1/chat/completions'
 }
 
+function getAIProviderDefaults(providerId: string, modelId: string) {
+  const url = getDefaultAIModelURL(providerId, modelId)
+  const lastSlash = url.lastIndexOf('/')
+  const isAbsoluteURL = /^https?:\/\//iu.test(url)
+
+  return {
+    baseUrl: isAbsoluteURL && lastSlash > 0 ? url.slice(0, lastSlash) : '',
+    endpoint: isAbsoluteURL && lastSlash > 0 ? url.slice(lastSlash) : url,
+    url,
+    authorization:
+      providerId === 'anthropic'
+        ? 'x-api-key {{apiKey}}'
+        : providerId === 'ollama'
+          ? ''
+          : 'Bearer {{apiKey}}',
+  }
+}
+
 function getAIModelEndpoint(model: AIModelConfig) {
-  return model.url.trim() || getDefaultAIModelURL(model.providerId, model.id)
+  return (
+    model.url.trim() ||
+    buildAIModelURL(model.baseUrl, model.endpoint) ||
+    getDefaultAIModelURL(model.providerId, model.id)
+  )
 }
 
 function formatAIConnectionTime(value: string) {
@@ -436,8 +475,11 @@ export function AdminPage() {
   const { setLocale } = useLocale()
   const [draft, setDraft] = useState<PlatformConfig>(config)
   const [saved, setSaved] = useState(false)
+  const [savingAIModels, setSavingAIModels] = useState<Record<string, boolean>>({})
+  const [aiModelSaveNotice, setAIModelSaveNotice] = useState('')
   const [paymentNotice, setPaymentNotice] = useState('')
   const [testingAIModels, setTestingAIModels] = useState<Record<string, boolean>>({})
+  const [expandedAIModelSettings, setExpandedAIModelSettings] = useState<Record<string, boolean>>({})
   const [aiChatModel, setAIChatModel] = useState<AIModelConfig | null>(null)
   const [aiChatMessages, setAIChatMessages] = useState<AIChatMessage[]>([])
   const [aiChatInput, setAIChatInput] = useState('')
@@ -586,49 +628,94 @@ export function AdminPage() {
     field: Key,
     value: AIModelConfig[Key],
   ) {
-    setDraft((current) => ({
-      ...current,
-      ai: {
-        ...current.ai,
-        defaultModel:
-          field === 'id' && current.ai.defaultModel === modelId
-            ? String(value)
-            : current.ai.defaultModel,
-        models: current.ai.models.map((model) =>
-          model.id === modelId
-            ? {
-                ...model,
-                [field]: value,
-                ...(field === 'id' && model.name === model.id
-                  ? { name: String(value) }
-                  : {}),
-                connectionStatus: 'untested',
-                connectionError: '',
-                lastTestedAt: '',
-              }
-            : model,
-        ),
-      },
-    }))
+    setDraft((current) => {
+      const models = current.ai.models.map((model) => {
+        if (model.id !== modelId) return model
+
+        const nextModel = {
+          ...model,
+          [field]: value,
+          ...(field === 'id' && model.name === model.id
+            ? { name: String(value) }
+            : {}),
+          connectionStatus: 'untested' as const,
+          connectionError: '',
+          lastTestedAt: '',
+        }
+
+        if (field === 'baseUrl' || field === 'endpoint') {
+          nextModel.url = buildAIModelURL(
+            field === 'baseUrl' ? String(value) : nextModel.baseUrl,
+            field === 'endpoint' ? String(value) : nextModel.endpoint,
+          )
+        }
+
+        return nextModel
+      })
+
+      return {
+        ...current,
+        ai: {
+          ...current.ai,
+          defaultModel:
+            field === 'id' && current.ai.defaultModel === modelId
+              ? String(value)
+              : current.ai.defaultModel,
+          models,
+        },
+      }
+    })
+    setSaved(false)
+    setTestingAIModels({})
+  }
+
+  function updateAIModelProvider(modelId: string, providerId: string) {
+    setDraft((current) => {
+      const providerDefaults = getAIProviderDefaults(
+        providerId,
+        current.ai.models.find((model) => model.id === modelId)?.id || modelId,
+      )
+
+      return {
+        ...current,
+        ai: {
+          ...current.ai,
+          models: current.ai.models.map((model) =>
+            model.id === modelId
+              ? {
+                  ...model,
+                  providerId,
+                  ...providerDefaults,
+                  connectionStatus: 'untested' as const,
+                  connectionError: '',
+                  lastTestedAt: '',
+                }
+              : model,
+          ),
+        },
+      }
+    })
     setSaved(false)
     setTestingAIModels({})
   }
 
   function addAIModel() {
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const providerId = draft.ai.provider || draft.ai.providers[0]?.id || 'custom'
+    const providerDefaults = getAIProviderDefaults(providerId, `model-${suffix}`)
     const model: AIModelConfig = {
       id: `model-${suffix}`,
       name: 'New model',
-      providerId: draft.ai.provider || draft.ai.providers[0]?.id || 'custom',
+      providerId,
       context: 'Context window',
       description: 'Configurable generation model',
       apiKey: '',
-      url: getDefaultAIModelURL(
-        draft.ai.provider || draft.ai.providers[0]?.id || 'custom',
-        `model-${suffix}`,
-      ),
+      ...providerDefaults,
+      temperature: '0.2',
+      maxTokens: '1024',
+      reasoningEnabled: providerId === 'openrouter',
       contentType: 'application/json',
-      authorization: 'Bearer {{apiKey}}',
+      authorization: providerId === 'ollama' ? '' : 'Bearer {{apiKey}}',
       bodyType: 'JSON',
       bodyParameters: '{}',
       connectionStatus: 'untested',
@@ -658,6 +745,34 @@ export function AdminPage() {
     }))
     setSaved(false)
     setTestingAIModels({})
+  }
+
+  async function saveAIModel(modelId: string) {
+    const model = draft.ai.models.find((candidate) => candidate.id === modelId)
+    if (!model) return
+
+    setSavingAIModels((current) => ({ ...current, [model.id]: true }))
+    setAIModelSaveNotice('')
+
+    try {
+      const persistedConfig = sanitizePlatformConfigForPersistence(draft)
+      updateConfig(draft)
+      const persistenceMode = await persistPersistentItem(
+        platformConfigStorageKey,
+        JSON.stringify(persistedConfig),
+      )
+      setSaved(true)
+      setTestingAIModels((current) => ({ ...current, [model.id]: false }))
+      setAIModelSaveNotice(
+        `${model.name || model.id} saved to ${persistenceMode === 'database' ? 'the database' : 'local cache'}.`,
+      )
+    } catch (error) {
+      setAIModelSaveNotice(
+        error instanceof Error ? error.message : 'The model could not be saved.',
+      )
+    } finally {
+      setSavingAIModels((current) => ({ ...current, [model.id]: false }))
+    }
   }
 
   function setDefaultAIModel(modelId: string) {
@@ -754,6 +869,7 @@ export function AdminPage() {
         prompt: 'Describe the evidence, analysis, and reviewer outcome this section should cover.',
         agentId: agent.id,
         layout: 'main-content',
+        priority: 'default',
         enabled: true,
       },
     ])
@@ -1103,19 +1219,42 @@ export function AdminPage() {
     setSaved(false)
   }
 
-  function toggleAIModel(modelId: string) {
-    const model = draft.ai.models.find((candidate) => candidate.id === modelId)
-    if (!model) return
+  function toggleAIModel(modelId: string, enabled: boolean) {
+    setDraft((current) => {
+      const model = current.ai.models.find((candidate) => candidate.id === modelId)
+      if (!model || model.enabled === enabled) return current
 
-    if (model.enabled && draft.ai.defaultModel === modelId) {
-      const replacement = draft.ai.models.find(
-        (candidate) => candidate.id !== modelId && candidate.enabled,
+      const nextModels = current.ai.models.map((candidate) =>
+        candidate.id === modelId
+          ? {
+              ...candidate,
+              enabled,
+              connectionStatus: 'untested' as const,
+              connectionError: '',
+              lastTestedAt: '',
+            }
+          : candidate,
       )
-      if (!replacement) return
-      setDefaultAIModel(replacement.id)
-    }
+      const nextEnabledModel = nextModels.find((candidate) => candidate.enabled)
+      const currentDefault = nextModels.find(
+        (candidate) => candidate.id === current.ai.defaultModel,
+      )
+      const nextDefault =
+        currentDefault?.enabled
+          ? current.ai.defaultModel
+          : nextEnabledModel?.id ?? ''
 
-    updateAIModel(modelId, 'enabled', !model.enabled)
+      return {
+        ...current,
+        ai: {
+          ...current.ai,
+          defaultModel: nextDefault,
+          models: nextModels,
+        },
+      }
+    })
+    setSaved(false)
+    setTestingAIModels({})
   }
 
   function updateDataSource(
@@ -1298,8 +1437,14 @@ export function AdminPage() {
           body: JSON.stringify({
             model_name: model.id,
             provider_id: model.providerId,
-            api_key: model.apiKey,
             url: getAIModelEndpoint(model),
+            temperature: Number.isFinite(Number.parseFloat(model.temperature))
+              ? Number.parseFloat(model.temperature)
+              : 0.2,
+            max_tokens: Number.isFinite(Number.parseInt(model.maxTokens, 10))
+              ? Number.parseInt(model.maxTokens, 10)
+              : 1024,
+            reasoning_enabled: model.reasoningEnabled,
             message,
           }),
           signal: controller.signal,
@@ -3075,6 +3220,23 @@ export function AdminPage() {
                             <option value="main-content">Main content</option>
                           </select>
                         </label>
+                        <label>
+                          <span>Priority</span>
+                          <select
+                            value={section.priority}
+                            onChange={(event) =>
+                              updateAdvisoryHubSection(
+                                section.id,
+                                'priority',
+                                event.target.value as AdvisoryHubSectionConfig['priority'],
+                              )
+                            }
+                          >
+                            <option value="high">High</option>
+                            <option value="default">Default</option>
+                            <option value="low">Low</option>
+                          </select>
+                        </label>
                         <label className="admin-field-wide">
                           <span>Section prompt</span>
                           <textarea
@@ -3426,7 +3588,9 @@ export function AdminPage() {
                           <input
                             type="checkbox"
                             checked={model.enabled}
-                            onChange={() => toggleAIModel(model.id)}
+                            onChange={(event) =>
+                              toggleAIModel(model.id, event.currentTarget.checked)
+                            }
                           />
                           <span>Enabled</span>
                         </label>
@@ -3436,6 +3600,19 @@ export function AdminPage() {
                           onClick={() => setDefaultAIModel(model.id)}
                         >
                           {draft.ai.defaultModel === model.id ? 'Default model' : 'Set default'}
+                        </button>
+                        <button
+                          type="button"
+                          className={expandedAIModelSettings[model.id] ? 'is-model-default' : ''}
+                          aria-expanded={Boolean(expandedAIModelSettings[model.id])}
+                          onClick={() =>
+                            setExpandedAIModelSettings((current) => ({
+                              ...current,
+                              [model.id]: !current[model.id],
+                            }))
+                          }
+                        >
+                          Advanced settings
                         </button>
                       </div>
                     </div>
@@ -3479,6 +3656,19 @@ export function AdminPage() {
                     </div>
                     <div className="admin-ai-model-fields">
                       <label>
+                        <span>Provider</span>
+                        <select
+                          value={model.providerId}
+                          onChange={(event) => updateAIModelProvider(model.id, event.target.value)}
+                        >
+                          {aiProviderOptions.map((provider) => (
+                            <option key={provider.id} value={provider.id}>
+                              {provider.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
                         <span>Model name</span>
                         <input
                           value={model.id}
@@ -3496,14 +3686,91 @@ export function AdminPage() {
                         />
                       </label>
                     </div>
-                    <button
-                      type="button"
-                      className="admin-button-secondary admin-ai-model-remove"
-                      onClick={() => removeAIModel(model.id)}
-                      disabled={draft.ai.models.length <= 1}
-                    >
-                      Remove model
-                    </button>
+                    {expandedAIModelSettings[model.id] ? (
+                      <div className="admin-ai-model-advanced">
+                        <div className="admin-ai-model-advanced-heading">
+                          <div>
+                            <strong>Advanced settings</strong>
+                            <span>Configure the provider request for this model.</span>
+                          </div>
+                        </div>
+                        <div className="admin-ai-model-fields">
+                          <label>
+                            <span>URL</span>
+                            <input
+                              type="text"
+                              value={model.url}
+                              onChange={(event) => updateAIModel(model.id, 'url', event.target.value)}
+                              placeholder="https://openrouter.ai/api/v1/chat/completions"
+                            />
+                          </label>
+                          <label>
+                            <span>Temperature</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max="2"
+                              step="0.1"
+                              value={model.temperature}
+                              onChange={(event) => updateAIModel(model.id, 'temperature', event.target.value)}
+                              placeholder="0.2"
+                            />
+                          </label>
+                          <label>
+                            <span>Max tokens</span>
+                            <input
+                              type="number"
+                              min="1"
+                              max="100000"
+                              step="1"
+                              value={model.maxTokens}
+                              onChange={(event) => updateAIModel(model.id, 'maxTokens', event.target.value)}
+                              placeholder="1024"
+                            />
+                          </label>
+                          <label className="admin-ai-model-reasoning">
+                            <input
+                              type="checkbox"
+                              checked={model.reasoningEnabled}
+                              onChange={(event) =>
+                                updateAIModel(
+                                  model.id,
+                                  'reasoningEnabled',
+                                  event.currentTarget.checked,
+                                )
+                              }
+                            />
+                            <span>Enable reasoning</span>
+                            <small>
+                              Sends <code>reasoning.enabled</code> when this provider supports it.
+                            </small>
+                          </label>
+                        </div>
+                        <div className="admin-ai-model-save-actions">
+                          <button
+                            type="button"
+                            className="admin-button-primary"
+                            disabled={savingAIModels[model.id]}
+                            onClick={() => saveAIModel(model.id)}
+                          >
+                            {savingAIModels[model.id] ? 'Saving...' : 'Save model'}
+                          </button>
+                          <button
+                            type="button"
+                            className="admin-button-secondary"
+                            onClick={() => removeAIModel(model.id)}
+                            disabled={draft.ai.models.length <= 1}
+                          >
+                            Remove model
+                          </button>
+                        </div>
+                        {aiModelSaveNotice ? (
+                          <p className="admin-management-notice" role="status">
+                            {aiModelSaveNotice}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </article>
                 ))}
               </div>
