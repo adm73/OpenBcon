@@ -1,7 +1,7 @@
 # OpenBcon
 
 <p align="center">
-  <img src="./public/brand/openbcon-ob.png" alt="OpenBcon oB logo" width="180" />
+  <img src="./public/brand/openbcon-ob.png" alt="OpenBcon monochrome oB logo" width="180" />
 </p>
 
 **The Open Source AI Platform for Funding & Business Consultants**
