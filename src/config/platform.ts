@@ -1157,9 +1157,11 @@ export function normalizeAdvisoryHubSections(
   return normalized
 }
 
+export const defaultPlatformLogo = '/brand/openbcon-ob.png'
+
 export const defaultPlatformConfig: PlatformConfig = {
   platformName: 'Bconomics.ai',
-  platformLogo: '',
+  platformLogo: defaultPlatformLogo,
   supportEmail: 'chenadm73@gmail.com',
   language: 'en-CA',
   environmentMode: 'test',
@@ -1618,7 +1620,7 @@ export function loadPlatformConfig(): PlatformConfig {
         legacyPlatformName ??
         defaultPlatformConfig.platformName,
       platformLogo:
-        parsedConfig.platformLogo ?? defaultPlatformConfig.platformLogo,
+        parsedConfig.platformLogo?.trim() || defaultPlatformConfig.platformLogo,
       language: normalizePlatformLanguage(parsedConfig.language),
       environmentMode:
         parsedConfig.environmentMode === 'live' ? 'live' : 'test',

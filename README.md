@@ -1,5 +1,9 @@
 # OpenBcon
 
+<p align="center">
+  <img src="./public/brand/openbcon-ob.png" alt="OpenBcon oB logo" width="180" />
+</p>
+
 **The Open Source AI Platform for Funding & Business Consultants**
 
 OpenBcon helps consultants, advisors, incubators, and funding teams run the full workflow in one place:
@@ -214,6 +218,36 @@ change as contributors, advisors, and self-hosting teams provide feedback.
 - [ ] Expand localization beyond English (Canada), French (Canada), and Simplified
   Chinese
 - [ ] Publish stable integration APIs and webhooks for partner workflows
+
+### Consulting Templates
+
+- [ ] Create a database-backed Consulting Templates catalog with template keys,
+  descriptions, categories, enablement, required company fields, and report type
+- [ ] Connect each template to the existing Admin Console configuration for
+  document types, sections, prompts, agents, priorities, and layouts
+- [ ] Add template versioning so new reports always use the latest configuration,
+  while generated reports retain the configuration snapshot used for audit and
+  reproducibility
+- [ ] Generalize `strategic_reports` for consulting reports with `report_type`,
+  `template_id`, `template_version`, and `company_id`; allow `application_id` to
+  be optional when a report is not funding-specific
+- [ ] Add a Consulting Templates page where users choose a template, select a
+  company, review missing information, and start a report
+- [ ] Add a generic consulting-report API and LangGraph workflow for loading the
+  latest template, validating company data, analyzing the company, generating
+  sections by priority, running review, compiling the report, and saving token
+  usage
+- [ ] Add Admin Console controls to create, edit, delete, enable, disable, and
+  preview consulting templates without hardcoding report structures in the UI
+- [ ] Reuse Strategic Report editing, regeneration, layout preview, PDF/DOCX/XLSX
+  export, report history, and report navigation for consulting reports
+- [ ] Add the first consulting template set: Digital Transformation, AI
+  Readiness, Market Entry, Manufacturing Assessment, Retail Growth, Restaurant
+  Expansion, Healthcare Clinic Review, SaaS Go-to-Market, ESG Assessment, and
+  Due Diligence
+- [ ] Add template validation and clear errors for deleted or missing agents,
+  sections, document types, prompts, and layouts; do not silently fall back to
+  stale configuration
 
 ## Tech stack
 
