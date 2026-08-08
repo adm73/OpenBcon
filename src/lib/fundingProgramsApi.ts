@@ -1,5 +1,8 @@
 import { getEnvironmentModeHeaders } from './environmentMode'
-import type { FundingProgramRecord } from '../data/fundingSources'
+import type {
+  FundingProgramFieldMapping,
+  FundingProgramRecord,
+} from '../data/fundingSources'
 
 export type ManualFundingProgramInput = {
   name: string
@@ -17,6 +20,16 @@ export type ManualFundingProgramInput = {
   targetCompanyTypes: string
   requiredEvidence: string
   matchScore: number
+}
+
+export type JsonFundingProgramImportInput = {
+  sourceId: string
+  sourceName: string
+  sourceVersion?: string
+  sourceUrl?: string
+  category: 'Grant' | 'Loan'
+  records: Array<Record<string, unknown>>
+  fieldMapping?: FundingProgramFieldMapping
 }
 
 async function readError(response: Response, fallback: string) {
@@ -79,4 +92,68 @@ export async function createManualFundingProgramViaApi(
     throw new Error('The imported funding program was not returned by the server.')
   }
   return body.program
+}
+
+export async function importJsonFundingProgramsViaApi(
+  input: JsonFundingProgramImportInput,
+) {
+  const response = await fetch('/api/funding-programs/import', {
+    method: 'POST',
+    headers: {
+      ...getEnvironmentModeHeaders(),
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(input),
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      await readError(
+        response,
+        `Funding program JSON import failed with status ${response.status}.`,
+      ),
+    )
+  }
+
+  const body = (await response.json()) as {
+    programs?: FundingProgramRecord[]
+    imported?: number
+    updated?: number
+    archived?: number
+    sourceVersion?: string
+  }
+  if (!Array.isArray(body.programs)) {
+    throw new Error('The JSON import did not return database programs.')
+  }
+  return {
+    programs: body.programs,
+    imported: body.imported ?? 0,
+    updated: body.updated ?? 0,
+    archived: body.archived ?? 0,
+    sourceVersion: body.sourceVersion ?? '',
+  }
+}
+
+export async function archiveJsonFundingProgramsViaApi(sourceId: string) {
+  const response = await fetch(
+    `/api/funding-programs/source/${encodeURIComponent(sourceId)}/archive`,
+    {
+      method: 'POST',
+      headers: getEnvironmentModeHeaders(),
+      credentials: 'include',
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(
+      await readError(
+        response,
+        `Funding program source archive failed with status ${response.status}.`,
+      ),
+    )
+  }
+
+  const body = (await response.json()) as { archived?: number }
+  return body.archived ?? 0
 }

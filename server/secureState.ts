@@ -5,6 +5,8 @@ const encryptedValuePrefix = 'enc:v1'
 export const secureConfigValuePlaceholder = '__stored_securely__'
 
 const sensitivePlatformConfigPaths = [
+  ['authentication', 'googleOAuth', 'clientSecret'],
+  ['authentication', 'smtp', 'password'],
   ['payments', 'testSecretKeyReference'],
   ['payments', 'liveSecretKeyReference'],
   ['payments', 'testPublishableKeyReference'],

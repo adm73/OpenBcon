@@ -1,8 +1,10 @@
 import {
   secureConfigValuePlaceholder,
   type AIModelConfig,
+  type GoogleOAuthConfig,
   type PaymentConfig,
   type PlatformConfig,
+  type SMTPConfig,
 } from './platform'
 import {
   getEnvironmentModeHeaders,
@@ -23,6 +25,10 @@ const securePaymentFields = [
 
 type SecurePaymentField = (typeof securePaymentFields)[number]
 type StoredSecureSecrets = Partial<Pick<PaymentConfig, SecurePaymentField>> & {
+  authentication?: {
+    googleOAuth?: Pick<GoogleOAuthConfig, 'clientSecret'>
+    smtp?: Pick<SMTPConfig, 'password'>
+  }
   aiModelKeys?: Array<Pick<AIModelConfig, 'id' | 'apiKey'>>
 }
 
@@ -190,8 +196,26 @@ function extractSecureSecrets(config: PlatformConfig): StoredSecureSecrets {
     return [{ id: model.id, apiKey: value }]
   })
 
+  const googleClientSecret = config.authentication.googleOAuth.clientSecret.trim()
+  const smtpPassword = config.authentication.smtp.password.trim()
+  const authentication = {
+    ...(googleClientSecret &&
+    googleClientSecret !== secureConfigValuePlaceholder &&
+    !isAPIKeyTemplate(googleClientSecret) &&
+    !isEnvironmentReference(googleClientSecret)
+      ? { googleOAuth: { clientSecret: googleClientSecret } }
+      : {}),
+    ...(smtpPassword &&
+    smtpPassword !== secureConfigValuePlaceholder &&
+    !isAPIKeyTemplate(smtpPassword) &&
+    !isEnvironmentReference(smtpPassword)
+      ? { smtp: { password: smtpPassword } }
+      : {}),
+  }
+
   return {
     ...paymentSecrets,
+    ...(Object.keys(authentication).length > 0 ? { authentication } : {}),
     ...(aiModelKeys.length > 0 ? { aiModelKeys } : {}),
   }
 }
@@ -226,8 +250,33 @@ function mergeSecureSecrets(
     return { ...model, apiKey: storedModel.apiKey }
   })
 
+  const nextAuthentication = { ...config.authentication }
+  const storedGoogleClientSecret = secrets.authentication?.googleOAuth?.clientSecret
+  const storedSMTPPassword = secrets.authentication?.smtp?.password
+  if (
+    storedGoogleClientSecret &&
+    (!nextAuthentication.googleOAuth.clientSecret ||
+      nextAuthentication.googleOAuth.clientSecret === secureConfigValuePlaceholder)
+  ) {
+    nextAuthentication.googleOAuth = {
+      ...nextAuthentication.googleOAuth,
+      clientSecret: storedGoogleClientSecret,
+    }
+  }
+  if (
+    storedSMTPPassword &&
+    (!nextAuthentication.smtp.password ||
+      nextAuthentication.smtp.password === secureConfigValuePlaceholder)
+  ) {
+    nextAuthentication.smtp = {
+      ...nextAuthentication.smtp,
+      password: storedSMTPPassword,
+    }
+  }
+
   return {
     ...config,
+    authentication: nextAuthentication,
     payments: nextPayments,
     ai: { ...config.ai, models: nextModels },
   } satisfies PlatformConfig

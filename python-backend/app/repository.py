@@ -60,6 +60,7 @@ class FundingPlanRepository:
               companies.employee_count,
               companies.website,
               companies.metadata AS company_metadata,
+              applications.metadata AS application_metadata,
               funding_programs.id AS program_id,
               funding_programs.workspace_id AS program_workspace_id,
               funding_programs.name AS program_name,
@@ -129,6 +130,16 @@ class FundingPlanRepository:
             target_outcome=application_row["target_outcome"],
             metadata=application_row["program_metadata"] or {},
         )
+        application_metadata = application_row["application_metadata"] or {}
+        selected_document_type_ids = []
+        if isinstance(application_metadata, dict):
+            raw_document_type_ids = application_metadata.get("document_type_ids")
+            if isinstance(raw_document_type_ids, list):
+                selected_document_type_ids = [
+                    str(document_type_id).strip()
+                    for document_type_id in raw_document_type_ids
+                    if str(document_type_id).strip()
+                ]
         return GenerationContext(
             application_id=int(application_row["application_id"]),
             workspace_id=workspace_id,
@@ -138,6 +149,7 @@ class FundingPlanRepository:
             requested_by_user_id=int(application_row["owner_user_id"]),
             target_language=request.language,
             section_limit=0,
+            selected_document_type_ids=selected_document_type_ids,
         )
 
     @staticmethod

@@ -10,6 +10,7 @@ export type AuthUser = {
   companyName: string
   role: AuthRole
   createdAt: string
+  emailVerified?: boolean
 }
 
 type AuthSession = {
@@ -20,6 +21,12 @@ type AuthSession = {
 
 type DatabaseLoginResponse = {
   user: Omit<AuthUser, 'password'>
+}
+
+export type RegistrationPending = {
+  verificationRequired: true
+  email: string
+  previewVerificationUrl?: string
 }
 
 type PasswordResetRecord = {
@@ -206,7 +213,7 @@ export async function registerUser(input: {
   email: string
   password: string
   companyName: string
-}) {
+}): Promise<AuthUser | RegistrationPending> {
   try {
     const response = await fetch(`${authApiBaseUrl}/auth/register`, {
       method: 'POST',
@@ -219,7 +226,13 @@ export async function registerUser(input: {
     })
 
     if (response.ok) {
-      const payload = (await response.json()) as DatabaseLoginResponse
+      const payload = (await response.json()) as DatabaseLoginResponse | RegistrationPending
+      if ('verificationRequired' in payload && payload.verificationRequired) {
+        return payload
+      }
+      if (!('user' in payload)) {
+        throw new Error('The registration response was invalid.')
+      }
       const user: AuthUser = {
         ...payload.user,
         password: '',
@@ -243,6 +256,33 @@ export async function registerUser(input: {
   }
 
   return registerUserLocally(input)
+}
+
+export async function resendVerificationEmail(email: string) {
+  const response = await fetch(`${authApiBaseUrl}/auth/resend-verification`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...getEnvironmentModeHeaders(),
+    },
+    credentials: 'include',
+    body: JSON.stringify({ email }),
+  })
+  const payload = (await response.json().catch(() => null)) as
+    | { previewVerificationUrl?: string; message?: string }
+    | null
+  if (!response.ok) {
+    throw new Error(payload?.message ?? 'Unable to send the verification email.')
+  }
+  return payload ?? {}
+}
+
+export function startGoogleSignIn(nextPath = '/dashboard') {
+  if (!canUseStorage()) return
+  const safePath = nextPath.startsWith('/') && !nextPath.startsWith('//') && !nextPath.includes('\\')
+    ? nextPath
+    : '/dashboard'
+  window.location.assign(`${authApiBaseUrl}/auth/google/start?next=${encodeURIComponent(safePath)}`)
 }
 
 function loginUserLocally(input: { email: string; password: string }) {
@@ -322,10 +362,44 @@ function savePasswordResets(value: Record<string, PasswordResetRecord>) {
   writeStoredJson(passwordResetStorageKey, value)
 }
 
-export function requestPasswordReset(emailInput: string) {
+export async function requestPasswordReset(emailInput: string): Promise<{
+  email: string
+  token: string | null
+  previewResetUrl?: string
+}> {
   const email = normalizeEmail(emailInput)
-  if (!allowLocalAuthFallback) {
-    return { email, token: null }
+  try {
+    const response = await fetch(`${authApiBaseUrl}/auth/request-password-reset`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...getEnvironmentModeHeaders(),
+      },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    })
+
+    if (response.ok) {
+      const payload = (await response.json().catch(() => null)) as
+        | { previewResetUrl?: string }
+        | null
+      return {
+        email,
+        token: null,
+        ...(payload?.previewResetUrl ? { previewResetUrl: payload.previewResetUrl } : {}),
+      }
+    }
+
+    if (!allowLocalAuthFallback || response.status !== 404) {
+      const payload = (await response.json().catch(() => null)) as
+        | { message?: string }
+        | null
+      throw new Error(payload?.message ?? 'Unable to request a password reset.')
+    }
+  } catch (error) {
+    if (!allowLocalAuthFallback || !(error instanceof TypeError)) {
+      throw error
+    }
   }
 
   const user = loadAuthUsers().find((item) => normalizeEmail(item.email) === email)
@@ -367,9 +441,32 @@ export function validatePasswordResetToken(token: string) {
   return record
 }
 
-export function resetPassword(input: { token: string; password: string }) {
-  if (!allowLocalAuthFallback) {
-    throw new Error('Password reset is not enabled for this deployment.')
+export async function resetPassword(input: { token: string; password: string }) {
+  try {
+    const response = await fetch(`${authApiBaseUrl}/auth/reset-password`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...getEnvironmentModeHeaders(),
+      },
+      credentials: 'include',
+      body: JSON.stringify(input),
+    })
+
+    if (response.ok) {
+      return null
+    }
+
+    if (!allowLocalAuthFallback || response.status !== 404) {
+      const payload = (await response.json().catch(() => null)) as
+        | { message?: string }
+        | null
+      throw new Error(payload?.message ?? 'Unable to reset the password.')
+    }
+  } catch (error) {
+    if (!allowLocalAuthFallback || !(error instanceof TypeError)) {
+      throw error
+    }
   }
 
   const record = validatePasswordResetToken(input.token)

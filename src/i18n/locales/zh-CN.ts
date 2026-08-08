@@ -217,7 +217,7 @@ const zhCN = {
     },
     quickBuild: {
       ...enCA.workspacePages.quickBuild,
-      aboutMinutes: '大约 2 分钟', opportunityQuestion: '你正在申请哪个融资机会？', opportunityDescription: '我们会使用官方项目来源和申请金额来确定文档结构、审核语气和审批叙事。', sourceTruthDescription: '当项目来源清晰时，整个文件包会更可信。这里用于定义融资机会、申请金额和审核者预期的模板约束。', required: '必填', optional: '可选', recommendedNoTemplate: '没有官方模板时推荐使用。', pdfDocxXlsx: 'PDF、DOCX、XLSX、JPG 或 PNG', aboutFiveMinutes: '大约 5 分钟', businessQuestion: '告诉我们为什么这家公司值得获得融资。', businessDescription: '说明问题、解决方案、商业模式以及团队的执行能力。', sourceFilesNone: '未上传文件', useStructure: '使用 OpenBcon 结构', reviewDetails: '生成前检查融资机会详情。', confirmBusiness: '确认公司叙事和团队信息准确。', generateAfterReview: '只有在两步内容都反映最终概要后再生成。',
+      aboutMinutes: '大约 2 分钟', opportunityQuestion: '你正在申请哪个融资机会？', opportunityDescription: '我们会使用官方项目来源和申请金额来确定文档结构、审核语气和审批叙事。', sourceTruthDescription: '当项目来源清晰时，整个文件包会更可信。这里用于定义融资机会、申请金额和审核者预期的模板约束。', required: '必填', optional: '可选', recommendedNoTemplate: '没有官方模板时推荐使用。', pdfDocxXlsx: 'PDF、DOCX、XLSX、JPG 或 PNG', aboutFiveMinutes: '大约 5 分钟', businessQuestion: '告诉我们为什么这家公司值得获得融资。', businessDescription: '说明问题、解决方案、商业模式以及团队的执行能力。', sourceFilesNone: '未上传文件', useStructure: '使用 OpenBcon 结构', templates: '模板', chooseTemplates: '选择模板', templatesSelected: '已选择 {{count}} 个模板', templateSections: '包含 {{count}} 个章节', noTemplatesSelected: '未选择模板', reviewDetails: '生成前检查融资机会详情。', confirmBusiness: '确认公司叙事和团队信息准确。', generateAfterReview: '只有在两步内容都反映最终概要后再生成。', reportLanguage: '报告语言',
     },
     strategicReports: {
       ...enCA.workspacePages.strategicReports,
@@ -241,7 +241,7 @@ const zhCN = {
     },
     templates: {
       ...enCA.workspacePages.templates,
-      title: '模板', description: '使用管理员启用的所有来源中的融资商业计划、申请叙事、预测和清单。', available: '可用模板', activeLibraries: '所有有效模板库合计', communityUsage: '社区使用量', templateStarts: '模板启动次数', freeTemplates: '免费模板', readyImmediately: '可以立即使用', search: '搜索模板、格式、分类或来源', refine: '细化模板库', refineHint: '找到适合这个文档包的起点。', allProfileTypes: '全部资料类型', allCategories: '全部分类', allFormats: '全部格式', allAudiences: '全部适用对象', mostUsed: '使用最多', all: '全部', featured: '精选', free: '免费', pro: '专业版',
+      title: '模板', description: '使用管理员为战略报告生成配置的文档类型。', available: '可用模板', activeLibraries: '来自战略报告配置', communityUsage: '已配置的章节', templateStarts: '报告工作流中的启用章节', freeTemplates: '可用代理', readyImmediately: '已为章节生成配置', search: '搜索文档类型或提示词', refine: '细化模板库', refineHint: '找到适合这个文档包的起点。', allProfileTypes: '全部资料类型', allCategories: '全部分类', allFormats: '全部格式', allAudiences: '全部适用对象', mostUsed: '使用最多', all: '全部', featured: '精选', free: '免费', pro: '专业版', configured: '已配置', manageDocumentTypes: '管理文档类型', configuredSections: '报告工作流中的启用章节', agents: '可用代理', availableAgents: '已为章节生成配置', configurationSource: '配置来源', adminConsole: '管理控制台', strategicReportSettings: '战略报告设置', sectionsSupported: '{{count}} 个章节', sectionsInDocumentType: '此文档类型中的章节', prompt: 'Prompt：', unassignedAgent: '未分配代理', noConfiguredSections: '此文档类型尚未配置启用的章节。',
     },
     socialResources: {
       ...enCA.workspacePages.socialResources,

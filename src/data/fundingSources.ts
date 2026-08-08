@@ -8,6 +8,7 @@ export type FundingProgramRecord = {
   provider: string
   amount: number
   deadline: string
+  programStatus?: string
   match: number
   url: string
   location: string
@@ -16,7 +17,7 @@ export type FundingProgramRecord = {
   process?: string
   sourceId?: string
   sourceName?: string
-  sourceType?: 'builtin' | 'google-sheets' | 'airtable' | 'manual'
+  sourceType?: 'builtin' | 'google-sheets' | 'airtable' | 'json-file' | 'manual'
   sourceRecordId?: string
   sourceVersion?: string
   recordVersion?: string
@@ -40,9 +41,29 @@ export type SyncedResourceRecord = {
   sourceName: string
 }
 
-export type FundingDataSourceProvider = 'google-sheets' | 'airtable'
+export type FundingDataSourceProvider = 'google-sheets' | 'airtable' | 'json-file'
 export type FundingDataSourceStatus = 'draft' | 'connected' | 'error'
 export type FundingDataSourceFrequency = 'manual' | 'hourly' | 'daily'
+export type FundingProgramMappingField =
+  | 'name'
+  | 'provider'
+  | 'type'
+  | 'amount'
+  | 'deadline'
+  | 'url'
+  | 'location'
+  | 'country'
+  | 'description'
+  | 'process'
+  | 'eligibility'
+  | 'eligibleUses'
+  | 'targetCompanyTypes'
+  | 'requiredEvidence'
+  | 'match'
+  | 'pid'
+export type FundingProgramFieldMapping = Partial<
+  Record<FundingProgramMappingField, string>
+>
 export type DataSourceModule =
   | 'grants-loans'
   | 'templates'
@@ -67,6 +88,81 @@ export type FundingDataSource = {
   recordCount: number
   lastSyncedAt: string
   lastError: string
+  jsonFileName?: string
+  jsonSourceVersion?: string
+  fieldMapping?: FundingProgramFieldMapping
+}
+
+export const fundingProgramMappingFields: Array<{
+  key: FundingProgramMappingField
+  label: string
+  required?: boolean
+}> = [
+  { key: 'name', label: 'Program name', required: true },
+  { key: 'provider', label: 'Funding provider' },
+  { key: 'type', label: 'Funding type' },
+  { key: 'amount', label: 'Maximum amount' },
+  { key: 'deadline', label: 'Deadline' },
+  { key: 'url', label: 'Official program URL' },
+  { key: 'location', label: 'Location' },
+  { key: 'country', label: 'Country' },
+  { key: 'description', label: 'Description' },
+  { key: 'process', label: 'How to start' },
+  { key: 'eligibility', label: 'Eligibility' },
+  { key: 'eligibleUses', label: 'Eligible uses' },
+  { key: 'targetCompanyTypes', label: 'Target company types' },
+  { key: 'requiredEvidence', label: 'Required evidence' },
+  { key: 'match', label: 'Match score' },
+  { key: 'pid', label: 'PID' },
+]
+
+export const defaultFundingProgramFieldMapping: FundingProgramFieldMapping = {
+  name: 'name',
+  provider: 'provider',
+  type: 'type',
+  amount: 'amount',
+  deadline: 'deadline',
+  url: 'url',
+  location: 'location',
+  country: 'country',
+  description: 'description',
+  process: 'process',
+  eligibility: 'eligibility',
+  eligibleUses: 'eligible_uses',
+  targetCompanyTypes: 'target_company_types',
+  requiredEvidence: 'required_evidence',
+  match: 'match',
+  pid: 'pid',
+}
+
+export const defaultJsonFundingProgramFieldMapping: FundingProgramFieldMapping = {
+  name: 'program_name',
+  provider: 'provider',
+  amount: 'max_amount',
+  url: 'official_program_site',
+  location: 'location',
+  description: 'description',
+  process: 'how_to_start',
+  eligibility: 'eligibility',
+  eligibleUses: 'eligible_uses',
+  targetCompanyTypes: 'target_company_types',
+  requiredEvidence: 'required_evidence',
+  pid: 'pid',
+}
+
+export function getFundingProgramFieldMapping(
+  source: FundingDataSource,
+): FundingProgramFieldMapping {
+  const defaults = source.provider === 'json-file'
+    ? defaultJsonFundingProgramFieldMapping
+    : defaultFundingProgramFieldMapping
+  return { ...defaults, ...source.fieldMapping }
+}
+
+export type JsonFundingCatalog = {
+  sourceUrl?: string
+  category: 'Grant' | 'Loan'
+  records: Array<Record<string, unknown>>
 }
 
 export const defaultFundingDataSources: FundingDataSource[] = [
@@ -348,6 +444,35 @@ function readField(record: Record<string, unknown>, aliases: string[]) {
   return ''
 }
 
+export function parseJsonFundingCatalog(value: unknown): JsonFundingCatalog {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('The JSON catalog must contain an object with a records array.')
+  }
+
+  const catalog = value as Record<string, unknown>
+  if (!Array.isArray(catalog.records) || catalog.records.length === 0) {
+    throw new Error('The JSON catalog must contain at least one record in records.')
+  }
+
+  const category = String(catalog.category ?? '').toLowerCase().includes('loan')
+    ? 'Loan'
+    : 'Grant'
+  const records = catalog.records.filter(
+    (record): record is Record<string, unknown> =>
+      Boolean(record) && typeof record === 'object' && !Array.isArray(record),
+  )
+
+  if (records.length !== catalog.records.length) {
+    throw new Error('Every item in records must be a JSON object.')
+  }
+
+  return {
+    sourceUrl: typeof catalog.source_url === 'string' ? catalog.source_url : undefined,
+    category,
+    records,
+  }
+}
+
 function parseAmount(value: string) {
   const parsed = Number(value.replace(/[^0-9.-]/g, ''))
   return Number.isFinite(parsed) ? Math.max(0, parsed) : 0
@@ -439,6 +564,14 @@ export function normalizeFundingRecords(
 ) {
   return rows
     .map((row, index): FundingProgramRecord | null => {
+      for (const [targetField, sourceField] of Object.entries(
+        getFundingProgramFieldMapping(source),
+      )) {
+        if (!sourceField) continue
+        const mappedValue = readField(row, [sourceField])
+        if (mappedValue) row[targetField] = mappedValue
+      }
+
       const name = readField(row, ['name', 'program name', 'program', 'title'])
       if (!name) return null
 
@@ -457,6 +590,7 @@ export function normalizeFundingRecords(
         ),
         deadline:
           readField(row, ['deadline', 'closing date', 'close date']) || 'Open',
+        programStatus: readField(row, ['program status', 'application status', 'status']),
         match: parseMatch(readField(row, ['match', 'match score', 'score'])),
         url: readField(row, ['url', 'website', 'program url', 'link']),
         location:

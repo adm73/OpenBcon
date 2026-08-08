@@ -123,6 +123,7 @@ class GenerationContext(BaseModel):
     section_limit: int
     advisory_sections: list[AdvisoryHubSectionConfig] = Field(default_factory=list)
     advisory_agents: list[AdvisoryHubAgentConfig] = Field(default_factory=list)
+    selected_document_type_ids: list[str] = Field(default_factory=list)
 
 
 class ProgramAnalysis(BaseModel):
@@ -219,7 +220,7 @@ class FinalDocument(BaseModel):
     risks: list[str]
     use_of_funds_summary: str
     next_steps: list[str]
-    financial_forecast: FinancialForecast
+    financial_forecast: FinancialForecast | None = None
 
 
 class GenerationRunResult(BaseModel):

@@ -1,7 +1,9 @@
 import { getEnvironmentModeHeaders } from './environmentMode'
+import type { SupportedLocale } from '../i18n'
 
 export type BusinessPlanGenerateRequest = {
   app_id: string
+  language?: SupportedLocale
   signal?: AbortSignal
 }
 
@@ -44,7 +46,7 @@ export type BusinessPlanGenerateResponse = {
     risks: string[]
     use_of_funds_summary: string
     next_steps: string[]
-    financial_forecast: FinancialForecast
+    financial_forecast: FinancialForecast | null
   } | null
   message?: string | null
   completed_at?: string | null
@@ -80,6 +82,7 @@ async function postGenerationRequest<T>(
       signal: controller.signal,
       body: JSON.stringify({
         app_id: payload.app_id,
+        ...(payload.language ? { language: payload.language } : {}),
       }),
     })
 

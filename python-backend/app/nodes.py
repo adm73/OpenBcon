@@ -120,8 +120,12 @@ class PlanNodes:
         return {"sections": sections}
 
     def build_financial_forecast(self, state: PlanGraphState) -> PlanGraphState:
+        context = state["context"]
+        if context.selected_document_type_ids and "financial-model" not in context.selected_document_type_ids:
+            return {"financial_forecast": None}
+
         return {
-            "financial_forecast": build_financial_forecast(state["context"]),
+            "financial_forecast": build_financial_forecast(context),
         }
 
     def compile_output(self, state: PlanGraphState) -> PlanGraphState:

@@ -322,13 +322,10 @@ python-backend/.venv/bin/pip-audit -r python-backend/requirements.txt
 npm run check
 ```
 
-The current compatible `react-router-dom` release is `7.18.2`. The audit may
-report the upstream `GHSA-qwww-vcr4-c8h2` advisory, which is limited to
-unstable React Server Components (RSC) APIs. OpenBcon is a client-side
-`BrowserRouter` SPA and does not enable those RSC APIs. Keep the dependency
-pinned and upgrade when a patched `react-router-dom` release is published.
-Do not use React Router unstable RSC or server-action APIs without repeating
-the security review.
+The current audit baseline is zero reported vulnerabilities for both production
+and development dependencies. Re-run the dependency audits after dependency
+updates or before a release; do not use `npm audit fix --force` without reviewing
+the resulting major-version changes.
 
 ## One-click production deployment
 
@@ -707,10 +704,29 @@ guidance, and migration path toward fully normalized domain tables.
 
 Browser authentication uses a server-side `auth_sessions` table and an
 HttpOnly `bconomics_session` cookie. In production, missing or expired sessions
-are rejected by the Node API and Python generation API. The generation, forecast,
-and AI connection-test endpoints resolve the session workspace and filter the
-requested application by that workspace, so a user-supplied `app_id` cannot
-cross workspace boundaries.
+are rejected by the Node API and Python generation API. The generation and
+forecast endpoints resolve the session workspace and filter the requested
+application by that workspace, so a user-supplied `app_id` cannot cross
+workspace boundaries. AI connection tests are restricted to administrators and
+workspace owners because they can consume configured provider credentials and
+model quota. The test response is capped at 64 KB.
+
+New password registrations create an account, establish a session immediately,
+and send a one-time verification link. Email verification can be completed
+later from the link or by requesting a resend. Development defaults to
+`EMAIL_PROVIDER=console`, which logs the preview link instead of sending an
+email. Production must use SMTP by setting `EMAIL_PROVIDER=smtp`, `SMTP_HOST`,
+`SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`, and
+`PUBLIC_APP_URL`. Existing users from before email verification was introduced
+are treated as verified by the database migration.
+
+Google registration and login are available when
+`GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
+`GOOGLE_OAUTH_REDIRECT_URI` are configured. Register the exact callback URL in
+Google Cloud Console: `https://YOUR_HOST/api/auth/google/callback` (or the
+equivalent local URL). OAuth state is stored in short-lived HttpOnly cookies,
+Google email verification is required, and the app never receives the Google
+client secret.
 
 Platform state writes are server-authorized: only a database user with the
 `admin` role can update or delete platform configuration. Login failures are
@@ -722,9 +738,10 @@ configured demo context when no cookie is present during development and test
 runs. Set `OPENBCON_RUNTIME_ENV=production` for the Python service in production;
 then both APIs require the login or registration API to establish a session and
 the Python service validates the session workspace before generation. The
-browser-only demo password reset flow is disabled in
-production; connect `/forgot-password` to a real email/reset-token service
-before advertising password recovery. Do not expose the Node API, Python AI API,
+authentication endpoints also apply short-window rate limits to registration,
+password-reset requests, and verification-email resends. Production password
+reset and verification delivery require SMTP; the console email provider is
+rejected by production startup. Do not expose the Node API, Python AI API,
 PostgreSQL, MongoDB, payment routes, or model endpoints publicly without TLS,
 secret management, and
 database network controls.
@@ -738,12 +755,11 @@ never place raw AI or payment credentials in frontend configuration. Review and
 back up the database before applying destructive historical migrations, including
 the migration that removes the legacy funding-package tables.
 
-The production dependency audit currently reports only React Router's RSC-mode
-CSRF advisory. This application uses `BrowserRouter` only and does not enable
-React Server Components, server actions, or SSR action endpoints. Keep React
-Router pinned to the current tested version and re-audit before enabling any RSC
-features; do not apply `npm audit fix --force`, which selects an older release
-with additional advisories.
+The security review also checks for committed credential patterns, production
+CORS settings, session-cookie flags, workspace authorization, AI endpoint
+allowlisting, and Python dependency advisories. Keep
+`OPENBCON_ALLOW_PRIVATE_AI_ENDPOINTS=false` in production unless a private
+endpoint is explicitly required and network access is independently restricted.
 
 ## Workspace data sources
 

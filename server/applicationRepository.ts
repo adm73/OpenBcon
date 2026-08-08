@@ -18,6 +18,7 @@ type DatabaseApplicationRow = {
   next_action: string
   note: string
   owner: string
+  metadata: unknown
   updated_at: Date
 }
 
@@ -56,6 +57,10 @@ function asString(value: unknown, fallback = '') {
 
 function asStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function asApplicationLanguage(value: unknown) {
+  return value === 'fr-CA' || value === 'zh-CN' ? value : 'en-CA'
 }
 
 function documentLabelForSection(
@@ -189,6 +194,7 @@ export async function readApplicationsForWorkspace(
         applications.next_action,
         applications.note,
         app_users.display_name AS owner,
+        applications.metadata,
         applications.updated_at
       FROM applications
       JOIN funding_programs ON funding_programs.id = applications.funding_program_id
@@ -246,7 +252,9 @@ export async function readApplicationsForWorkspace(
     documentsTotal: row.documents_total,
     nextAction: row.next_action,
     note: row.note,
-      strategicReviewReports: mappedDatabaseReport ? [mappedDatabaseReport] : [],
+    documentTypeIds: asStringArray(asRecord(row.metadata)?.document_type_ids),
+    language: asApplicationLanguage(asRecord(row.metadata)?.language),
+    strategicReviewReports: mappedDatabaseReport ? [mappedDatabaseReport] : [],
     }
   })
 }

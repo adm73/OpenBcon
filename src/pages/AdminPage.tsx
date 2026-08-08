@@ -16,6 +16,7 @@ import {
   type AdvisoryHubLayoutConfig,
   type AdvisoryHubSectionConfig,
   type AIModelConfig,
+  type AuthenticationConfig,
   type ContentFormat,
   type LandingContentConfig,
   type LandingFooterConfig,
@@ -29,6 +30,7 @@ import {
   type PlatformConfig,
   type PlatformModuleId,
   sanitizePlatformConfigForPersistence,
+  secureConfigValuePlaceholder,
 } from '../config/platform'
 import {
   removeSyncedResourceRecords,
@@ -37,11 +39,20 @@ import {
   saveSyncedFundingPrograms,
   syncFundingDataSource,
   syncResourceDataSource,
+  parseJsonFundingCatalog,
+  defaultFundingProgramFieldMapping,
+  defaultJsonFundingProgramFieldMapping,
+  fundingProgramMappingFields,
+  getFundingProgramFieldMapping,
   type DataSourceModule,
   type FundingDataSource,
   type FundingDataSourceFrequency,
   type FundingDataSourceProvider,
 } from '../data/fundingSources'
+import {
+  archiveJsonFundingProgramsViaApi,
+  importJsonFundingProgramsViaApi,
+} from '../lib/fundingProgramsApi'
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
 import {
   getEnvironmentModeHeaders,
@@ -120,6 +131,7 @@ const dataSourceModuleLabels: Record<DataSourceModule, string> = {
 const dataSourceProviderLabels: Record<FundingDataSourceProvider, string> = {
   'google-sheets': 'Google Sheets',
   airtable: 'Airtable',
+  'json-file': 'JSON File',
 }
 
 function createFundingDataSource(): FundingDataSource {
@@ -141,6 +153,9 @@ function createFundingDataSource(): FundingDataSource {
     recordCount: 0,
     lastSyncedAt: '',
     lastError: '',
+    jsonFileName: '',
+    jsonSourceVersion: '',
+    fieldMapping: { ...defaultFundingProgramFieldMapping },
   }
 }
 
@@ -209,6 +224,39 @@ type UpdateCheckState = {
   latestUrl: string
   latestCommittedAt: string
   error: string
+}
+
+type AdminUser = {
+  id: string
+  email: string
+  fullName: string
+  role: 'owner' | 'admin' | 'member'
+  status: 'active' | 'invited' | 'disabled'
+  emailVerified: boolean
+  hasGoogleAccount: boolean
+  createdAt: string
+  updatedAt: string | null
+}
+
+type AdminUserDraft = {
+  id?: string
+  fullName: string
+  email: string
+  role: AdminUser['role']
+  status: AdminUser['status']
+  password: string
+  emailVerified: boolean
+}
+
+function createAdminUserDraft(): AdminUserDraft {
+  return {
+    fullName: '',
+    email: '',
+    role: 'member',
+    status: 'active',
+    password: '',
+    emailVerified: false,
+  }
 }
 
 const initialUpdateCheckState: UpdateCheckState = {
@@ -475,6 +523,7 @@ export function AdminPage() {
   const { setLocale } = useLocale()
   const [draft, setDraft] = useState<PlatformConfig>(config)
   const [saved, setSaved] = useState(false)
+  const [settingsNotice, setSettingsNotice] = useState('')
   const [savingAIModels, setSavingAIModels] = useState<Record<string, boolean>>({})
   const [aiModelSaveNotice, setAIModelSaveNotice] = useState('')
   const [paymentNotice, setPaymentNotice] = useState('')
@@ -489,12 +538,21 @@ export function AdminPage() {
     'all' | DataSourceModule
   >('all')
   const [sourceEditor, setSourceEditor] = useState<FundingDataSource | null>(null)
+  const [jsonFiles, setJsonFiles] = useState<Record<string, File>>({})
   const [syncingSourceId, setSyncingSourceId] = useState('')
   const [deleteSourceId, setDeleteSourceId] = useState('')
   const [sourceNotice, setSourceNotice] = useState('')
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>(
     initialUpdateCheckState,
   )
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([])
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false)
+  const [adminUsersQuery, setAdminUsersQuery] = useState('')
+  const [adminUserEditor, setAdminUserEditor] = useState<AdminUserDraft | null>(null)
+  const [adminUsersNotice, setAdminUsersNotice] = useState('')
+  const [adminUsersError, setAdminUsersError] = useState('')
+  const [adminUsersSaving, setAdminUsersSaving] = useState(false)
+  const [adminUserDeleting, setAdminUserDeleting] = useState('')
   const commercialLicenseUnlocked = hasCommercialLicenseAccess()
   const platformName = getPlatformDisplayName(draft)
   const platformInitial = getPlatformInitial(draft)
@@ -514,11 +572,133 @@ export function AdminPage() {
     document.title = `Admin Console | ${getPlatformDisplayName(config)}`
   }, [config])
 
+  async function loadAdminUsers(query = adminUsersQuery) {
+    setAdminUsersLoading(true)
+    setAdminUsersError('')
+    try {
+      const response = await fetch(`/api/admin/users?query=${encodeURIComponent(query)}`, {
+        credentials: 'include',
+        headers: getEnvironmentModeHeaders(),
+      })
+      const payload = (await response.json().catch(() => null)) as
+        | { users?: AdminUser[]; message?: string }
+        | null
+      if (!response.ok) {
+        throw new Error(payload?.message ?? 'Unable to load users.')
+      }
+      setAdminUsers(payload?.users ?? [])
+    } catch (error) {
+      setAdminUsersError(error instanceof Error ? error.message : 'Unable to load users.')
+    } finally {
+      setAdminUsersLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadAdminUsers('')
+  }, [])
+
+  function updateAdminUserDraft<Key extends keyof AdminUserDraft>(
+    field: Key,
+    value: AdminUserDraft[Key],
+  ) {
+    setAdminUserEditor((current) => (current ? { ...current, [field]: value } : current))
+  }
+
+  async function saveAdminUser() {
+    if (!adminUserEditor) return
+    if (!adminUserEditor.id && adminUserEditor.password.length < 8) {
+      setAdminUsersError('A new user needs a password with at least 8 characters.')
+      return
+    }
+
+    setAdminUsersSaving(true)
+    setAdminUsersError('')
+    setAdminUsersNotice('')
+    const isEditing = Boolean(adminUserEditor.id)
+    try {
+      const response = await fetch(
+        isEditing ? `/api/admin/users/${adminUserEditor.id}` : '/api/admin/users',
+        {
+          method: isEditing ? 'PATCH' : 'POST',
+          credentials: 'include',
+          headers: {
+            'content-type': 'application/json',
+            ...getEnvironmentModeHeaders(),
+          },
+          body: JSON.stringify({
+            fullName: adminUserEditor.fullName,
+            email: adminUserEditor.email,
+            role: adminUserEditor.role,
+            status: adminUserEditor.status,
+            password: adminUserEditor.password || undefined,
+            emailVerified: adminUserEditor.emailVerified,
+          }),
+        },
+      )
+      const payload = (await response.json().catch(() => null)) as
+        | { user?: AdminUser; message?: string }
+        | null
+      if (!response.ok) {
+        throw new Error(payload?.message ?? 'Unable to save user.')
+      }
+      setAdminUsers((current) => {
+        const savedUser = payload?.user
+        if (!savedUser) return current
+        return isEditing
+          ? current.map((user) => (user.id === savedUser.id ? savedUser : user))
+          : [savedUser, ...current]
+      })
+      setAdminUserEditor(null)
+      setAdminUsersNotice(isEditing ? 'User updated.' : 'User created.')
+    } catch (error) {
+      setAdminUsersError(error instanceof Error ? error.message : 'Unable to save user.')
+    } finally {
+      setAdminUsersSaving(false)
+    }
+  }
+
+  async function deleteAdminUser(user: AdminUser) {
+    if (!window.confirm(`Delete ${user.fullName}? This cannot be undone.`)) return
+
+    setAdminUserDeleting(user.id)
+    setAdminUsersError('')
+    setAdminUsersNotice('')
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: getEnvironmentModeHeaders(),
+      })
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null
+      if (!response.ok) {
+        throw new Error(payload?.message ?? 'Unable to delete user.')
+      }
+      setAdminUsers((current) => current.filter((item) => item.id !== user.id))
+      setAdminUsersNotice('User deleted.')
+    } catch (error) {
+      setAdminUsersError(error instanceof Error ? error.message : 'Unable to delete user.')
+    } finally {
+      setAdminUserDeleting('')
+    }
+  }
+
   function updateField<Key extends keyof PlatformConfig>(
     field: Key,
     value: PlatformConfig[Key],
   ) {
     setDraft((current) => ({ ...current, [field]: value }))
+    setSaved(false)
+  }
+
+  function updateAuthenticationField<Key extends keyof AuthenticationConfig>(
+    field: Key,
+    value: AuthenticationConfig[Key],
+  ) {
+    setDraft((current) => ({
+      ...current,
+      authentication: { ...current.authentication, [field]: value },
+    }))
     setSaved(false)
   }
 
@@ -1265,9 +1445,72 @@ export function AdminPage() {
     setSourceNotice('')
   }
 
+  function updateDataSourceProvider(provider: FundingDataSourceProvider) {
+    setSourceEditor((current) =>
+      current
+        ? {
+            ...current,
+            provider,
+            fieldMapping:
+              provider === 'json-file'
+                ? { ...defaultJsonFundingProgramFieldMapping }
+                : { ...defaultFundingProgramFieldMapping },
+          }
+        : current,
+    )
+    setSourceNotice('')
+  }
+
+  function updateFundingFieldMapping(field: string, value: string) {
+    setSourceEditor((current) =>
+      current
+        ? {
+            ...current,
+            fieldMapping: {
+              ...getFundingProgramFieldMapping(current),
+              [field]: value,
+            },
+          }
+        : current,
+    )
+    setSourceNotice('')
+  }
+
+  async function selectJsonDataSourceFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (!file || !sourceEditor) return
+
+    try {
+      const content = await file.text()
+      const catalog = parseJsonFundingCatalog(JSON.parse(content))
+      setJsonFiles((current) => ({ ...current, [sourceEditor.id]: file }))
+      setSourceEditor((current) =>
+        current
+          ? {
+              ...current,
+              jsonFileName: file.name,
+              jsonSourceVersion: '',
+            }
+          : current,
+      )
+      setSourceNotice(
+        `${file.name} is valid and contains ${catalog.records.length} ${catalog.category.toLowerCase()} records.`,
+      )
+    } catch (error) {
+      event.target.value = ''
+      setSourceNotice(
+        error instanceof Error ? error.message : 'The JSON file could not be read.',
+      )
+    }
+  }
+
   function saveDataSource() {
     if (!sourceEditor?.name.trim()) {
       setSourceNotice('Add a name before saving this data source.')
+      return
+    }
+    if (sourceEditor.provider === 'json-file' && sourceEditor.module !== 'grants-loans') {
+      setSourceNotice('JSON File sources can only target Grants & Loans.')
       return
     }
 
@@ -1296,14 +1539,31 @@ export function AdminPage() {
     setSaved(false)
   }
 
-  function deleteDataSource(sourceId: string) {
+  async function deleteDataSource(sourceId: string) {
     const source = draft.dataSources.find((item) => item.id === sourceId)
+    if (source?.provider === 'json-file') {
+      try {
+        await archiveJsonFundingProgramsViaApi(sourceId)
+      } catch (error) {
+        setSourceNotice(
+          error instanceof Error
+            ? error.message
+            : 'The JSON funding records could not be archived.',
+        )
+        return
+      }
+    }
     setDraft((current) => ({
       ...current,
       dataSources: current.dataSources.filter((item) => item.id !== sourceId),
     }))
     removeSyncedFundingPrograms(sourceId)
     removeSyncedResourceRecords(sourceId)
+    setJsonFiles((current) => {
+      const next = { ...current }
+      delete next[sourceId]
+      return next
+    })
     setDeleteSourceId('')
     setSaved(false)
     setSourceNotice(`${source?.name ?? 'Data source'} removed.`)
@@ -1316,9 +1576,39 @@ export function AdminPage() {
     try {
       let recordCount = 0
       if (source.module === 'grants-loans') {
-        const programs = await syncFundingDataSource(source)
-        saveSyncedFundingPrograms(source.id, programs)
-        recordCount = programs.length
+        if (source.provider === 'json-file') {
+          const file = jsonFiles[source.id]
+          if (!file) {
+            throw new Error('Select the JSON file again before syncing this source.')
+          }
+          const catalog = parseJsonFundingCatalog(JSON.parse(await file.text()))
+          const result = await importJsonFundingProgramsViaApi({
+            sourceId: source.id,
+            sourceName: source.name,
+            sourceVersion: source.jsonSourceVersion,
+            sourceUrl: catalog.sourceUrl,
+            category: catalog.category,
+            records: catalog.records,
+            fieldMapping: getFundingProgramFieldMapping(source),
+          })
+          saveSyncedFundingPrograms(source.id, result.programs)
+          recordCount = result.programs.length
+          setDraft((current) => ({
+            ...current,
+            dataSources: current.dataSources.map((item) =>
+              item.id === source.id
+                ? { ...item, jsonSourceVersion: result.sourceVersion }
+                : item,
+            ),
+          }))
+          setSourceNotice(
+            `${result.imported} new, ${result.updated} updated, and ${result.archived} archived records imported from ${source.name}.`,
+          )
+        } else {
+          const programs = await syncFundingDataSource(source)
+          saveSyncedFundingPrograms(source.id, programs)
+          recordCount = programs.length
+        }
       } else {
         const resources = await syncResourceDataSource(source)
         saveSyncedResourceRecords(source.id, resources)
@@ -1547,11 +1837,54 @@ export function AdminPage() {
     )
   }
 
-  function saveSettings(event: FormEvent<HTMLFormElement>) {
+  async function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    updateConfig(draft)
-    setLocale(draft.language)
-    setSaved(true)
+    setSaved(false)
+    setSettingsNotice('')
+    try {
+      updateConfig(draft)
+      const persistenceMode = await persistPersistentItem(
+        platformConfigStorageKey,
+        JSON.stringify(sanitizePlatformConfigForPersistence(draft)),
+      )
+
+      const authSecrets: Record<string, string> = {}
+      const googleClientSecret = draft.authentication.googleOAuth.clientSecret.trim()
+      const smtpPassword = draft.authentication.smtp.password.trim()
+      if (googleClientSecret && googleClientSecret !== secureConfigValuePlaceholder) {
+        authSecrets.googleClientSecret = googleClientSecret
+      }
+      if (smtpPassword && smtpPassword !== secureConfigValuePlaceholder) {
+        authSecrets.smtpPassword = smtpPassword
+      }
+      if (Object.keys(authSecrets).length > 0) {
+        const response = await fetch('/api/platform/auth-secrets', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'content-type': 'application/json',
+            ...getEnvironmentModeHeaders(),
+          },
+          body: JSON.stringify(authSecrets),
+        })
+        const payload = (await response.json().catch(() => null)) as {
+          message?: string
+        } | null
+        if (!response.ok) {
+          throw new Error(payload?.message ?? 'Authentication secrets could not be saved.')
+        }
+      }
+
+      setLocale(draft.language)
+      setSaved(true)
+      setSettingsNotice(
+        `Settings saved to ${persistenceMode === 'database' ? 'the database' : 'local cache'}.`,
+      )
+    } catch (error) {
+      setSettingsNotice(
+        error instanceof Error ? error.message : 'Settings could not be saved.',
+      )
+    }
   }
 
   function restoreDefaults() {
@@ -1611,6 +1944,9 @@ export function AdminPage() {
         </Link>
         <nav>
           <a href="#general">General</a>
+          <a href="#google-oauth">Google OAuth</a>
+          <a href="#smtp">SMTP Email</a>
+          <a href="#users">Users</a>
           <a href="#notification-bar">Notification bar</a>
           <a href="#branding">Branding</a>
           <a href="#landing-page">Landing Page</a>
@@ -1749,6 +2085,201 @@ export function AdminPage() {
                   </p>
                 </div>
               </div>
+            </div>
+          </section>
+
+          <section className="admin-card admin-management-card" id="google-oauth">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">02</p>
+              <h2>Google OAuth</h2>
+              <p>Configure Google sign-in without exposing the client secret to the browser.</p>
+            </div>
+            <div className="admin-management-content">
+              <div className="admin-fields">
+                <label className="admin-checkbox-row admin-field-wide">
+                  <input
+                    type="checkbox"
+                    checked={draft.authentication.googleOAuth.enabled}
+                    onChange={(event) =>
+                      updateAuthenticationField('googleOAuth', {
+                        ...draft.authentication.googleOAuth,
+                        enabled: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>Enable Google OAuth sign-in</span>
+                </label>
+                <label>
+                  <span>Client ID</span>
+                  <input
+                    value={draft.authentication.googleOAuth.clientId}
+                    onChange={(event) =>
+                      updateAuthenticationField('googleOAuth', {
+                        ...draft.authentication.googleOAuth,
+                        clientId: event.target.value,
+                      })
+                    }
+                    placeholder="1234567890.apps.googleusercontent.com"
+                  />
+                </label>
+                <label>
+                  <span>Client secret</span>
+                  <input
+                    type="password"
+                    value={
+                      draft.authentication.googleOAuth.clientSecret === secureConfigValuePlaceholder
+                        ? ''
+                        : draft.authentication.googleOAuth.clientSecret
+                    }
+                    onChange={(event) =>
+                      updateAuthenticationField('googleOAuth', {
+                        ...draft.authentication.googleOAuth,
+                        clientSecret: event.target.value,
+                      })
+                    }
+                    placeholder={
+                      draft.authentication.googleOAuth.clientSecret === secureConfigValuePlaceholder
+                        ? 'Stored securely; enter to replace'
+                        : 'Google client secret'
+                    }
+                  />
+                </label>
+                <label className="admin-field-wide">
+                  <span>Redirect URI</span>
+                  <input
+                    type="url"
+                    value={draft.authentication.googleOAuth.redirectUri}
+                    onChange={(event) =>
+                      updateAuthenticationField('googleOAuth', {
+                        ...draft.authentication.googleOAuth,
+                        redirectUri: event.target.value,
+                      })
+                    }
+                    placeholder="https://open.example.com/api/auth/google/callback"
+                  />
+                  <small>
+                    Add this exact URI to the authorized redirect URIs in Google Cloud Console.
+                  </small>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-card admin-management-card" id="smtp">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">03</p>
+              <h2>SMTP Email</h2>
+              <p>Configure delivery for verification and password-reset emails.</p>
+            </div>
+            <div className="admin-management-content">
+              <div className="admin-fields">
+                <label className="admin-checkbox-row admin-field-wide">
+                  <input
+                    type="checkbox"
+                    checked={draft.authentication.smtp.enabled}
+                    onChange={(event) =>
+                      updateAuthenticationField('smtp', {
+                        ...draft.authentication.smtp,
+                        enabled: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>Enable SMTP email delivery</span>
+                </label>
+                <label>
+                  <span>SMTP host</span>
+                  <input
+                    value={draft.authentication.smtp.host}
+                    onChange={(event) =>
+                      updateAuthenticationField('smtp', {
+                        ...draft.authentication.smtp,
+                        host: event.target.value,
+                      })
+                    }
+                    placeholder="smtp.example.com"
+                  />
+                </label>
+                <label>
+                  <span>SMTP port</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="65535"
+                    value={draft.authentication.smtp.port}
+                    onChange={(event) =>
+                      updateAuthenticationField('smtp', {
+                        ...draft.authentication.smtp,
+                        port: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  <span>SMTP username</span>
+                  <input
+                    value={draft.authentication.smtp.username}
+                    onChange={(event) =>
+                      updateAuthenticationField('smtp', {
+                        ...draft.authentication.smtp,
+                        username: event.target.value,
+                      })
+                    }
+                    placeholder="mailer@example.com"
+                  />
+                </label>
+                <label>
+                  <span>SMTP password</span>
+                  <input
+                    type="password"
+                    value={
+                      draft.authentication.smtp.password === secureConfigValuePlaceholder
+                        ? ''
+                        : draft.authentication.smtp.password
+                    }
+                    onChange={(event) =>
+                      updateAuthenticationField('smtp', {
+                        ...draft.authentication.smtp,
+                        password: event.target.value,
+                      })
+                    }
+                    placeholder={
+                      draft.authentication.smtp.password === secureConfigValuePlaceholder
+                        ? 'Stored securely; enter to replace'
+                        : 'SMTP password or app password'
+                    }
+                  />
+                </label>
+                <label>
+                  <span>From address</span>
+                  <input
+                    type="email"
+                    value={draft.authentication.smtp.from}
+                    onChange={(event) =>
+                      updateAuthenticationField('smtp', {
+                        ...draft.authentication.smtp,
+                        from: event.target.value,
+                      })
+                    }
+                    placeholder="OpenBcon <no-reply@example.com>"
+                  />
+                </label>
+                <label className="admin-checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={draft.authentication.smtp.secure}
+                    onChange={(event) =>
+                      updateAuthenticationField('smtp', {
+                        ...draft.authentication.smtp,
+                        secure: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>Use TLS/SSL</span>
+                </label>
+              </div>
+              <p className="admin-management-notice">
+                Leave SMTP disabled to use the console email provider in development and test mode.
+              </p>
             </div>
           </section>
 
@@ -2434,7 +2965,11 @@ export function AdminPage() {
                       aria-label={dataSourceProviderLabels[source.provider]}
                       title={dataSourceProviderLabels[source.provider]}
                     >
-                      {source.provider === 'google-sheets' ? 'G' : 'A'}
+                      {source.provider === 'google-sheets'
+                        ? 'G'
+                        : source.provider === 'airtable'
+                          ? 'A'
+                          : 'J'}
                     </span>
                     <div className="admin-source-identity">
                       <span>
@@ -2510,16 +3045,16 @@ export function AdminPage() {
               {visibleDataSources.length === 0 ? (
                 <div className="admin-source-empty">
                   <strong>No matching data sources</strong>
-                  <p>Clear the search or add a new Google Sheets or Airtable source.</p>
+                  <p>Clear the search or add a new Google Sheets, Airtable, or JSON File source.</p>
                 </div>
               ) : null}
 
               <div className="admin-data-contract">
                 <strong>Automatic field mapping</strong>
                 <p>
-                  Funding sources map program fields. Resource sources map Title,
-                  Description, Category, Status, URL, and Updated. Common variations
-                  are recognized automatically.
+                  Funding sources support an explicit source-to-destination mapping in the
+                  editor and still recognize common field-name variations automatically.
+                  Resource sources map Title, Description, Category, Status, URL, and Updated.
                 </p>
               </div>
             </div>
@@ -3939,6 +4474,193 @@ export function AdminPage() {
             </div>
           </section>}
 
+          <section className="admin-card admin-management-card" id="users">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">18</p>
+              <h2>Users</h2>
+              <p>Manage platform accounts, roles, access status, and email verification.</p>
+            </div>
+            <div className="admin-management-content">
+              <div className="admin-users-toolbar">
+                <input
+                  value={adminUsersQuery}
+                  onChange={(event) => setAdminUsersQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void loadAdminUsers()
+                  }}
+                  placeholder="Search by name or email"
+                  aria-label="Search users"
+                />
+                <div className="admin-inline-actions">
+                  <button
+                    type="button"
+                    className="admin-button-secondary"
+                    onClick={() => void loadAdminUsers()}
+                    disabled={adminUsersLoading}
+                  >
+                    {adminUsersLoading ? 'Loading…' : 'Refresh'}
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-button-primary"
+                    onClick={() => {
+                      setAdminUserEditor(createAdminUserDraft())
+                      setAdminUsersError('')
+                    }}
+                  >
+                    Add user
+                  </button>
+                </div>
+              </div>
+              {adminUsersNotice ? (
+                <div className="admin-management-notice" role="status">{adminUsersNotice}</div>
+              ) : null}
+              {adminUsersError ? (
+                <div className="admin-management-notice is-error" role="alert">{adminUsersError}</div>
+              ) : null}
+              {adminUserEditor ? (
+                <div className="admin-user-editor">
+                  <div className="admin-user-editor-header">
+                    <strong>{adminUserEditor.id ? 'Edit user' : 'Add user'}</strong>
+                    <button
+                      type="button"
+                      className="admin-button-secondary"
+                      onClick={() => setAdminUserEditor(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <div className="admin-fields">
+                    <label>
+                      <span>Full name</span>
+                      <input
+                        value={adminUserEditor.fullName}
+                        onChange={(event) => updateAdminUserDraft('fullName', event.target.value)}
+                        autoComplete="off"
+                      />
+                    </label>
+                    <label>
+                      <span>Email</span>
+                      <input
+                        type="email"
+                        value={adminUserEditor.email}
+                        onChange={(event) => updateAdminUserDraft('email', event.target.value)}
+                        autoComplete="off"
+                      />
+                    </label>
+                    <label>
+                      <span>Role</span>
+                      <select
+                        value={adminUserEditor.role}
+                        onChange={(event) => updateAdminUserDraft('role', event.target.value as AdminUser['role'])}
+                      >
+                        <option value="owner">Owner</option>
+                        <option value="admin">Admin</option>
+                        <option value="member">Member</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Status</span>
+                      <select
+                        value={adminUserEditor.status}
+                        onChange={(event) => updateAdminUserDraft('status', event.target.value as AdminUser['status'])}
+                      >
+                        <option value="active">Active</option>
+                        <option value="invited">Invited</option>
+                        <option value="disabled">Disabled</option>
+                      </select>
+                    </label>
+                    <label className="admin-field-wide">
+                      <span>{adminUserEditor.id ? 'New password (optional)' : 'Password'}</span>
+                      <input
+                        type="password"
+                        value={adminUserEditor.password}
+                        onChange={(event) => updateAdminUserDraft('password', event.target.value)}
+                        placeholder={adminUserEditor.id ? 'Leave blank to keep the current password' : 'At least 8 characters'}
+                        autoComplete="new-password"
+                      />
+                    </label>
+                    <label className="admin-switch-row admin-field-wide">
+                      <span>
+                        <strong>Email verified</strong>
+                        <small>Admins can mark an account as verified when appropriate.</small>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={adminUserEditor.emailVerified}
+                        onChange={(event) => updateAdminUserDraft('emailVerified', event.target.checked)}
+                      />
+                    </label>
+                  </div>
+                  <div className="admin-inline-actions admin-user-editor-actions">
+                    <button
+                      type="button"
+                      className="admin-button-primary"
+                      onClick={() => void saveAdminUser()}
+                      disabled={adminUsersSaving}
+                    >
+                      {adminUsersSaving ? 'Saving…' : 'Save user'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              <div className="admin-user-list">
+                {adminUsersLoading && adminUsers.length === 0 ? (
+                  <p className="admin-source-empty">Loading users…</p>
+                ) : adminUsers.length === 0 ? (
+                  <p className="admin-source-empty">No users found.</p>
+                ) : adminUsers.map((user) => (
+                  <article className="admin-user-row" key={user.id}>
+                    <div className="admin-user-identity">
+                      <span className="admin-user-avatar">{user.fullName.trim().charAt(0).toUpperCase() || '?'}</span>
+                      <div>
+                        <strong>{user.fullName}</strong>
+                        <span>{user.email}</span>
+                        <small>ID {user.id} · Created {new Date(user.createdAt).toLocaleDateString()}</small>
+                      </div>
+                    </div>
+                    <div className="admin-user-meta">
+                      <span className={`admin-user-status is-${user.status}`}>{user.status}</span>
+                      <span className="admin-user-role">{user.role}</span>
+                      <span className={`admin-user-verification ${user.emailVerified ? 'is-verified' : ''}`}>
+                        {user.emailVerified ? 'Email verified' : 'Email not verified'}
+                      </span>
+                      {user.hasGoogleAccount ? <span className="admin-user-google">Google linked</span> : null}
+                    </div>
+                    <div className="admin-inline-actions admin-user-actions">
+                      <button
+                        type="button"
+                        className="admin-button-secondary"
+                        onClick={() => {
+                          setAdminUserEditor({
+                            id: user.id,
+                            fullName: user.fullName,
+                            email: user.email,
+                            role: user.role,
+                            status: user.status,
+                            password: '',
+                            emailVerified: user.emailVerified,
+                          })
+                          setAdminUsersError('')
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="admin-button-secondary is-danger"
+                        onClick={() => void deleteAdminUser(user)}
+                        disabled={adminUserDeleting === user.id}
+                      >
+                        {adminUserDeleting === user.id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+
           <section className="admin-card" id="notification-bar">
             <div className="admin-section-copy">
               <p className="admin-section-number">16</p>
@@ -4096,6 +4818,11 @@ export function AdminPage() {
           </section>
 
           <div className="admin-actions">
+            {settingsNotice ? (
+              <p className="admin-management-notice" role="status">
+                {settingsNotice}
+              </p>
+            ) : null}
             <button type="button" className="admin-button-secondary" onClick={restoreDefaults}>
               Restore defaults
             </button>
@@ -4151,14 +4878,14 @@ export function AdminPage() {
                   <select
                     value={sourceEditor.provider}
                     onChange={(event) =>
-                      updateDataSource(
-                        'provider',
+                      updateDataSourceProvider(
                         event.target.value as FundingDataSourceProvider,
                       )
                     }
                   >
                     <option value="google-sheets">Google Sheets</option>
                     <option value="airtable">Airtable</option>
+                    <option value="json-file">JSON File</option>
                   </select>
                 </label>
                 <label>
@@ -4218,7 +4945,7 @@ export function AdminPage() {
                       />
                     </label>
                   </>
-                ) : (
+                ) : sourceEditor.provider === 'airtable' ? (
                   <>
                     <label>
                       <span>Airtable base ID</span>
@@ -4274,15 +5001,60 @@ export function AdminPage() {
                       </small>
                     </label>
                   </>
+                ) : (
+                  <label className="admin-source-field-wide">
+                    <span>JSON catalog file</span>
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      onChange={selectJsonDataSourceFile}
+                    />
+                    <small>
+                      Select a catalog with a top-level <code>records</code> array. The file is
+                      sent to the backend only when you click Sync.
+                    </small>
+                    {sourceEditor.jsonFileName ? (
+                      <small>Selected: {sourceEditor.jsonFileName}</small>
+                    ) : null}
+                  </label>
                 )}
+
+                {sourceEditor.module === 'grants-loans' ? (
+                  <div className="admin-source-field-wide admin-source-mapping">
+                    <div className="admin-source-mapping-heading">
+                      <strong>Field mapping</strong>
+                      <small>
+                        Match each destination field to the column or JSON key in this source.
+                        Program name is required; blank optional fields use automatic aliases.
+                      </small>
+                    </div>
+                    <div className="admin-source-mapping-grid">
+                      {fundingProgramMappingFields.map((field) => {
+                        const mapping = getFundingProgramFieldMapping(sourceEditor)
+                        return (
+                          <label key={field.key}>
+                            <span>
+                              {field.label}
+                              {field.required ? ' *' : ''}
+                            </span>
+                            <input
+                              value={mapping[field.key] ?? ''}
+                              onChange={(event) =>
+                                updateFundingFieldMapping(field.key, event.target.value)
+                              }
+                              placeholder={`Source ${field.label.toLowerCase()} key`}
+                            />
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : null}
 
                 <label className="admin-switch-row admin-source-field-wide">
                   <span>
                     <strong>Enable this data source</strong>
-                    <small>
-                      Include synchronized records in{' '}
-                      {dataSourceModuleLabels[sourceEditor.module]}.
-                    </small>
+                    <small>Include synchronized records in the selected destination module.</small>
                   </span>
                   <input
                     type="checkbox"
@@ -4298,12 +5070,16 @@ export function AdminPage() {
                 <strong>
                   {sourceEditor.provider === 'google-sheets'
                     ? 'Public read access'
-                    : 'Server-side authentication'}
+                    : sourceEditor.provider === 'json-file'
+                      ? 'Server-side database import'
+                      : 'Server-side authentication'}
                 </strong>
                 <p>
                   {sourceEditor.provider === 'google-sheets'
                     ? 'Only public or link-readable sheets can be synchronized directly by the open-source frontend.'
-                    : 'Airtable access tokens are never stored in the browser. Configure the secret on your integration proxy.'}
+                    : sourceEditor.provider === 'json-file'
+                      ? 'The catalog is validated and written to the current Test or Live database. The browser keeps a cache for fast display.'
+                      : 'Airtable access tokens are never stored in the browser. Configure the secret on your integration proxy.'}
                 </p>
               </div>
 

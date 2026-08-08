@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { loginUser } from '../auth/session'
+import { loginUser, startGoogleSignIn } from '../auth/session'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import { getPlatformDisplayName } from '../lib/platformBrand'
 import { AuthShell } from './AuthShell'
@@ -20,12 +20,31 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [notice, setNotice] = useState('')
+  const [googleAvailable, setGoogleAvailable] = useState(false)
   const nextPath = getNextPath(location.search)
   const platformName = getPlatformDisplayName(config)
 
   useEffect(() => {
     document.title = `Log in | ${platformName}`
   }, [platformName])
+
+  useEffect(() => {
+    fetch('/api/auth/google/status')
+      .then((response) => response.json() as Promise<{ enabled?: boolean }>)
+      .then((payload) => setGoogleAvailable(payload.enabled === true))
+      .catch(() => setGoogleAvailable(false))
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('auth') === 'verified') {
+      setNotice('Your email is verified. You can continue to your workspace.')
+    } else if (params.get('auth_error') === 'email_unverified') {
+      setNotice('Your account can sign in now. Please verify your email when convenient.')
+    } else if (params.get('auth_error')) {
+      setNotice('Google sign-in could not be completed. Please try again.')
+    }
+  }, [location.search])
 
   async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -87,6 +106,12 @@ export function LoginPage() {
         </label>
         <button type="submit">Log in</button>
       </form>
+
+      {googleAvailable ? (
+        <button type="button" className="auth-secondary-button" onClick={() => startGoogleSignIn(nextPath)}>
+          Continue with Google
+        </button>
+      ) : null}
 
       {notice ? (
         <p className="auth-notice" role="alert">

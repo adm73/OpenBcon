@@ -39,7 +39,11 @@ def require_authenticated(request: Request, connection: Connection) -> AuthConte
 
     row = connection.execute(
         """
-        SELECT sessions.user_id, sessions.workspace_id, members.role
+        SELECT
+            sessions.user_id,
+            sessions.workspace_id,
+            users.role AS user_role,
+            members.role AS member_role
         FROM auth_sessions AS sessions
         JOIN app_users AS users
           ON users.id = sessions.user_id
@@ -69,8 +73,23 @@ def require_authenticated(request: Request, connection: Connection) -> AuthConte
     return AuthContext(
         user_id=int(row["user_id"]),
         workspace_id=str(row["workspace_id"]),
-        role=str(row["role"]),
+        role=(
+            "admin"
+            if str(row["user_role"]) == "admin"
+            else str(row["member_role"])
+        ),
     )
+
+
+def require_admin(request: Request, connection: Connection) -> AuthContext:
+    """Require an authenticated platform administrator or workspace owner."""
+    context = require_authenticated(request, connection)
+    if context.role not in {"admin", "owner"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator access is required for this operation.",
+        )
+    return context
 
 
 def require_application_access(

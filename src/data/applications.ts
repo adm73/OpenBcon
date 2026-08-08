@@ -1,4 +1,5 @@
 import type { GeneratedPackage, StrategicReviewReport } from '../types'
+import type { SupportedLocale } from '../i18n'
 import { findFundingProgramByName } from './fundingSources'
 import type { SavedProgramStage } from './savedPrograms'
 import { setPersistentItem } from '../persistence/storage'
@@ -13,6 +14,7 @@ export type ApplicationStatus =
 export type ApplicationRecord = {
   id: string
   appId?: string
+  language?: SupportedLocale
   title: string
   programName: string
   programUrl?: string
@@ -29,6 +31,7 @@ export type ApplicationRecord = {
   documentsTotal: number
   nextAction: string
   note: string
+  documentTypeIds?: string[]
   strategicReviewReports?: StrategicReviewReport[]
 }
 

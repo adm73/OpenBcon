@@ -17,7 +17,7 @@ from .advisory_config import (
     load_generation_configuration,
     load_model_api_key,
 )
-from .auth import require_application_access, require_authenticated
+from .auth import require_admin, require_application_access, require_authenticated
 from .forecast import build_financial_forecast
 from .graph import build_plan_graph
 from .llm import build_model_gateway
@@ -57,7 +57,12 @@ def generate_financial_forecast(
     settings = get_settings()
     environment_mode = get_environment_mode(request)
     system_language, _ = load_generation_configuration(settings, environment_mode)
-    payload = payload.model_copy(update={"language": system_language})
+    requested_language = (
+        payload.language
+        if "language" in payload.model_fields_set
+        else system_language
+    )
+    payload = payload.model_copy(update={"language": requested_language})
     with get_connection(environment_mode) as connection:
         try:
             workspace = require_application_access(request, connection, payload.app_id)
@@ -82,6 +87,24 @@ def _configured_section(context, section_key: str):
         ),
         None,
     )
+
+
+def _selected_advisory_sections(context, advisory_hub):
+    selected_document_type_ids = set(context.selected_document_type_ids)
+    sections = [
+        section
+        for section in advisory_hub.sections
+        if section.enabled
+        and (
+            not selected_document_type_ids
+            or section.document_type_id in selected_document_type_ids
+        )
+    ]
+    if not sections:
+        raise ValueError(
+            "No enabled Strategic Report sections match the selected templates."
+        )
+    return sections
 
 
 def _section_outline(context, section, draft_content: str = "") -> OutlineItem:
@@ -183,19 +206,25 @@ def regenerate_business_plan_section(
     settings = get_settings()
     environment_mode = get_environment_mode(request)
     system_language, model_config = load_generation_configuration(settings, environment_mode)
+    requested_language = (
+        payload.language
+        if "language" in payload.model_fields_set
+        else system_language
+    )
     payload = payload.model_copy(
-        update={"language": system_language, "model": model_config}
+        update={"language": requested_language, "model": model_config}
     )
     with get_connection(environment_mode) as connection:
         workspace = require_application_access(request, connection, payload.app_id)
         repository = FundingPlanRepository(connection)
         context = repository.load_generation_context(payload, workspace.workspace_id)
         advisory_hub = load_advisory_hub_configuration(settings, environment_mode)
+        configured_sections = _selected_advisory_sections(context, advisory_hub)
         context = context.model_copy(
             update={
-                "advisory_sections": advisory_hub.sections,
+                "advisory_sections": configured_sections,
                 "advisory_agents": advisory_hub.agents,
-                "section_limit": len(advisory_hub.sections),
+                "section_limit": len(configured_sections),
             }
         )
         section = _configured_section(context, payload.section_key)
@@ -418,7 +447,7 @@ def test_ai_connection(
     if settings.runtime_env == "production":
         try:
             with get_connection(environment_mode) as connection:
-                require_authenticated(request, connection)
+                require_admin(request, connection)
         except OperationalError as error:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -447,7 +476,9 @@ def test_ai_connection(
     try:
         opener = build_opener(_NoRedirectHandler)
         with opener.open(upstream_request, timeout=60) as upstream_response:
-            response_body = upstream_response.read().decode("utf-8", errors="replace")
+            response_body = upstream_response.read(64 * 1024).decode(
+                "utf-8", errors="replace"
+            )
             return AIConnectionTestResponse(
                 response=response_body,
                 upstream_status=upstream_response.status,
@@ -496,8 +527,13 @@ def generate_business_plan(
                 settings,
                 environment_mode,
             )
+            requested_language = (
+                payload.language
+                if "language" in payload.model_fields_set
+                else system_language
+            )
             payload = payload.model_copy(
-                update={"language": system_language, "model": model_config}
+                update={"language": requested_language, "model": model_config}
             )
             workspace = require_application_access(request, connection, payload.app_id)
             context = repository.load_generation_context(payload, workspace.workspace_id)
@@ -505,11 +541,12 @@ def generate_business_plan(
             graph = build_plan_graph(PlanNodes(gateway))
             context = repository.ensure_context_records(context)
             advisory_hub = load_advisory_hub_configuration(settings, environment_mode)
+            configured_sections = _selected_advisory_sections(context, advisory_hub)
             context = context.model_copy(
                 update={
-                    "advisory_sections": advisory_hub.sections,
+                    "advisory_sections": configured_sections,
                     "advisory_agents": advisory_hub.agents,
-                    "section_limit": len(advisory_hub.sections),
+                    "section_limit": len(configured_sections),
                 }
             )
             strategic_report_id = repository.create_strategic_report(

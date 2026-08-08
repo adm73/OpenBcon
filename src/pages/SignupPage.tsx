@@ -1,6 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { registerUser } from '../auth/session'
+import {
+  registerUser,
+  startGoogleSignIn,
+} from '../auth/session'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import { getPlatformDisplayName } from '../lib/platformBrand'
 import { AuthShell } from './AuthShell'
@@ -14,11 +17,19 @@ export function SignupPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [notice, setNotice] = useState('')
+  const [googleAvailable, setGoogleAvailable] = useState(false)
   const platformName = getPlatformDisplayName(config)
 
   useEffect(() => {
     document.title = `Create account | ${platformName}`
   }, [platformName])
+
+  useEffect(() => {
+    fetch('/api/auth/google/status')
+      .then((response) => response.json() as Promise<{ enabled?: boolean }>)
+      .then((payload) => setGoogleAvailable(payload.enabled === true))
+      .catch(() => setGoogleAvailable(false))
+  }, [])
 
   async function submitSignup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -133,6 +144,12 @@ export function SignupPage() {
         </label>
         <button type="submit">Create account</button>
       </form>
+
+      {googleAvailable ? (
+        <button type="button" className="auth-secondary-button" onClick={() => startGoogleSignIn('/dashboard')}>
+          Continue with Google
+        </button>
+      ) : null}
 
       {notice ? (
         <p className="auth-notice" role="alert">

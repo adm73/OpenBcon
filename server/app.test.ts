@@ -201,6 +201,89 @@ describe('persistence API', () => {
     )
   })
 
+  it('imports and upserts a JSON funding catalog', async () => {
+    const importedRow = {
+      id: 'program-json-1',
+      pid: '1000000000000099',
+      name: 'Community Loan',
+      provider: 'Regional Fund',
+      category: 'Loan',
+      funding_amount: '70000',
+      deadline: 'Open',
+      program_status: 'Accepting applications',
+      match_score: 0,
+      program_url: 'https://example.ca/loan',
+      location: 'British Columbia',
+      country: 'Canada',
+      description: 'A JSON-imported loan.',
+      process: 'Contact the provider.',
+      eligibility: 'Canadian businesses.',
+      eligible_uses: 'Working capital.',
+      target_company_types: '',
+      required_evidence: '',
+      source_type: 'json-file',
+      source_id: 'json-loans',
+      source_record_id: 'json-record-1',
+      source_version: 'json-version-1',
+      record_version: 'json-version-1',
+      status: 'active',
+    }
+    const client = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('RETURNING (xmax = 0)')) {
+          return { rows: [{ inserted: true }], rowCount: 1 }
+        }
+        if (query.includes('SELECT count(*)')) {
+          return { rows: [{ count: '0' }], rowCount: 1 }
+        }
+        if (query.includes('FROM funding_programs')) {
+          return { rows: [importedRow], rowCount: 1 }
+        }
+        return { rows: [], rowCount: 0 }
+      }),
+      release: vi.fn(),
+    }
+    const database = {
+      query: vi.fn(async () => ({ rows: [], rowCount: 0 })),
+      connect: vi.fn(async () => client),
+    } as unknown as Pool
+
+    const response = await request(createApp(database))
+      .post('/api/funding-programs/import')
+      .send({
+        sourceId: 'json-loans',
+        sourceName: 'Loan programs JSON',
+        category: 'Loan',
+        records: [{
+          program_name: 'Community Loan',
+          provider: 'Regional Fund',
+          official_program_site: 'https://example.ca/loan',
+          max_amount: 'Maximum: $70,000',
+          location: ['British Columbia'],
+          description: 'A JSON-imported loan.',
+          how_to_start: ['Contact the provider.'],
+          eligibility: ['Canadian businesses.'],
+          eligible_uses: ['Working capital.'],
+          status: 'Accepting applications',
+          status_active: true,
+        }],
+      })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      imported: 1,
+      updated: 0,
+      archived: 0,
+      programs: [expect.objectContaining({
+        name: 'Community Loan',
+        type: 'Loan',
+        sourceType: 'json-file',
+        programStatus: 'Accepting applications',
+      })],
+    })
+    expect(client.release).toHaveBeenCalled()
+  })
+
   it('returns the latest OpenBcon commit for the admin update check', async () => {
     const latestCommit = 'd'.repeat(40)
     const fetcher = vi.fn(async () => new Response(JSON.stringify({
@@ -268,6 +351,151 @@ describe('persistence API', () => {
       fullName: 'Alex Morgan',
     })
     expect(response.body.user.password).toBeUndefined()
+  })
+
+  it('creates password accounts, signs them in, and sends verification email', async () => {
+    const database = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('WITH new_user')) {
+          return {
+            rows: [{
+              id: '7',
+              email: 'new@example.test',
+              display_name: 'New User',
+              role: 'owner',
+              created_at: new Date('2026-07-31T00:00:00.000Z'),
+              workspace_id: '00000000-0000-4000-8000-000000000003',
+            }],
+            rowCount: 1,
+          }
+        }
+        return { rows: [], rowCount: 1 }
+      }),
+    } as unknown as Pool
+
+    const response = await request(createApp(database))
+      .post('/api/auth/register')
+      .send({
+        fullName: 'New User',
+        companyName: 'New Company',
+        email: 'new@example.test',
+        password: 'TestPassword-2026!',
+      })
+
+    expect(response.status).toBe(201)
+    expect(response.body).toMatchObject({
+      user: {
+        email: 'new@example.test',
+        emailVerified: false,
+      },
+      emailVerification: {
+        sent: true,
+      },
+    })
+    expect(response.body.emailVerification.previewVerificationUrl).toContain('/api/auth/verify-email?token=')
+    expect(response.headers['set-cookie']).toBeDefined()
+  })
+
+  it('allows password login before email verification', async () => {
+    const database = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('FROM app_users')) {
+          return {
+            rows: [{
+              id: '8',
+              email: 'unverified@example.test',
+              display_name: 'Unverified User',
+              role: 'owner',
+              created_at: new Date('2026-07-31T00:00:00.000Z'),
+              email_verified_at: null,
+              google_subject: null,
+            }],
+            rowCount: 1,
+          }
+        }
+        return { rows: [], rowCount: 1 }
+      }),
+    } as unknown as Pool
+
+    const response = await request(createApp(database))
+      .post('/api/auth/login')
+      .send({
+        email: 'unverified@example.test',
+        password: 'TestPassword-2026!',
+      })
+
+    expect(response.status).toBe(200)
+    expect(response.body.user).toMatchObject({
+      email: 'unverified@example.test',
+      emailVerified: false,
+    })
+  })
+
+  it('prepares a password reset email without exposing account existence', async () => {
+    const database = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('FROM app_users')) {
+          return {
+            rows: [{
+              id: '9',
+              email: 'reset@example.test',
+              display_name: 'Reset User',
+            }],
+            rowCount: 1,
+          }
+        }
+        return { rows: [], rowCount: 1 }
+      }),
+    } as unknown as Pool
+
+    const response = await request(createApp(database))
+      .post('/api/auth/request-password-reset')
+      .send({ email: 'reset@example.test' })
+
+    expect(response.status).toBe(202)
+    expect(response.body.sent).toBe(true)
+    expect(response.body.previewResetUrl).toContain('/reset-password?token=')
+
+    const unknownResponse = await request(createApp(createDatabaseStub()))
+      .post('/api/auth/request-password-reset')
+      .send({ email: 'unknown@example.test' })
+
+    expect(unknownResponse.status).toBe(202)
+    expect(unknownResponse.body).toMatchObject({ sent: true })
+    expect(unknownResponse.body.previewResetUrl).toBeUndefined()
+  })
+
+  it('consumes a password reset token and revokes existing sessions', async () => {
+    const database = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('WITH valid_token')) {
+          return { rows: [{ id: 'token-1' }], rowCount: 1 }
+        }
+        return { rows: [], rowCount: 1 }
+      }),
+    } as unknown as Pool
+
+    const response = await request(createApp(database))
+      .post('/api/auth/reset-password')
+      .send({
+        token: 'reset-token-that-is-long-enough',
+        password: 'NewPassword-2026!',
+      })
+
+    expect(response.status).toBe(204)
+    expect(response.headers['set-cookie']?.[0]).toContain('Max-Age=0')
+  })
+
+  it('rejects an expired or already-consumed password reset token', async () => {
+    const response = await request(createApp(createDatabaseStub()))
+      .post('/api/auth/reset-password')
+      .send({
+        token: 'expired-token-that-is-long-enough',
+        password: 'NewPassword-2026!',
+      })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error).toBe('invalid_reset_token')
   })
 
   it('rejects authentication tokens as persistent state', async () => {

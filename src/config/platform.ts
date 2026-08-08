@@ -232,6 +232,28 @@ export type NotificationBarConfig = {
   dismissible: boolean
 }
 
+export type GoogleOAuthConfig = {
+  enabled: boolean
+  clientId: string
+  clientSecret: string
+  redirectUri: string
+}
+
+export type SMTPConfig = {
+  enabled: boolean
+  host: string
+  port: string
+  secure: boolean
+  username: string
+  password: string
+  from: string
+}
+
+export type AuthenticationConfig = {
+  googleOAuth: GoogleOAuthConfig
+  smtp: SMTPConfig
+}
+
 export type EnvironmentMode = 'test' | 'live'
 
 export type PlatformConfig = {
@@ -243,6 +265,7 @@ export type PlatformConfig = {
   primaryColor: string
   sidebarColor: string
   notificationBar: NotificationBarConfig
+  authentication: AuthenticationConfig
   landingPage: LandingPageConfig
   commercialLicenseUrl: string
   commercialLicensePrice: string
@@ -333,6 +356,19 @@ export function sanitizePlatformConfigForPersistence(config: PlatformConfig) {
       webhookSecretReference: sanitizeSecretLikeValue(
         config.payments.webhookSecretReference,
       ),
+    },
+    authentication: {
+      ...config.authentication,
+      googleOAuth: {
+        ...config.authentication.googleOAuth,
+        clientSecret: sanitizeSecretLikeValue(
+          config.authentication.googleOAuth.clientSecret,
+        ),
+      },
+      smtp: {
+        ...config.authentication.smtp,
+        password: sanitizeSecretLikeValue(config.authentication.smtp.password),
+      },
     },
   } satisfies PlatformConfig
 }
@@ -1239,9 +1275,26 @@ export const defaultPlatformConfig: PlatformConfig = {
     checkoutSuccessUrl: '',
     checkoutCancelUrl: '',
     billingPortalReturnUrl: '',
-    priceCatalog: defaultPaymentCatalog,
-  },
-  ai: {
+      priceCatalog: defaultPaymentCatalog,
+    },
+    authentication: {
+      googleOAuth: {
+        enabled: false,
+        clientId: '',
+        clientSecret: '',
+        redirectUri: '',
+      },
+      smtp: {
+        enabled: false,
+        host: '',
+        port: '587',
+        secure: false,
+        username: '',
+        password: '',
+        from: '',
+      },
+    },
+    ai: {
     provider: 'openai',
     defaultModel: 'gpt-5-mini',
     providers: defaultAIProviders,
@@ -1299,6 +1352,11 @@ type LegacyLandingFooterConfig = Partial<LandingFooterConfig> & {
 
 type LegacyPaymentConfig = Partial<PaymentConfig> & {
   secretKeyReference?: string
+}
+
+type LegacyAuthenticationConfig = Partial<AuthenticationConfig> & {
+  googleOAuth?: Partial<GoogleOAuthConfig>
+  smtp?: Partial<SMTPConfig>
 }
 
 type LegacyAIConfig = Partial<AIConfig> & {
@@ -1506,6 +1564,8 @@ export function loadPlatformConfig(): PlatformConfig {
     const parsedLandingContent: Partial<LandingContentConfig> =
       parsedLandingPage.content ?? {}
     const parsedPayments = (parsedConfig.payments ?? {}) as LegacyPaymentConfig
+    const parsedAuthentication =
+      (parsedConfig.authentication ?? {}) as LegacyAuthenticationConfig
     const parsedAI = (parsedConfig.ai ?? {}) as LegacyAIConfig
     const parsedAdvisoryHub = (parsedConfig.advisoryHub ?? {}) as LegacyAdvisoryHubConfig
     const parsedAIProviders = normalizeAIProviders(parsedAI.providers)
@@ -1746,6 +1806,51 @@ export function loadPlatformConfig(): PlatformConfig {
               })),
               )
             : defaultPlatformConfig.payments.priceCatalog,
+      },
+      authentication: {
+        ...defaultPlatformConfig.authentication,
+        ...parsedAuthentication,
+        googleOAuth: {
+          ...defaultPlatformConfig.authentication.googleOAuth,
+          ...parsedAuthentication.googleOAuth,
+          enabled:
+            parsedAuthentication.googleOAuth?.enabled ??
+            defaultPlatformConfig.authentication.googleOAuth.enabled,
+          clientId:
+            parsedAuthentication.googleOAuth?.clientId?.trim() ??
+            defaultPlatformConfig.authentication.googleOAuth.clientId,
+          clientSecret:
+            parsedAuthentication.googleOAuth?.clientSecret?.trim() ??
+            defaultPlatformConfig.authentication.googleOAuth.clientSecret,
+          redirectUri:
+            parsedAuthentication.googleOAuth?.redirectUri?.trim() ??
+            defaultPlatformConfig.authentication.googleOAuth.redirectUri,
+        },
+        smtp: {
+          ...defaultPlatformConfig.authentication.smtp,
+          ...parsedAuthentication.smtp,
+          enabled:
+            parsedAuthentication.smtp?.enabled ??
+            defaultPlatformConfig.authentication.smtp.enabled,
+          host:
+            parsedAuthentication.smtp?.host?.trim() ??
+            defaultPlatformConfig.authentication.smtp.host,
+          port:
+            parsedAuthentication.smtp?.port?.trim() ??
+            defaultPlatformConfig.authentication.smtp.port,
+          secure:
+            parsedAuthentication.smtp?.secure ??
+            defaultPlatformConfig.authentication.smtp.secure,
+          username:
+            parsedAuthentication.smtp?.username?.trim() ??
+            defaultPlatformConfig.authentication.smtp.username,
+          password:
+            parsedAuthentication.smtp?.password?.trim() ??
+            defaultPlatformConfig.authentication.smtp.password,
+          from:
+            parsedAuthentication.smtp?.from?.trim() ??
+            defaultPlatformConfig.authentication.smtp.from,
+        },
       },
       ai: {
         ...defaultPlatformConfig.ai,

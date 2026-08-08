@@ -19,6 +19,6 @@ class PlanGraphState(TypedDict, total=False):
     company_analysis: CompanyAnalysis
     outline: DocumentOutline
     sections: list[GeneratedSection]
-    financial_forecast: FinancialForecast
+    financial_forecast: FinancialForecast | None
     final_document: FinalDocument
     errors: list[str]

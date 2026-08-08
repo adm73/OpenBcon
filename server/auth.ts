@@ -8,7 +8,7 @@ export const authSessionCookieName = 'bconomics_session'
 
 type QueryClient = Pick<Pool, 'query'>
 
-function hashToken(token: string) {
+export function hashToken(token: string) {
   return createHash('sha256').update(token).digest('hex')
 }
 
@@ -42,14 +42,14 @@ function cookieValue(token: string, maxAgeSeconds: number) {
 }
 
 export function setSessionCookie(response: Response, token: string) {
-  response.setHeader(
+  response.append(
     'Set-Cookie',
     cookieValue(token, environment.AUTH_SESSION_TTL_DAYS * 24 * 60 * 60),
   )
 }
 
 export function clearSessionCookie(response: Response) {
-  response.setHeader('Set-Cookie', cookieValue('', 0))
+  response.append('Set-Cookie', cookieValue('', 0))
 }
 
 export async function createSession(

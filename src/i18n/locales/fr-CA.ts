@@ -252,8 +252,10 @@ const frCA = {
       businessQuestion: 'Expliquez pourquoi cette entreprise devrait être financée.',
       businessDescription: 'Décrivez le problème, votre solution, le modèle commercial et la capacité d’exécution de l’équipe.',
       sourceFilesNone: 'Aucun fichier téléversé', useStructure: 'Utiliser la structure OpenBcon',
+      templates: 'Modèles', chooseTemplates: 'Choisir des modèles', templatesSelected: '{{count}} modèles sélectionnés', templateSections: 'Inclut {{count}} sections', noTemplatesSelected: 'Aucun modèle sélectionné',
       reviewDetails: 'Révisez les détails de l’occasion avant de générer.', confirmBusiness: 'Confirmez l’exactitude du récit de l’entreprise et de l’équipe.',
       generateAfterReview: 'Générez seulement lorsque les deux étapes reflètent le résumé final.',
+      reportLanguage: 'Langue du rapport',
     },
     strategicReports: {
       ...enCA.workspacePages.strategicReports,
@@ -309,11 +311,11 @@ const frCA = {
     },
     templates: {
       ...enCA.workspacePages.templates,
-      title: 'Modèles', description: 'Utilisez des plans d’affaires, récits de demande, prévisions et listes de contrôle prêts pour le financement provenant de toutes les sources activées.',
+      title: 'Modèles', description: 'Utilisez les types de document configurés par votre administrateur pour générer un rapport stratégique.',
       available: 'Modèles disponibles', activeLibraries: 'Dans toutes les bibliothèques actives', communityUsage: 'Utilisation par la communauté', templateStarts: 'Démarrages de modèles',
       freeTemplates: 'Modèles gratuits', readyImmediately: 'Prêts à utiliser immédiatement', search: 'Rechercher des modèles, formats, catégories ou sources', refine: 'Affiner la bibliothèque',
-      refineHint: 'Trouvez le bon point de départ pour ce dossier documentaire.', allProfileTypes: 'Tous les types de profil', allCategories: 'Toutes les catégories', allFormats: 'Tous les formats',
-      allAudiences: 'Tous les publics', mostUsed: 'Les plus utilisés', all: 'Tous', featured: 'En vedette', free: 'Gratuit', pro: 'Pro',
+      refineHint: 'Trouvez le bon point de départ pour ce dossier documentaire.', allProfileTypes: 'Tous les types de profil', allCategories: 'Toutes les catégories', allFormats: 'Tous les formats', sectionsSupported: '{{count}} sections', sectionsInDocumentType: 'Sections de ce type de document', prompt: 'Prompt : ', unassignedAgent: 'Agent non attribué', noConfiguredSections: 'Aucune section activée n’est configurée pour ce type de document.',
+      allAudiences: 'Tous les publics', mostUsed: 'Les plus utilisés', all: 'Tous', featured: 'En vedette', free: 'Gratuit', pro: 'Pro', configured: 'Configuré', manageDocumentTypes: 'Gérer les types de document', configuredSections: 'Sections activées du rapport', agents: 'Agents disponibles', availableAgents: 'Configurés pour la génération', configurationSource: 'Source de configuration', adminConsole: 'Console d’administration', strategicReportSettings: 'Paramètres du rapport stratégique',
     },
     socialResources: {
       ...enCA.workspacePages.socialResources,

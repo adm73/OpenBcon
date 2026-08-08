@@ -45,6 +45,17 @@ const environmentSchema = z.object({
     .uuid()
     .default('00000000-0000-4000-8000-000000000002'),
   AUTH_SESSION_TTL_DAYS: z.coerce.number().int().positive().max(365).default(30),
+  PUBLIC_APP_URL: z.string().url().default('http://localhost:5173'),
+  EMAIL_PROVIDER: z.enum(['console', 'smtp']).default('console'),
+  EMAIL_FROM: z.string().min(1).default('OpenBcon <no-reply@localhost>'),
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().positive().max(65535).default(587),
+  SMTP_SECURE: booleanFromEnvironment(false),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASSWORD: z.string().min(1).optional(),
+  GOOGLE_OAUTH_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
+  GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),
 })
 
 export const environment = environmentSchema
@@ -70,6 +81,28 @@ export const environment = environmentSchema
         code: 'custom',
         path: ['SEED_DEMO_DATA'],
         message: 'Demo data seeding must be disabled in production.',
+      })
+    }
+    if (values.EMAIL_PROVIDER === 'smtp') {
+      for (const [path, value] of [
+        ['SMTP_HOST', values.SMTP_HOST],
+        ['SMTP_USER', values.SMTP_USER],
+        ['SMTP_PASSWORD', values.SMTP_PASSWORD],
+      ] as const) {
+        if (!value) {
+          context.addIssue({
+            code: 'custom',
+            path: [path],
+            message: 'SMTP configuration is required when EMAIL_PROVIDER=smtp.',
+          })
+        }
+      }
+    }
+    if (values.EMAIL_PROVIDER === 'console') {
+      context.addIssue({
+        code: 'custom',
+        path: ['EMAIL_PROVIDER'],
+        message: 'Production email delivery cannot use the console provider.',
       })
     }
   })

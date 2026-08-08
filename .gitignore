@@ -22,6 +22,8 @@ __pycache__/
 *.pyd
 .venv/
 venv/
+artifacts/
+tmp/
 
 # Editor directories and files
 .vscode/*

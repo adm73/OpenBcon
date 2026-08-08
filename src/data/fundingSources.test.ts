@@ -3,6 +3,7 @@ import {
   buildGoogleSheetsCsvUrl,
   normalizeFundingRecords,
   normalizeResourceRecords,
+  parseJsonFundingCatalog,
   parseCsv,
   syncFundingDataSource,
   type FundingDataSource,
@@ -30,6 +31,26 @@ const source: FundingDataSource = {
 }
 
 describe('funding data sources', () => {
+  it('validates scraped JSON catalogs and preserves structured records', () => {
+    const catalog = parseJsonFundingCatalog({
+      category: 'Loans',
+      source_url: 'https://example.ca/loans',
+      records: [{
+        program_name: 'Community Loan',
+        eligibility: ['Canadian business', 'Repayment capacity'],
+      }],
+    })
+
+    expect(catalog).toEqual({
+      category: 'Loan',
+      sourceUrl: 'https://example.ca/loans',
+      records: [{
+        program_name: 'Community Loan',
+        eligibility: ['Canadian business', 'Repayment capacity'],
+      }],
+    })
+  })
+
   it('converts a Google Sheets sharing URL into a CSV endpoint', () => {
     expect(buildGoogleSheetsCsvUrl(source)).toBe(
       'https://docs.google.com/spreadsheets/d/abc123/gviz/tq?tqx=out:csv&sheet=Funding%20Programs',
@@ -54,6 +75,30 @@ describe('funding data sources', () => {
       sourceId: 'test-source',
     })
     expect(program?.process).toContain('Contact the program administrator')
+  })
+
+  it('uses configured source field mappings before alias detection', () => {
+    const [program] = normalizeFundingRecords(
+      [{
+        catalogue_title: 'Mapped Growth Grant',
+        sponsor_name: 'Mapped Agency',
+        award_value: '$240,000',
+      }],
+      {
+        ...source,
+        fieldMapping: {
+          name: 'catalogue_title',
+          provider: 'sponsor_name',
+          amount: 'award_value',
+        },
+      },
+    )
+
+    expect(program).toMatchObject({
+      name: 'Mapped Growth Grant',
+      provider: 'Mapped Agency',
+      amount: 240000,
+    })
   })
 
   it('sends Airtable metadata to the secure proxy and maps returned fields', async () => {

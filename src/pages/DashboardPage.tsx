@@ -80,7 +80,10 @@ import {
 } from '../lib/fundingProgramsApi'
 import { renderFormattedContent } from '../lib/legalContent'
 import { cssDeclarationsToStyle } from '../lib/layoutStyles'
-import { createApplicationViaApi } from '../lib/applicationsApi'
+import {
+  createApplicationViaApi,
+  updateApplicationDocumentTypesViaApi,
+} from '../lib/applicationsApi'
 import {
   loadCompaniesViaApi,
   saveCompanyViaApi,
@@ -168,7 +171,7 @@ function translateNavigationLabel(
   return key ? t(key, { defaultValue: fallback }) : fallback
 }
 import {
-  loadTemplateCatalog,
+  mapDocumentTypesToTemplates,
   type TemplateFormat,
   type TemplateRecord,
 } from '../data/templates'
@@ -4305,14 +4308,28 @@ function GrantsLoansPage() {
                   <span
                     className={`funding-source-picker-icon is-${source.provider}`}
                     role="img"
-                    aria-label={source.provider === 'google-sheets' ? 'Google Sheets' : 'Airtable'}
+                    aria-label={
+                      source.provider === 'google-sheets'
+                        ? 'Google Sheets'
+                        : source.provider === 'json-file'
+                          ? 'JSON File'
+                          : 'Airtable'
+                    }
                   >
-                    {source.provider === 'google-sheets' ? 'G' : 'A'}
+                    {source.provider === 'google-sheets'
+                      ? 'G'
+                      : source.provider === 'json-file'
+                        ? 'J'
+                        : 'A'}
                   </span>
                   <span>
                     <strong>{source.name}</strong>
                     <small>
-                      {source.provider === 'google-sheets' ? 'Google Sheets' : 'Airtable'} · {source.frequency} sync
+                    {source.provider === 'google-sheets'
+                      ? 'Google Sheets'
+                      : source.provider === 'json-file'
+                        ? 'JSON File'
+                        : 'Airtable'} · {source.frequency} sync
                     </small>
                   </span>
                   <i className="funding-source-picker-active">Active</i>
@@ -4343,13 +4360,12 @@ const selectedTemplateStorageKey = 'bconomics-selected-template-v1'
 function TemplatesPage() {
   const { t } = useTranslation()
   const { config } = usePlatformConfig()
-  const enabledSourceIds = config.dataSources
-    .filter((source) => source.enabled && source.module === 'templates')
-    .map((source) => source.id)
-  const synchronizedTemplates = loadResourceRecords('templates', enabledSourceIds)
-  const templates = loadTemplateCatalog(synchronizedTemplates)
+  const templates = mapDocumentTypesToTemplates(
+    config.advisoryHub.documentTypes,
+    config.advisoryHub.sections,
+  )
   const [query, setQuery] = useState('')
-  const [scope, setScope] = useState<'All' | 'Featured' | 'Free' | 'Pro'>('All')
+  const [scope, setScope] = useState<'All' | 'Featured' | 'Configured'>('All')
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [category, setCategory] = useState('All')
   const [format, setFormat] = useState<'All' | TemplateFormat>('All')
@@ -4373,8 +4389,7 @@ function TemplatesPage() {
       const matchesScope =
         scope === 'All' ||
         (scope === 'Featured' && template.featured) ||
-        (scope === 'Free' && template.tier === 'Free') ||
-        (scope === 'Pro' && template.tier === 'Pro')
+        (scope === 'Configured' && template.tier === 'Configured')
       return (
         matchesQuery &&
         matchesScope &&
@@ -4398,13 +4413,14 @@ function TemplatesPage() {
     audience !== 'All',
     sourceName !== 'All',
   ].filter(Boolean).length
-  const connectedSources = config.dataSources.filter(
-    (source) =>
-      source.module === 'templates' &&
-      source.enabled &&
-      source.status === 'connected',
+  const configuredSections = config.advisoryHub.sections.filter(
+    (section) => section.enabled,
   ).length
-  const totalUses = templates.reduce((sum, template) => sum + template.uses, 0)
+  const selectedTemplateSections = selectedTemplate
+    ? config.advisoryHub.sections.filter(
+        (section) => section.documentTypeId === selectedTemplate.id && section.enabled,
+      )
+    : []
 
   function clearTemplateFilters() {
     setScope('All')
@@ -4431,12 +4447,12 @@ function TemplatesPage() {
           </p>
         </div>
         <Link
-          to="/admin#data-sources"
+          to="/admin#advisory-hub-document-types"
           className="funding-directory-admin"
           onClick={() => grantAdminAccess()}
         >
           <Glyph type="settings" />
-          {t('workspacePages.common.manageDataSources')}
+          {t('workspacePages.templates.manageDocumentTypes')}
         </Link>
       </header>
 
@@ -4448,30 +4464,18 @@ function TemplatesPage() {
         </article>
         <article>
           <span>{t('workspacePages.templates.communityUsage')}</span>
-          <strong>
-            {new Intl.NumberFormat('en-CA', {
-              notation: 'compact',
-              maximumFractionDigits: 1,
-            }).format(totalUses)}
-          </strong>
+          <strong>{configuredSections}</strong>
           <small>{t('workspacePages.templates.templateStarts')}</small>
         </article>
         <article>
           <span>{t('workspacePages.templates.freeTemplates')}</span>
-          <strong>{templates.filter((template) => template.tier === 'Free').length}</strong>
+          <strong>{config.advisoryHub.agents.length}</strong>
           <small>{t('workspacePages.templates.readyImmediately')}</small>
         </article>
         <article className="is-source-metric">
-          <span>{t('workspacePages.common.connectedDataSources')}</span>
-          <strong>{connectedSources}</strong>
-          <small>
-            {
-              config.dataSources.filter(
-                (source) => source.module === 'templates' && source.enabled,
-              ).length
-            }{' '}
-            {t('workspacePages.common.enabled')}
-          </small>
+          <span>{t('workspacePages.templates.configurationSource')}</span>
+          <strong>{t('workspacePages.templates.adminConsole')}</strong>
+          <small>{t('workspacePages.templates.strategicReportSettings')}</small>
         </article>
       </div>
 
@@ -4487,7 +4491,7 @@ function TemplatesPage() {
             />
           </label>
           <div>
-            {(['All', 'Featured', 'Free', 'Pro'] as const).map((scopeName) => (
+            {(['All', 'Featured', 'Configured'] as const).map((scopeName) => (
               <button
                 key={scopeName}
                 type="button"
@@ -4495,7 +4499,11 @@ function TemplatesPage() {
                 aria-pressed={scope === scopeName}
                 onClick={() => setScope(scopeName)}
               >
-                {scopeName === 'All' ? t('workspacePages.templates.all') : scopeName === 'Featured' ? t('workspacePages.templates.featured') : scopeName === 'Free' ? t('workspacePages.templates.free') : t('workspacePages.templates.pro')}
+                {scopeName === 'All'
+                  ? t('workspacePages.templates.all')
+                  : scopeName === 'Featured'
+                    ? t('workspacePages.templates.featured')
+                    : t('workspacePages.templates.configured')}
               </button>
             ))}
           </div>
@@ -4637,8 +4645,8 @@ function TemplatesPage() {
           {visibleTemplates.map((template) => (
             <article key={template.id} className="template-directory-card">
               <div className="template-card-topline">
-                <span className={`template-format is-${template.format.toLowerCase()}`}>
-                  {template.format}
+                <span className="template-format" title={template.title}>
+                  {template.title}
                 </span>
                 <span className={`template-tier is-${template.tier.toLowerCase()}`}>
                   {template.tier}
@@ -4655,9 +4663,9 @@ function TemplatesPage() {
               <div className="template-card-meta">
                 <span>{template.audience}</span>
                 <span>
-                  {template.uses
-                    ? `${template.uses.toLocaleString('en-CA')} uses`
-                    : 'Synced resource'}
+                  {t('workspacePages.templates.sectionsSupported', {
+                    count: template.sectionCount ?? 0,
+                  })}
                 </span>
               </div>
               <footer>
@@ -4737,6 +4745,31 @@ function TemplatesPage() {
               <div><dt>Source</dt><dd>{selectedTemplate.sourceName}</dd></div>
               <div><dt>Updated</dt><dd>{selectedTemplate.updatedAt}</dd></div>
             </dl>
+            <div className="template-preview-sections">
+              <div className="template-preview-sections-heading">
+                <strong>{t('workspacePages.templates.sectionsInDocumentType')}</strong>
+                <span>{selectedTemplateSections.length}</span>
+              </div>
+              {selectedTemplateSections.length > 0 ? (
+                selectedTemplateSections.map((section) => {
+                  const agentName =
+                    config.advisoryHub.agents.find((agent) => agent.id === section.agentId)
+                      ?.name || t('workspacePages.templates.unassignedAgent')
+                    return (
+                      <article key={section.id}>
+                        <header>
+                          <strong>{section.title}</strong>
+                          <span>{agentName}</span>
+                        </header>
+                      </article>
+                    )
+                })
+              ) : (
+                <p className="template-preview-sections-empty">
+                  {t('workspacePages.templates.noConfiguredSections')}
+                </p>
+              )}
+            </div>
             <div className="template-preview-actions">
               {selectedTemplate.url ? (
                 <a href={selectedTemplate.url} target="_blank" rel="noreferrer">
@@ -5856,14 +5889,8 @@ type LegacyUserSettings = Partial<UserSettings> & {
   billingTransactions?: BillingTransaction[]
 }
 
-type QuickBuildPreferences = {
-  usePlatformStructureByDefault: boolean
-}
-
 const userSettingsStorageKey = 'bconomics-user-settings-v1'
 const billingTransactionsStorageKey = 'bconomics-billing-transactions-v1'
-const quickBuildPreferencesStorageKey =
-  'bconomics-quick-build-preferences-v1'
 const pendingStripeCheckoutStorageKey = 'bconomics-pending-stripe-checkout-v1'
 const pendingStripeCheckoutPriceItemStorageKey =
   'bconomics-pending-stripe-price-item-v1'
@@ -5887,10 +5914,6 @@ const defaultUserSettings: UserSettings = {
   stripeCustomerId: '',
   stripeSubscriptionId: '',
   activePriceItemId: '',
-}
-
-const defaultQuickBuildPreferences: QuickBuildPreferences = {
-  usePlatformStructureByDefault: true,
 }
 
 function loadUserSettings() {
@@ -5921,20 +5944,6 @@ function loadUserSettings() {
     })
   } catch {
     return normalizeSettings(defaultUserSettings)
-  }
-}
-
-function loadQuickBuildPreferences() {
-  try {
-    const saved = window.localStorage.getItem(quickBuildPreferencesStorageKey)
-    return saved
-      ? {
-          ...defaultQuickBuildPreferences,
-          ...(JSON.parse(saved) as Partial<QuickBuildPreferences>),
-        }
-      : defaultQuickBuildPreferences
-  } catch {
-    return defaultQuickBuildPreferences
   }
 }
 
@@ -7810,11 +7819,15 @@ function StrategicReportGeneratingView({
   error?: string
   onRetry?: () => void
 }) {
+  const selectedDocumentTypeIds = application.documentTypeIds ?? []
+  const includesAllDocumentTypes = selectedDocumentTypeIds.length === 0
   const steps = [
     'Analyze opportunity and reviewer criteria',
     'Build the configured Strategic Report structure',
-    'Generate business and technology analysis',
-    'Generate the financial model and monthly forecast',
+    'Generate the selected report sections',
+    ...(includesAllDocumentTypes || selectedDocumentTypeIds.includes('financial-model')
+      ? ['Generate the financial model and monthly forecast']
+      : []),
     'Run the final AI review and save the report',
   ]
 
@@ -7838,7 +7851,7 @@ function StrategicReportGeneratingView({
             <h2>{error ? 'Generation needs attention.' : 'The report is being built now.'}</h2>
             <p>
               {error ??
-                'The application is saved. Strategic Report sections, the financial forecast, and the AI review are running in this page.'}
+                'The application is saved. The selected Strategic Report templates are running in this page.'}
             </p>
           </div>
           <small>Application {application.appId ?? application.id}</small>
@@ -7900,6 +7913,7 @@ function StrategicReportsPage() {
   const selectedApplicationId = selectedApplication?.id ?? ''
   const selectedApplicationAppId = selectedApplication?.appId ?? ''
   const selectedApplicationAmount = selectedApplication?.amount ?? 0
+  const selectedApplicationLanguage = selectedApplication?.language ?? locale
   const hasSelectedReport = Boolean(selectedReport)
   const reportApplicationCount = new Set(reports.map((report) => report.applicationId)).size
   const totalSections = reports.reduce(
@@ -7930,6 +7944,7 @@ function StrategicReportsPage() {
         const applicationId = selectedApplicationAppId || selectedApplicationId
         const response = await generateBusinessPlanViaApi({
           app_id: applicationId,
+          language: selectedApplicationLanguage,
           signal: abortController.signal,
         })
         const nextPackage = createGeneratedPackageFromBackend(
@@ -7996,6 +8011,7 @@ function StrategicReportsPage() {
     selectedApplicationAmount,
     selectedApplicationAppId,
     selectedApplicationId,
+    selectedApplicationLanguage,
   ])
 
   if (requestedAppId && selectedApplication && !selectedReport) {
@@ -8534,7 +8550,7 @@ function createGeneratedPackageFromBackend(
       { label: 'Sections', value: `${document.sections.length}` },
     ],
     milestones: document.next_steps,
-    financialForecast: document.financial_forecast,
+    financialForecast: document.financial_forecast ?? undefined,
   }
 
   return {
@@ -8553,7 +8569,7 @@ function createGeneratedPackageFromBackend(
     ].slice(0, 8),
     documents: [businessPlanDocument],
     sections,
-    financialForecast: document.financial_forecast,
+    financialForecast: document.financial_forecast ?? undefined,
   }
 }
 
@@ -8573,9 +8589,10 @@ function QuickBuildPage({
   const [programName, setProgramName] = useState('')
   const [programUrl, setProgramUrl] = useState('')
   const [amount, setAmount] = useState('')
-  const [useWinningTemplate, setUseWinningTemplate] = useState(
-    () => loadQuickBuildPreferences().usePlatformStructureByDefault,
-  )
+  const [reportLanguage, setReportLanguage] = useState<SupportedLocale>(locale)
+  const [selectedDocumentTypeIds, setSelectedDocumentTypeIds] = useState<string[]>([])
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
+  const templatePickerRef = useRef<HTMLDivElement>(null)
   const [fileName, setFileName] = useState('')
   const [businessName, setBusinessName] = useState('')
   const [fullName, setFullName] = useState('')
@@ -8620,16 +8637,19 @@ function QuickBuildPage({
       ),
     [config.dataSources],
   )
-  const advisoryHubSections = useMemo(() => {
-    const enabledSections = config.advisoryHub.sections.filter(
-      (section) => section.enabled,
-    )
-    return enabledSections.length > 0
-      ? enabledSections
-      : config.advisoryHub.sections.slice(0, 1)
-  }, [config.advisoryHub.sections])
   const advisoryHubAgents = config.advisoryHub.agents
   const advisoryHubDocumentTypes = config.advisoryHub.documentTypes
+  const selectedDocumentTypes = advisoryHubDocumentTypes.filter((documentType) =>
+    selectedDocumentTypeIds.includes(documentType.id),
+  )
+  const advisoryHubSections = useMemo(
+    () =>
+      config.advisoryHub.sections.filter(
+        (section) =>
+          section.enabled && selectedDocumentTypeIds.includes(section.documentTypeId),
+      ),
+    [config.advisoryHub.sections, selectedDocumentTypeIds],
+  )
   const selectedStrategicReviewReport = strategicReviewReports.find(
     (report) => report.id === selectedStrategicReviewReportId,
   )
@@ -8645,12 +8665,17 @@ function QuickBuildPage({
     if (!savedDraft) return
 
     try {
-      const draft = JSON.parse(savedDraft) as Record<string, string | boolean>
+      const draft = JSON.parse(savedDraft) as Record<string, unknown>
       setProgramName(String(draft.programName ?? ''))
       setProgramUrl(String(draft.programUrl ?? ''))
       setAmount(String(draft.amount ?? ''))
-      if (typeof draft.useWinningTemplate === 'boolean') {
-        setUseWinningTemplate(draft.useWinningTemplate)
+      setReportLanguage(normalizeLocale(draft.language ?? locale))
+      if (Array.isArray(draft.selectedDocumentTypeIds)) {
+        setSelectedDocumentTypeIds(
+          draft.selectedDocumentTypeIds.filter(
+            (value): value is string => typeof value === 'string',
+          ),
+        )
       }
       setFileName(String(draft.fileName ?? ''))
       setBusinessName(String(draft.businessName ?? ''))
@@ -8661,20 +8686,14 @@ function QuickBuildPage({
     } catch {
       removePersistentItem(draftStorageKey)
     }
-  }, [hasBuildContextQuery])
+  }, [hasBuildContextQuery, locale])
 
   useEffect(() => {
-    if (
-      window.localStorage.getItem(quickBuildPreferencesStorageKey) !== null
-    ) {
-      return
-    }
-
-    setPersistentItem(
-      quickBuildPreferencesStorageKey,
-      JSON.stringify(defaultQuickBuildPreferences),
-    )
-  }, [])
+    const availableIds = config.advisoryHub.documentTypes.map((documentType) => documentType.id)
+    setSelectedDocumentTypeIds((currentIds) => {
+      return currentIds.filter((id) => availableIds.includes(id))
+    })
+  }, [config.advisoryHub.documentTypes])
 
   useEffect(() => {
     if (!hasApplicationQuery) return
@@ -8772,8 +8791,7 @@ function QuickBuildPage({
 
     try {
       const template = JSON.parse(selectedTemplate) as TemplateRecord
-      setUseWinningTemplate(true)
-      setFileName(`${template.title}.${template.format.toLowerCase()}`)
+      setSelectedDocumentTypeIds([template.id])
       setFormMessage(`${template.title} selected from Templates.`)
     } catch {
       // Ignore stale selections from older local builds.
@@ -8810,7 +8828,7 @@ function QuickBuildPage({
   )
 
   useEffect(() => {
-    if (!companyPickerOpen && !programPickerOpen) {
+    if (!companyPickerOpen && !programPickerOpen && !templatePickerOpen) {
       return
     }
 
@@ -8819,16 +8837,28 @@ function QuickBuildPage({
       if (event.key === 'Escape') {
         setCompanyPickerOpen(false)
         setProgramPickerOpen(false)
+        setTemplatePickerOpen(false)
+      }
+    }
+    const closeTemplatePickerOnOutsidePointer = (event: PointerEvent) => {
+      if (
+        templatePickerOpen &&
+        event.target instanceof Node &&
+        !templatePickerRef.current?.contains(event.target)
+      ) {
+        setTemplatePickerOpen(false)
       }
     }
 
     document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', closeOnEscape)
+    document.addEventListener('pointerdown', closeTemplatePickerOnOutsidePointer)
     return () => {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', closeOnEscape)
+      document.removeEventListener('pointerdown', closeTemplatePickerOnOutsidePointer)
     }
-  }, [companyPickerOpen, programPickerOpen])
+  }, [companyPickerOpen, programPickerOpen, templatePickerOpen])
 
   const programComplete = [programName, programUrl, amount].filter((value) =>
     value.trim(),
@@ -9134,14 +9164,13 @@ function QuickBuildPage({
     setFormMessage(message)
   }
 
-  function updateUseWinningTemplatePreference(nextValue: boolean) {
-    setUseWinningTemplate(nextValue)
-    setPersistentItem(
-      quickBuildPreferencesStorageKey,
-      JSON.stringify({
-        usePlatformStructureByDefault: nextValue,
-      } satisfies QuickBuildPreferences),
+  function toggleDocumentTypeSelection(documentTypeId: string) {
+    setSelectedDocumentTypeIds((currentIds) =>
+      currentIds.includes(documentTypeId)
+        ? currentIds.filter((id) => id !== documentTypeId)
+        : [...currentIds, documentTypeId],
     )
+    setFormMessage('')
   }
 
   async function restoreApplicationWorkspace(
@@ -9161,6 +9190,12 @@ function QuickBuildPage({
     setProgramName(application.programName)
     setProgramUrl(application.programUrl || matchedProgram?.url || '')
     setAmount(application.amount.toLocaleString(locale))
+    setReportLanguage(application.language ?? locale)
+    setSelectedDocumentTypeIds(
+      application.documentTypeIds?.length
+        ? application.documentTypeIds
+        : advisoryHubDocumentTypes.map((documentType) => documentType.id),
+    )
     setBusinessName(matchedCompany?.name ?? application.company)
     setFullName(matchedCompany?.owner ?? application.owner)
     setBusinessIdea(matchedCompany?.description ?? '')
@@ -9187,11 +9222,16 @@ function QuickBuildPage({
       setEditorMode(false)
       setActiveStep('workspace')
 
-      if (!packageRecord.financialForecast && selectedReport) {
+      const shouldLoadFinancialForecast =
+        (!application.documentTypeIds || application.documentTypeIds.length === 0 ||
+          application.documentTypeIds.includes('financial-model')) &&
+        !packageRecord.financialForecast
+      if (shouldLoadFinancialForecast && selectedReport) {
           setFormMessage(`${message ?? 'Strategic Report opened.'} Loading financial forecast...`)
           try {
             const financialForecast = await generateFinancialForecastViaApi({
               app_id: application.appId ?? application.id,
+              language: application.language ?? locale,
             })
           const nextPackage = { ...packageRecord, financialForecast }
           const nextApplications = loadApplications().map((currentApplication) =>
@@ -9251,8 +9291,8 @@ function QuickBuildPage({
     setProgramName('')
     setProgramUrl('')
     setAmount('')
-    setUseWinningTemplate(
-      loadQuickBuildPreferences().usePlatformStructureByDefault,
+    setSelectedDocumentTypeIds(
+      advisoryHubDocumentTypes.map((documentType) => documentType.id),
     )
     setFileName('')
     setFormMessage('')
@@ -9342,7 +9382,8 @@ function QuickBuildPage({
         programName,
         programUrl,
         amount,
-        useWinningTemplate,
+        language: reportLanguage,
+        selectedDocumentTypeIds,
         fileName,
         businessName,
         fullName,
@@ -9370,6 +9411,10 @@ function QuickBuildPage({
   function continueToBusiness() {
     if (programComplete < 3) {
       setFormMessage('Add the program name, official URL, and funding amount.')
+      return
+    }
+    if (selectedDocumentTypeIds.length === 0) {
+      setFormMessage('Select at least one template before continuing.')
       return
     }
     setActiveStep(2)
@@ -9441,6 +9486,12 @@ function QuickBuildPage({
       return
     }
 
+    if (selectedDocumentTypeIds.length === 0) {
+      setFormMessage('Select at least one template before launching Strategic Report.')
+      setActiveStep(1)
+      return
+    }
+
     if (businessComplete < 4) {
       setFormMessage('Complete the business profile before launching Strategic Report.')
       setActiveStep(2)
@@ -9473,7 +9524,8 @@ function QuickBuildPage({
           founderName: fullName,
           businessSummary: businessIdea,
           teamBackground: teamIntro,
-          language: locale,
+          documentTypeIds: selectedDocumentTypeIds,
+          language: reportLanguage,
         })
         const createdRecord: ApplicationRecord = {
           id: createdApplication.id,
@@ -9489,9 +9541,11 @@ function QuickBuildPage({
           deadline: createdApplication.deadline,
           deadlineOrder: createdApplication.deadlineOrder,
           owner: createdApplication.owner,
+          language: reportLanguage,
           updatedAt: 'Created just now',
           documentsComplete: 0,
           documentsTotal: Math.max(1, advisoryHubSections.length),
+          documentTypeIds: selectedDocumentTypeIds,
           nextAction: 'Complete the strategic report',
           note: 'Created from Quick Build.',
           strategicReviewReports: [],
@@ -9508,6 +9562,31 @@ function QuickBuildPage({
         setFormMessage(`Application could not be created: ${detail}`)
         return
       }
+    }
+
+    if (applicationId) {
+      try {
+        await updateApplicationDocumentTypesViaApi({
+          applicationId,
+          documentTypeIds: selectedDocumentTypeIds,
+          language: reportLanguage,
+        })
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : 'Unknown template error.'
+        setFormMessage(`Templates could not be saved: ${detail}`)
+        return
+      }
+
+      const updatedApplications = loadApplications().map((application) =>
+        application.id === applicationId
+          ? {
+              ...application,
+              documentTypeIds: selectedDocumentTypeIds,
+              language: reportLanguage,
+            }
+          : application,
+      )
+      saveApplications(updatedApplications)
     }
 
     removePersistentItem(draftStorageKey)
@@ -9773,7 +9852,7 @@ function QuickBuildPage({
           showsStrategicReviewListing ? 'is-report-listing' : ''
         } is-sidebar-hidden`}
       >
-        <div className={`generator-workspace ${activeStep === 'workspace' ? 'is-ai-workspace' : ''}`}>
+        <div className={`generator-workspace ${activeStep === 'workspace' ? 'is-ai-workspace' : 'is-form'}`}>
           {showsStrategicReviewListing ? (
             <section className="generator-stage advisory-report-listing-stage">
               <div className="advisory-report-listing-heading">
@@ -9933,22 +10012,60 @@ function QuickBuildPage({
                       </span>
                       <b>{fileName ? t('quickBuild.replace') : t('quickBuild.browse')}</b>
                     </label>
-                    <label className="generator-template-toggle">
-                      <input
-                        type="checkbox"
-                        checked={useWinningTemplate}
-                        onChange={(event) =>
-                          updateUseWinningTemplatePreference(
-                            event.target.checked,
-                          )
-                        }
-                      />
-                      <span />
-                      <div>
-                        <strong>{t('quickBuild.useStructure', { platform: platformName })}</strong>
-                        <small>{t('workspacePages.quickBuild.recommendedNoTemplate')}</small>
-                      </div>
-                    </label>
+                    <div ref={templatePickerRef} className="generator-template-dropdown">
+                      <button
+                        type="button"
+                        className="generator-template-trigger"
+                        aria-haspopup="listbox"
+                        aria-expanded={templatePickerOpen}
+                        onClick={() => setTemplatePickerOpen((isOpen) => !isOpen)}
+                      >
+                        <span>
+                          <strong>{t('workspacePages.quickBuild.templates')}</strong>
+                          <small>
+                            {selectedDocumentTypes.length > 0
+                              ? t('workspacePages.quickBuild.templatesSelected', {
+                                  count: selectedDocumentTypes.length,
+                                })
+                              : t('workspacePages.quickBuild.chooseTemplates')}
+                          </small>
+                        </span>
+                        <span className="generator-template-chevron" aria-hidden="true">⌄</span>
+                      </button>
+                      {templatePickerOpen ? (
+                        <div className="generator-template-menu" role="listbox">
+                          {advisoryHubDocumentTypes.map((documentType) => {
+                            const sectionCount = config.advisoryHub.sections.filter(
+                              (section) =>
+                                section.enabled &&
+                                section.documentTypeId === documentType.id,
+                            ).length
+                            const isSelected = selectedDocumentTypeIds.includes(
+                              documentType.id,
+                            )
+                            return (
+                              <label key={documentType.id}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() =>
+                                    toggleDocumentTypeSelection(documentType.id)
+                                  }
+                                />
+                                <span>
+                                  <strong>{documentType.name}</strong>
+                                  <small>
+                                    {t('workspacePages.quickBuild.templateSections', {
+                                      count: sectionCount,
+                                    })}
+                                  </small>
+                                </span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -10103,8 +10220,12 @@ function QuickBuildPage({
                       <dd>{fileName || 'None uploaded'}</dd>
                     </div>
                     <div>
-                      <dt>{t('quickBuild.structure')}</dt>
-                      <dd>{useWinningTemplate ? `${platformName} structure enabled` : 'Official source only'}</dd>
+                      <dt>{t('workspacePages.quickBuild.templates')}</dt>
+                      <dd>
+                        {selectedDocumentTypes.length > 0
+                          ? selectedDocumentTypes.map((documentType) => documentType.name).join(', ')
+                          : t('workspacePages.quickBuild.noTemplatesSelected')}
+                      </dd>
                     </div>
                   </dl>
                 </article>
@@ -10172,6 +10293,21 @@ function QuickBuildPage({
                 <button type="button" className="is-secondary" onClick={() => setActiveStep(2)}>
                   {t('quickBuild.back')}
                 </button>
+                <label className="generator-language-picker">
+                  <span>{t('quickBuild.reportLanguage')}</span>
+                  <select
+                    value={reportLanguage}
+                    onChange={(event) =>
+                      setReportLanguage(normalizeLocale(event.target.value))
+                    }
+                  >
+                    {languageOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
                   className="is-primary is-generate"

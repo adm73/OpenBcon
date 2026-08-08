@@ -17,19 +17,31 @@ export function ForgotPasswordPage() {
     document.title = `Forgot password | ${platformName}`
   }, [platformName])
 
-  function submitForgotPassword(event: FormEvent<HTMLFormElement>) {
+  async function submitForgotPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const result = requestPasswordReset(email)
-    if (result.token) {
+    try {
+      const result = await requestPasswordReset(email)
+      if (result.previewResetUrl) {
+        const previewUrl = new URL(result.previewResetUrl, window.location.origin)
+        setResetLink(`${previewUrl.pathname}${previewUrl.search}`)
+        setNotice('A preview reset link has been prepared for this account.')
+        return
+      }
+
+      if (result.token) {
       const nextLink = `/reset-password?token=${result.token}`
       setResetLink(nextLink)
       setNotice('A demo reset link has been prepared for this account.')
       return
-    }
+      }
 
-    setResetLink('')
-    setNotice('If an account exists for this email, a reset link will be sent.')
+      setResetLink('')
+      setNotice('If an account exists for this email, a reset link will be sent.')
+    } catch (error) {
+      setResetLink('')
+      setNotice(error instanceof Error ? error.message : 'Unable to request a password reset.')
+    }
   }
 
   return (
@@ -72,8 +84,8 @@ export function ForgotPasswordPage() {
         <div className="auth-demo-note">
           <strong>Demo reset link</strong>
           <p>
-            Because this is the open-source frontend demo, the reset link is shown here
-            instead of being emailed.
+            In development, the link is shown here for testing. In production, it is
+            delivered by email.
           </p>
           <button type="button" onClick={() => navigate(resetLink)}>
             Open reset page

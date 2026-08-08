@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   resetPassword,
-  validatePasswordResetToken,
 } from '../auth/session'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import { getPlatformDisplayName } from '../lib/platformBrand'
@@ -16,17 +15,14 @@ export function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [notice, setNotice] = useState('')
   const token = searchParams.get('token') ?? ''
-  const tokenRecord = useMemo(
-    () => (token ? validatePasswordResetToken(token) : null),
-    [token],
-  )
+  const tokenRecord = useMemo(() => (token ? { token } : null), [token])
   const platformName = getPlatformDisplayName(config)
 
   useEffect(() => {
     document.title = `Reset password | ${platformName}`
   }, [platformName])
 
-  function submitReset(event: FormEvent<HTMLFormElement>) {
+  async function submitReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (!token) {
@@ -45,7 +41,7 @@ export function ResetPasswordPage() {
     }
 
     try {
-      resetPassword({ token, password })
+      await resetPassword({ token, password })
       navigate('/login', { replace: true })
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to reset the password.')

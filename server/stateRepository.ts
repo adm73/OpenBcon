@@ -115,7 +115,11 @@ export async function applyStateMutation(
   context: RequestContext,
   mutation: StateMutation,
 ) {
-  if (mutation.scope === 'platform' && context.role !== 'admin') {
+  if (
+    mutation.scope === 'platform' &&
+    context.role !== 'admin' &&
+    context.role !== 'owner'
+  ) {
     throw new AuthorizationError(
       'Only platform administrators can change platform settings.',
     )
@@ -155,7 +159,11 @@ export async function applyStateBatch(
   context: RequestContext,
   mutations: StateMutation[],
 ) {
-  if (context.role !== 'admin' && mutations.some((mutation) => mutation.scope === 'platform')) {
+  if (
+    context.role !== 'admin' &&
+    context.role !== 'owner' &&
+    mutations.some((mutation) => mutation.scope === 'platform')
+  ) {
     throw new AuthorizationError(
       'Only platform administrators can change platform settings.',
     )

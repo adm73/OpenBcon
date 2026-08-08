@@ -65,6 +65,31 @@ OPENBCON_OPENAI_API_KEY=your_server_side_key
 SEED_DEMO_DATA=false
 ```
 
+For email verification, keep the SMTP settings in the production example or
+replace them with your provider's values:
+
+```dotenv
+PUBLIC_APP_URL=https://open.bconomics.ai
+EMAIL_PROVIDER=smtp
+EMAIL_FROM=OpenBcon <no-reply@open.bconomics.ai>
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=no-reply@open.bconomics.ai
+SMTP_PASSWORD=your_mailbox_password
+```
+
+To enable Google registration, create a Google OAuth web client and add this
+authorized redirect URI:
+
+```text
+https://open.bconomics.ai/api/auth/google/callback
+```
+
+Then set `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and
+`GOOGLE_OAUTH_REDIRECT_URI` in `deploy/.env.production`. Never put these values
+in Vite frontend variables or commit them to Git.
+
 Keep `APP_STATE_ENCRYPTION_KEY` stable. Changing it can make previously
 encrypted application settings unreadable.
 

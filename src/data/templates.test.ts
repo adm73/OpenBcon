@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { builtInTemplates, mapSyncedTemplates } from './templates'
+import {
+  builtInTemplates,
+  mapDocumentTypesToTemplates,
+  mapSyncedTemplates,
+} from './templates'
 
 describe('templates', () => {
   it('provides a varied built-in library', () => {
@@ -30,5 +34,33 @@ describe('templates', () => {
       sourceName: 'Finance sheet',
       tier: 'Free',
     })
+  })
+
+  it('maps configured Document Types into the template catalog', () => {
+    expect(
+      mapDocumentTypesToTemplates(
+        [
+          {
+            id: 'business-analysis',
+            name: 'Business Analysis',
+            prompt: 'Analyze the company and its operating model.',
+          },
+        ],
+        [
+          { documentTypeId: 'business-analysis', enabled: true },
+          { documentTypeId: 'business-analysis', enabled: false },
+          { documentTypeId: 'financial-model', enabled: true },
+        ],
+      ),
+    ).toMatchObject([
+      {
+        id: 'business-analysis',
+        title: 'Business Analysis',
+        description: 'Analyze the company and its operating model.',
+        tier: 'Configured',
+        sourceId: 'advisory-hub-document-types',
+        sectionCount: 1,
+      },
+    ])
   })
 })

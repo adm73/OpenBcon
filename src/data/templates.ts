@@ -1,7 +1,7 @@
 import type { SyncedResourceRecord } from './fundingSources'
 
 export type TemplateFormat = 'DOCX' | 'XLSX' | 'PDF' | 'Notion'
-export type TemplateTier = 'Free' | 'Pro'
+export type TemplateTier = 'Free' | 'Pro' | 'Configured'
 
 export type TemplateRecord = {
   id: string
@@ -17,6 +17,31 @@ export type TemplateRecord = {
   url: string
   sourceId?: string
   sourceName: string
+  sectionCount?: number
+}
+
+export function mapDocumentTypesToTemplates(
+  documentTypes: Array<{ id: string; name: string; prompt: string }>,
+  sections: Array<{ documentTypeId: string; enabled: boolean }> = [],
+): TemplateRecord[] {
+  return documentTypes.map((documentType) => ({
+    id: documentType.id,
+    title: documentType.name,
+    description: documentType.prompt,
+    category: 'Strategic Report',
+    format: 'DOCX',
+    audience: 'Strategic Report',
+    tier: 'Configured',
+    uses: 0,
+    updatedAt: 'Configured in Admin Console',
+    featured: false,
+    url: '',
+    sourceId: 'advisory-hub-document-types',
+    sourceName: 'Strategic Report - Document Types',
+    sectionCount: sections.filter(
+      (section) => section.documentTypeId === documentType.id && section.enabled,
+    ).length,
+  }))
 }
 
 export const builtInTemplates: TemplateRecord[] = [
