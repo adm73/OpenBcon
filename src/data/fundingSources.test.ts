@@ -43,6 +43,7 @@ describe('funding data sources', () => {
 
     expect(catalog).toEqual({
       category: 'Loan',
+      language: 'en-CA',
       sourceUrl: 'https://example.ca/loans',
       records: [{
         program_name: 'Community Loan',

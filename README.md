@@ -20,6 +20,29 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 1.0.0
+
+OpenBcon 1.0.0 is the first release candidate for a complete funding-workspace
+workflow. It includes account registration, login, password reset, multilingual
+workspace support, real funding-program discovery, company records, Quick Build,
+and configurable Strategic Report generation with business, technology, and
+financial sections.
+
+The release has been verified locally with an end-to-end Test Mode walkthrough:
+register a user, sign in, reset the password, select a real funding program,
+create a company, launch Quick Build, and open the generated Strategic Report.
+Test Mode uses the deterministic mock gateway and test data stores; it does not
+send requests to an external LLM or payment provider. Configure Live Mode and
+server-side provider credentials before using real generation or payments.
+
+Release validation commands:
+
+```bash
+npm run check
+npm audit --omit=dev --audit-level=moderate
+git diff --check
+```
+
 ## Why OpenBcon
 
 Funding consultants and business advisors still spend too much time on repetitive work:
@@ -56,6 +79,17 @@ OpenBcon is designed for teams that help businesses secure funding:
 - **Google Sheets and Airtable integrations**: connect external resource sources with admin-managed sync
 - **Open-source customization**: self-host, extend, rebrand, or commercialize under the project's dual-license model
 - **Multilingual workspace UI**: English (Canada), French (Canada), and Simplified Chinese locale support
+
+### Grants and Loans Catalog Languages
+
+The original English catalogs remain unchanged in `public/funding_programs_complete.json` and
+`public/loan_programs_complete.json`. Simplified Chinese catalogs are provided separately as
+`public/funding_programs_complete.zh-CN.json` and `public/loan_programs_complete.zh-CN.json`.
+
+Enable and sync the two Chinese JSON data sources in Admin Console > Data Sources. The records
+are stored in `funding_programs` with `language = 'zh-CN'`, and the Grants & Loans and Funding
+Shortlist pages request only the catalog matching the active workspace language. Test and Live
+mode continue to use their respective databases.
 
 ## Product Surfaces
 
@@ -395,9 +429,9 @@ Admin Console's **Mode Switch** is also a database boundary. Every browser
 request sends the selected mode to both backend services:
 
 - **Test Mode** uses `DATABASE_URL_TEST` and `MONGODB_DATABASE_TEST`; generation
-  uses the configured enabled model when one is saved in Admin Console, falls
-  back to the mock gateway when no model is configured, and writes test
-  applications, configuration, and reports.
+  always uses the deterministic mock gateway and writes test applications,
+  configuration, and reports without calling an external LLM or payment
+  provider.
 - **Live Mode** uses `DATABASE_URL_LIVE` and `MONGODB_DATABASE_LIVE`; generation
   uses the configured real model gateway and writes only to the live stores.
 

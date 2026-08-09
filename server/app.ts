@@ -274,6 +274,7 @@ const jsonFundingProgramImportSchema = z.object({
   sourceVersion: z.string().trim().max(240).default(''),
   sourceUrl: z.string().trim().max(2000).default(''),
   category: z.enum(['Grant', 'Loan']),
+  language: z.enum(['en-CA', 'fr-CA', 'zh-CN']).default('en-CA'),
   records: z
     .array(z.record(z.string(), z.unknown()))
     .min(1)
@@ -342,6 +343,7 @@ type CompanyApiRow = {
 type FundingProgramApiRow = {
   id: string
   pid: string
+  language: string | null
   name: string
   provider: string | null
   category: string | null
@@ -364,6 +366,7 @@ type FundingProgramApiRow = {
   source_version: string | null
   record_version: string | null
   status: string | null
+  metadata?: unknown
 }
 
 function jsonFieldText(value: unknown): string {
@@ -448,9 +451,6 @@ function normalizeJsonFundingRecord(
   const status = jsonFieldText(
     jsonMappedField(record, fieldMapping, 'programStatus', ['status']),
   )
-  const statusActive = record.status_active === undefined
-    ? true
-    : record.status_active === true
   const sourceRecordId = stableJsonFundingRecordId(
     category,
     record,
@@ -484,7 +484,9 @@ function normalizeJsonFundingRecord(
     programUrl,
     fundingAmount: amount,
     location: locationValues.join('; '),
-    country: locationValues.includes('Canada') ? 'Canada' : 'Canada',
+    country:
+      jsonFieldText(jsonMappedField(record, fieldMapping, 'country', ['country'])) ||
+      'Canada',
     description: jsonFieldText(
       jsonMappedField(record, fieldMapping, 'description', [
         'description',
@@ -516,7 +518,10 @@ function normalizeJsonFundingRecord(
         'required_evidence',
       ]),
     ),
-    lifecycleStatus: statusActive ? 'active' : 'archived',
+    // A source status such as "not currently accepting applications" describes
+    // the program, not whether this record still exists in the source catalog.
+    // The importer archives only records omitted by a later sync.
+    lifecycleStatus: 'active',
     metadata,
     sourceVersion,
     recordVersion: sourceVersion,
@@ -632,11 +637,22 @@ function mapCompanyRow(row: CompanyApiRow) {
 function mapFundingProgramRow(row: FundingProgramApiRow) {
   const type = row.category?.trim().toLowerCase() === 'loan' ? 'Loan' : 'Grant'
   const sourceType = row.source_type?.trim() || 'manual'
-  const sourceName = row.source_id?.trim() || `${sourceType} catalog`
+  const metadata =
+    row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>)
+      : {}
+  const sourceName =
+    typeof metadata.sourceName === 'string' && metadata.sourceName.trim().length > 0
+      ? metadata.sourceName.trim()
+      : row.source_id?.trim() || `${sourceType} catalog`
 
   return {
     id: row.id,
     pid: row.pid,
+    language:
+      row.language === 'zh-CN' || row.language === 'fr-CA'
+        ? row.language
+        : 'en-CA',
     name: row.name,
     type,
     provider: row.provider ?? '',
@@ -1041,11 +1057,22 @@ export function createApp(
       const context = await requireRequestContext(database, request, response)
       if (!context) return
 
+      const rawLanguage =
+        typeof request.query.language === 'string'
+          ? request.query.language
+          : ''
+      const requestedLanguage =
+        rawLanguage === 'zh-CN' || rawLanguage === 'fr-CA'
+          ? rawLanguage
+          : 'en-CA'
+      const includeBuiltIn = request.query.includeBuiltIn === 'true'
+
       const result = await database.query<FundingProgramApiRow>(
         `
           SELECT
             funding_programs.id::text,
             funding_programs.pid,
+            funding_programs.language,
             funding_programs.name,
             funding_programs.provider,
             funding_programs.category,
@@ -1067,16 +1094,25 @@ export function createApp(
             funding_programs.source_record_id,
             funding_programs.source_version,
             funding_programs.record_version,
-            funding_programs.status
+            funding_programs.status,
+            funding_programs.metadata
           FROM funding_programs
           WHERE funding_programs.status = 'active'
+            AND funding_programs.language = $2
+            AND ($3::boolean OR funding_programs.source_type <> 'builtin')
             AND (
               funding_programs.workspace_id = $1
               OR funding_programs.workspace_id IS NULL
+              OR funding_programs.workspace_id = $4
             )
           ORDER BY funding_programs.updated_at DESC, funding_programs.name ASC
         `,
-        [context.workspaceId],
+        [
+          context.workspaceId,
+          requestedLanguage,
+          includeBuiltIn,
+          environment.DEMO_WORKSPACE_ID,
+        ],
       )
 
       response.json({
@@ -1253,6 +1289,7 @@ export function createApp(
                 program_url,
                 funding_amount,
                 currency,
+                language,
                 location,
                 country,
                 description,
@@ -1276,8 +1313,8 @@ export function createApp(
               )
               VALUES (
                 $1, $2, NULLIF($3, ''), $4, NULLIF($5, ''), $6, 'CAD',
-                NULLIF($7, ''), $8, $9, $10, $11, $12, $13, $14, $15, $16,
-                0, 'json-file', $17, $18, $19, $19, $20, $21, $22, $22
+                $7, NULLIF($8, ''), $9, $10, $11, $12, $13, $14, $15, $16, $17,
+                0, 'json-file', $18, $19, $20, $20, $21, $22, $23, $23
               )
               ON CONFLICT (workspace_id, source_id, source_record_id)
               WHERE source_id IS NOT NULL AND source_record_id IS NOT NULL
@@ -1288,6 +1325,7 @@ export function createApp(
                 program_url = EXCLUDED.program_url,
                 funding_amount = EXCLUDED.funding_amount,
                 currency = EXCLUDED.currency,
+                language = EXCLUDED.language,
                 location = EXCLUDED.location,
                 country = EXCLUDED.country,
                 description = EXCLUDED.description,
@@ -1313,6 +1351,7 @@ export function createApp(
               record.category,
               record.programUrl,
               record.fundingAmount,
+              parsed.data.language,
               record.location,
               record.country,
               record.description,
@@ -1361,6 +1400,7 @@ export function createApp(
             SELECT
               id::text,
               pid,
+              language,
               name,
               provider,
               category,
@@ -1382,7 +1422,8 @@ export function createApp(
               source_record_id,
               source_version,
               record_version,
-              status
+              status,
+              metadata
             FROM funding_programs
             WHERE workspace_id = $1
               AND source_id = $2
@@ -2456,7 +2497,7 @@ export function createApp(
             next_action,
             metadata
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, 'Draft', 0, $8, $9, 0, 'Complete the strategic report', jsonb_build_object('document_type_ids', $10::jsonb, 'language', $11))
+          VALUES ($1, $2, $3, $4, $5, $6, $7, 'Draft', 0, $8, $9, 0, 'Complete the strategic report', jsonb_build_object('document_type_ids', $10::jsonb, 'language', $11::text))
           RETURNING id::text, app_id
         `,
         [

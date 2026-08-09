@@ -76,12 +76,13 @@ describe('persistence API', () => {
 
   it('returns active funding programs from the current workspace database', async () => {
     const database = {
-      query: vi.fn(async (query: string) => {
+      query: vi.fn(async (query: string, _params: unknown[] = []) => {
         if (query.includes('FROM funding_programs')) {
           return {
             rows: [{
               id: 'program-1',
               pid: '1000000000000001',
+              language: 'zh-CN',
               name: 'Database Growth Grant',
               provider: 'Database Provider',
               category: 'Grant',
@@ -112,7 +113,7 @@ describe('persistence API', () => {
     } as unknown as Pool
 
     const response = await request(createApp(database)).get(
-      '/api/funding-programs',
+      '/api/funding-programs?language=zh-CN',
     )
 
     expect(response.status).toBe(200)
@@ -120,6 +121,7 @@ describe('persistence API', () => {
       expect.objectContaining({
         id: 'program-1',
         pid: '1000000000000001',
+        language: 'zh-CN',
         name: 'Database Growth Grant',
         type: 'Grant',
         amount: 125000,
@@ -205,6 +207,7 @@ describe('persistence API', () => {
     const importedRow = {
       id: 'program-json-1',
       pid: '1000000000000099',
+      language: 'zh-CN',
       name: 'Community Loan',
       provider: 'Regional Fund',
       category: 'Loan',
@@ -229,7 +232,7 @@ describe('persistence API', () => {
       status: 'active',
     }
     const client = {
-      query: vi.fn(async (query: string) => {
+      query: vi.fn(async (query: string, _params: unknown[] = []) => {
         if (query.includes('RETURNING (xmax = 0)')) {
           return { rows: [{ inserted: true }], rowCount: 1 }
         }
@@ -254,6 +257,7 @@ describe('persistence API', () => {
         sourceId: 'json-loans',
         sourceName: 'Loan programs JSON',
         category: 'Loan',
+        language: 'zh-CN',
         records: [{
           program_name: 'Community Loan',
           provider: 'Regional Fund',
@@ -265,7 +269,7 @@ describe('persistence API', () => {
           eligibility: ['Canadian businesses.'],
           eligible_uses: ['Working capital.'],
           status: 'Accepting applications',
-          status_active: true,
+          status_active: false,
         }],
       })
 
@@ -281,6 +285,11 @@ describe('persistence API', () => {
         programStatus: 'Accepting applications',
       })],
     })
+    const insertCall = client.query.mock.calls.find(([query]) =>
+      query.includes('RETURNING (xmax = 0)'),
+    )
+    expect(insertCall?.[1]?.[6]).toBe('zh-CN')
+    expect(insertCall?.[1]?.[20]).toBe('active')
     expect(client.release).toHaveBeenCalled()
   })
 

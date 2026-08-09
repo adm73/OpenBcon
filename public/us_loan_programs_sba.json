@@ -1,0 +1,370 @@
+{
+  "source_file": "public/us_loan_programs_sba.json",
+  "category": "Loan",
+  "record_count": 4,
+  "completion_method": "Normalized from the U.S. source catalog with explicit defaults for missing evidence and applicant fields.",
+  "records": [
+    {
+      "contact_emails": [],
+      "description": "SBA's primary business loan program. SBA guarantees part of a participating lender's loan to an eligible small business for a broad range of business purposes.",
+      "eligibility": [
+        "Operating, for-profit business located in the United States",
+        "Meets SBA small-business size requirements",
+        "Not an ineligible business type",
+        "Creditworthy and able to demonstrate a reasonable ability to repay",
+        "Unable to obtain the desired credit on reasonable terms from non-government sources"
+      ],
+      "eligible_uses": [
+        "Acquire, refinance, or improve real estate and buildings",
+        "Short- or long-term working capital",
+        "Refinance existing business debt",
+        "Purchase and install machinery and equipment, including AI-related expenses",
+        "Purchase furniture, fixtures, and supplies",
+        "Complete or partial ownership changes"
+      ],
+      "how_to_start": [
+        "Use SBA Lender Match or contact an SBA-approved local lender.",
+        "Discuss the appropriate 7(a) loan type and documentation with the lender.",
+        "Apply directly through the lender; the lender processes the application."
+      ],
+      "how_to_start_steps": [
+        "Use SBA Lender Match or contact an SBA-approved local lender.",
+        "Discuss the appropriate 7(a) loan type and documentation with the lender.",
+        "Apply directly through the lender; the lender processes the application."
+      ],
+      "location": [
+        "United States"
+      ],
+      "max_amount": 5000000,
+      "money": [
+        "Maximum: $5,000,000",
+        "Repayable",
+        "SBA-guaranteed loan issued by a participating lender"
+      ],
+      "official_program_site": "https://www.sba.gov/loans/7a-loans/",
+      "program_name": "SBA 7(a) Loan Program",
+      "provider": "U.S. Small Business Administration (SBA)",
+      "raw_text": "SBA's primary business loan program provides a loan guarantee to lenders that offer financial assistance to small businesses. Maximum loan amount: $5 million. Apply directly through a local participating lender or use SBA Lender Match.",
+      "required_evidence": [
+        "Application documents required by the participating lender",
+        "Evidence of creditworthiness and ability to repay"
+      ],
+      "short_description": "SBA-guaranteed general-purpose financing for eligible U.S. small businesses.",
+      "status": "Ongoing program; lender application required",
+      "status_active": true,
+      "target_company_types": [
+        "Corporation",
+        "Sole proprietorship",
+        "Partnership",
+        "Co-operative"
+      ],
+      "index": 1,
+      "previous_program_name": null,
+      "field_sources": {
+        "all_program_fields": "SBA official program page, retrieved 2026-08-08",
+        "target_company_types": "source_catalog",
+        "country": "source_catalog",
+        "required_evidence": "source_catalog",
+        "max_amount": "source_catalog"
+      },
+      "missing_fields": [],
+      "optional_unavailable_fields": [
+        "Current lender-specific interest rate",
+        "Current lender-specific fees",
+        "Exact lender documentation checklist"
+      ],
+      "completed_fields": [
+        "description",
+        "eligibility",
+        "eligible_uses",
+        "how_to_start",
+        "location",
+        "max_amount",
+        "money",
+        "official_program_site",
+        "program_name",
+        "provider",
+        "required_evidence",
+        "short_description",
+        "status",
+        "target_company_types",
+        "country"
+      ],
+      "completion_status": "completed",
+      "completion_note": "Source fields were normalized for the OpenBcon funding-program schema. Missing evidence or applicant fields use explicit generic guidance; unpublished amounts remain marked as not specified.",
+      "country": "United States"
+    },
+    {
+      "contact_emails": [],
+      "description": "Long-term, fixed-rate financing for major fixed assets that promote business growth and job creation, delivered through SBA Certified Development Companies and senior lenders.",
+      "eligibility": [
+        "Operating, for-profit business located in the United States",
+        "Meets SBA small-business size requirements",
+        "Not an ineligible business type",
+        "Has qualified management expertise, a feasible business plan, good character, and ability to repay",
+        "Not engaged in nonprofit, passive, or speculative activities"
+      ],
+      "eligible_uses": [
+        "Purchase, construct, or renovate buildings or land",
+        "Purchase long-term machinery and equipment with at least 10 years of useful remaining life",
+        "Consolidate or refinance qualified debt, subject to SBA rules"
+      ],
+      "how_to_start": [
+        "Find and contact an SBA Certified Development Company (CDC) in your area.",
+        "Work with the CDC and a senior lender to structure the project financing.",
+        "Submit the documentation requested by the CDC and lenders."
+      ],
+      "how_to_start_steps": [
+        "Find and contact an SBA Certified Development Company (CDC) in your area.",
+        "Work with the CDC and a senior lender to structure the project financing.",
+        "Submit the documentation requested by the CDC and lenders."
+      ],
+      "location": [
+        "United States"
+      ],
+      "max_amount": 5500000,
+      "money": [
+        "Maximum: $5,500,000",
+        "Repayable",
+        "Long-term fixed-rate financing",
+        "Available maturities: 10, 20, or 25 years"
+      ],
+      "official_program_site": "https://www.sba.gov/loans/504-loans/",
+      "program_name": "SBA 504 Loan Program",
+      "provider": "U.S. Small Business Administration (SBA)",
+      "raw_text": "The 504 loan program provides long-term, fixed-rate financing for major fixed assets. Maximum loan amount: $5.5 million. Available exclusively through SBA Certified Development Companies in collaboration with senior lenders.",
+      "required_evidence": [
+        "Business plan",
+        "Evidence of qualified management and ability to repay",
+        "Project and asset documentation required by the CDC and lenders"
+      ],
+      "short_description": "Fixed-rate financing for real estate, construction, and long-life equipment.",
+      "status": "Ongoing program; CDC and lender application required",
+      "status_active": true,
+      "target_company_types": [
+        "Corporation",
+        "Sole proprietorship",
+        "Partnership",
+        "Co-operative"
+      ],
+      "index": 2,
+      "previous_program_name": "SBA 7(a) Loan Program",
+      "field_sources": {
+        "all_program_fields": "SBA official program page, retrieved 2026-08-08",
+        "target_company_types": "source_catalog",
+        "country": "source_catalog",
+        "required_evidence": "source_catalog",
+        "max_amount": "source_catalog"
+      },
+      "missing_fields": [],
+      "optional_unavailable_fields": [
+        "Current fixed interest rate",
+        "CDC and senior-lender documentation checklist"
+      ],
+      "completed_fields": [
+        "description",
+        "eligibility",
+        "eligible_uses",
+        "how_to_start",
+        "location",
+        "max_amount",
+        "money",
+        "official_program_site",
+        "program_name",
+        "provider",
+        "required_evidence",
+        "short_description",
+        "status",
+        "target_company_types",
+        "country"
+      ],
+      "completion_status": "completed",
+      "completion_note": "Source fields were normalized for the OpenBcon funding-program schema. Missing evidence or applicant fields use explicit generic guidance; unpublished amounts remain marked as not specified.",
+      "country": "United States"
+    },
+    {
+      "contact_emails": [],
+      "description": "Small loans administered by SBA-designated nonprofit, community-based intermediary lenders to help small businesses start and expand.",
+      "eligibility": [
+        "Operating, for-profit small business located in the United States",
+        "Meets SBA small-business size requirements",
+        "Not an ineligible business type",
+        "Meets the credit and collateral requirements of the local SBA-approved intermediary"
+      ],
+      "eligible_uses": [
+        "Working capital",
+        "Inventory",
+        "Supplies",
+        "Furniture and fixtures",
+        "Machinery",
+        "Equipment"
+      ],
+      "how_to_start": [
+        "Locate an SBA-approved microloan intermediary in your area.",
+        "Contact the intermediary to confirm its credit, collateral, and application requirements.",
+        "Apply directly to the intermediary lender."
+      ],
+      "how_to_start_steps": [
+        "Locate an SBA-approved microloan intermediary in your area.",
+        "Contact the intermediary to confirm its credit, collateral, and application requirements.",
+        "Apply directly to the intermediary lender."
+      ],
+      "location": [
+        "United States"
+      ],
+      "max_amount": 50000,
+      "money": [
+        "Maximum: $50,000",
+        "Average loan: approximately $13,000",
+        "Repayable",
+        "Interest generally 8%–13%",
+        "Maximum repayment term: 7 years"
+      ],
+      "official_program_site": "https://www.sba.gov/loans/microloans/",
+      "program_name": "SBA Microloan Program",
+      "provider": "U.S. Small Business Administration (SBA)",
+      "raw_text": "The SBA Microloan Program provides loans up to $50,000 through designated intermediary lenders. It supports small-business start-up and expansion. Funds cannot be used to pay existing debt or purchase real estate.",
+      "required_evidence": [
+        "Documentation required by the SBA-approved intermediary",
+        "Collateral and personal guarantee may be required by the intermediary"
+      ],
+      "short_description": "Small-business financing of up to $50,000 through local nonprofit intermediary lenders.",
+      "status": "Ongoing program; intermediary application required",
+      "status_active": true,
+      "target_company_types": [
+        "Corporation",
+        "Sole proprietorship",
+        "Partnership",
+        "Co-operative"
+      ],
+      "index": 3,
+      "previous_program_name": "SBA 504 Loan Program",
+      "field_sources": {
+        "all_program_fields": "SBA official program page, retrieved 2026-08-08",
+        "target_company_types": "source_catalog",
+        "country": "source_catalog",
+        "required_evidence": "source_catalog",
+        "max_amount": "source_catalog"
+      },
+      "missing_fields": [],
+      "optional_unavailable_fields": [
+        "Exact interest rate",
+        "Intermediary-specific credit criteria",
+        "Intermediary-specific documentation checklist"
+      ],
+      "completed_fields": [
+        "description",
+        "eligibility",
+        "eligible_uses",
+        "how_to_start",
+        "location",
+        "max_amount",
+        "money",
+        "official_program_site",
+        "program_name",
+        "provider",
+        "required_evidence",
+        "short_description",
+        "status",
+        "target_company_types",
+        "country"
+      ],
+      "completion_status": "completed",
+      "completion_note": "Source fields were normalized for the OpenBcon funding-program schema. Missing evidence or applicant fields use explicit generic guidance; unpublished amounts remain marked as not specified.",
+      "country": "United States"
+    },
+    {
+      "contact_emails": [],
+      "description": "Low-interest direct disaster recovery loans for businesses of any size in a declared disaster area, to repair or replace business property damaged by the disaster.",
+      "eligibility": [
+        "Business of any size located in a declared disaster area",
+        "Business property or other eligible assets were damaged by the declared disaster",
+        "Disaster losses are not fully covered by insurance or other sources"
+      ],
+      "eligible_uses": [
+        "Repair or replace real property",
+        "Repair or replace machinery and equipment",
+        "Repair or replace fixtures",
+        "Replace inventory",
+        "Repair leasehold improvements"
+      ],
+      "how_to_start": [
+        "Check the SBA disaster declaration and county eligibility.",
+        "Apply online through the SBA Loan Portal.",
+        "Submit the completed application for SBA inspection and processing."
+      ],
+      "how_to_start_steps": [
+        "Check the SBA disaster declaration and county eligibility.",
+        "Apply online through the SBA Loan Portal.",
+        "Submit the completed application for SBA inspection and processing."
+      ],
+      "location": [
+        "United States; declared disaster areas only"
+      ],
+      "max_amount": 2000000,
+      "money": [
+        "Maximum: $2,000,000",
+        "Repayable",
+        "First payment deferred for 12 months",
+        "No interest accrues during the first 12 months",
+        "Interest rate: up to 4% if credit is unavailable elsewhere; up to 8% if credit is available elsewhere"
+      ],
+      "official_program_site": "https://www.sba.gov/disaster/#physical-damage",
+      "program_name": "SBA Business Physical Disaster Loan",
+      "provider": "U.S. Small Business Administration (SBA)",
+      "raw_text": "Businesses of any size may apply for up to $2 million to cover disaster losses not fully covered by insurance. Loan proceeds can repair or replace real property, machinery, equipment, fixtures, inventory, and leasehold improvements.",
+      "required_evidence": [
+        "SBA disaster loan application",
+        "Evidence of disaster-related losses",
+        "Insurance or other-source recovery information",
+        "Documentation requested by SBA during processing"
+      ],
+      "short_description": "Direct low-interest recovery financing for business property damage in declared disaster areas.",
+      "status": "Available when a qualifying SBA disaster declaration is active",
+      "status_active": true,
+      "target_company_types": [
+        "Corporation",
+        "Sole proprietorship",
+        "Partnership",
+        "Co-operative",
+        "Non-profit"
+      ],
+      "index": 4,
+      "previous_program_name": "SBA Microloan Program",
+      "field_sources": {
+        "all_program_fields": "SBA official disaster recovery page, retrieved 2026-08-08",
+        "target_company_types": "source_catalog",
+        "country": "source_catalog",
+        "required_evidence": "source_catalog",
+        "max_amount": "source_catalog"
+      },
+      "missing_fields": [],
+      "optional_unavailable_fields": [
+        "Disaster-specific application deadline",
+        "Actual interest rate and maturity for a particular applicant"
+      ],
+      "completed_fields": [
+        "description",
+        "eligibility",
+        "eligible_uses",
+        "how_to_start",
+        "location",
+        "max_amount",
+        "money",
+        "official_program_site",
+        "program_name",
+        "provider",
+        "required_evidence",
+        "short_description",
+        "status",
+        "target_company_types",
+        "country"
+      ],
+      "completion_status": "completed",
+      "completion_note": "Source fields were normalized for the OpenBcon funding-program schema. Missing evidence or applicant fields use explicit generic guidance; unpublished amounts remain marked as not specified.",
+      "country": "United States"
+    }
+  ],
+  "language": "en-CA",
+  "country": "United States"
+}

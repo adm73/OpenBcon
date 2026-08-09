@@ -3,6 +3,7 @@ import { setPersistentItem } from '../persistence/storage'
 export type FundingProgramRecord = {
   id: string
   pid?: string
+  language?: 'en-CA' | 'fr-CA' | 'zh-CN'
   name: string
   type: 'Grant' | 'Loan'
   provider: string
@@ -88,8 +89,10 @@ export type FundingDataSource = {
   recordCount: number
   lastSyncedAt: string
   lastError: string
+  isBuiltIn?: boolean
   jsonFileName?: string
   jsonSourceVersion?: string
+  language?: 'en-CA' | 'fr-CA' | 'zh-CN'
   fieldMapping?: FundingProgramFieldMapping
 }
 
@@ -141,6 +144,7 @@ export const defaultJsonFundingProgramFieldMapping: FundingProgramFieldMapping =
   amount: 'max_amount',
   url: 'official_program_site',
   location: 'location',
+  country: 'country',
   description: 'description',
   process: 'how_to_start',
   eligibility: 'eligibility',
@@ -161,6 +165,7 @@ export function getFundingProgramFieldMapping(
 
 export type JsonFundingCatalog = {
   sourceUrl?: string
+  language?: 'en-CA' | 'fr-CA' | 'zh-CN'
   category: 'Grant' | 'Loan'
   records: Array<Record<string, unknown>>
 }
@@ -203,6 +208,153 @@ export const defaultFundingDataSources: FundingDataSource[] = [
     recordCount: 0,
     lastSyncedAt: '',
     lastError: '',
+  },
+  {
+    id: 'seed-demo-catalog',
+    name: 'Seed demo catalog',
+    module: 'grants-loans',
+    provider: 'json-file',
+    enabled: false,
+    frequency: 'manual',
+    spreadsheetUrl: '',
+    sheetName: '',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'connected',
+    recordCount: 6,
+    lastSyncedAt: '',
+    lastError: '',
+    isBuiltIn: true,
+    language: 'en-CA',
+  },
+  {
+    id: 'business-benefits-finder-funding-zh-CN',
+    name: 'Business Benefits Finder - funding (中文)',
+    module: 'grants-loans',
+    provider: 'json-file',
+    enabled: true,
+    frequency: 'daily',
+    spreadsheetUrl: '',
+    sheetName: '',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'connected',
+    recordCount: 624,
+    lastSyncedAt: '',
+    lastError: '',
+    jsonFileName: 'funding_programs_complete.zh-CN.json',
+    language: 'zh-CN',
+  },
+  {
+    id: 'business-benefits-finder-loans-zh-CN',
+    name: 'Business Benefits Finder - loans (中文)',
+    module: 'grants-loans',
+    provider: 'json-file',
+    enabled: true,
+    frequency: 'daily',
+    spreadsheetUrl: '',
+    sheetName: '',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'connected',
+    recordCount: 215,
+    lastSyncedAt: '',
+    lastError: '',
+    jsonFileName: 'loan_programs_complete.zh-CN.json',
+    language: 'zh-CN',
+  },
+  {
+    id: 'us-grants',
+    name: 'U.S. Grants',
+    module: 'grants-loans',
+    provider: 'json-file',
+    enabled: true,
+    frequency: 'daily',
+    spreadsheetUrl: '',
+    sheetName: '',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'connected',
+    recordCount: 1701,
+    lastSyncedAt: '',
+    lastError: '',
+    jsonFileName: 'us_grant_programs.json',
+    language: 'en-CA',
+  },
+  {
+    id: 'us-grants-zh-CN',
+    name: 'U.S. Grants (中文)',
+    module: 'grants-loans',
+    provider: 'json-file',
+    enabled: true,
+    frequency: 'daily',
+    spreadsheetUrl: '',
+    sheetName: '',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'connected',
+    recordCount: 1701,
+    lastSyncedAt: '',
+    lastError: '',
+    jsonFileName: 'us_grant_programs.zh-CN.json',
+    language: 'zh-CN',
+  },
+  {
+    id: 'us-sba-loans',
+    name: 'U.S. SBA Loans',
+    module: 'grants-loans',
+    provider: 'json-file',
+    enabled: true,
+    frequency: 'daily',
+    spreadsheetUrl: '',
+    sheetName: '',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'connected',
+    recordCount: 4,
+    lastSyncedAt: '',
+    lastError: '',
+    jsonFileName: 'us_loan_programs_sba.json',
+    language: 'en-CA',
+  },
+  {
+    id: 'us-sba-loans-zh-CN',
+    name: 'U.S. SBA Loans (中文)',
+    module: 'grants-loans',
+    provider: 'json-file',
+    enabled: true,
+    frequency: 'daily',
+    spreadsheetUrl: '',
+    sheetName: '',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'connected',
+    recordCount: 4,
+    lastSyncedAt: '',
+    lastError: '',
+    jsonFileName: 'us_loan_programs_sba.zh-CN.json',
+    language: 'zh-CN',
   },
   {
     id: 'google-sheets-template-library',
@@ -468,6 +620,10 @@ export function parseJsonFundingCatalog(value: unknown): JsonFundingCatalog {
 
   return {
     sourceUrl: typeof catalog.source_url === 'string' ? catalog.source_url : undefined,
+    language:
+      catalog.language === 'zh-CN' || catalog.language === 'fr-CA'
+        ? catalog.language
+        : 'en-CA',
     category,
     records,
   }
@@ -534,6 +690,7 @@ function ensureFundingProgramCompleteness(
   return {
     ...details,
     ...program,
+    language: program.language ?? 'en-CA',
     pid: program.pid && /^[0-9]{16}$/.test(program.pid)
       ? program.pid
       : makeMockProgramPid(`stored:${recordId}`),
@@ -580,6 +737,7 @@ export function normalizeFundingRecords(
 
       return {
         id: makeRecordId(source.id, name, index),
+        language: source.language ?? 'en-CA',
         name,
         type,
         provider:
@@ -868,21 +1026,23 @@ export function saveSyncedFundingPrograms(
   const otherPrograms = loadSyncedFundingPrograms().filter(
     (program) => program.sourceId !== sourceId,
   )
-  setPersistentItem(
-    fundingProgramStorageKey,
-    JSON.stringify([...otherPrograms, ...programs]),
-  )
+  replaceFundingProgramCache([...otherPrograms, ...programs])
 }
 
 export function replaceFundingProgramCache(programs: FundingProgramRecord[]) {
-  setPersistentItem(fundingProgramStorageKey, JSON.stringify(programs))
+  try {
+    setPersistentItem(fundingProgramStorageKey, JSON.stringify(programs))
+  } catch {
+    // Large database catalogs are authoritative; browser storage is only a
+    // best-effort cache and may reject payloads beyond its quota.
+  }
 }
 
 export function removeSyncedFundingPrograms(sourceId: string) {
   const nextPrograms = loadSyncedFundingPrograms().filter(
     (program) => program.sourceId !== sourceId,
   )
-  setPersistentItem(fundingProgramStorageKey, JSON.stringify(nextPrograms))
+  replaceFundingProgramCache(nextPrograms)
 }
 
 export function loadSyncedResourceRecords() {

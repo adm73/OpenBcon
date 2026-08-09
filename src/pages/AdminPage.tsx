@@ -155,6 +155,7 @@ function createFundingDataSource(): FundingDataSource {
     lastError: '',
     jsonFileName: '',
     jsonSourceVersion: '',
+    language: 'en-CA',
     fieldMapping: { ...defaultFundingProgramFieldMapping },
   }
 }
@@ -1490,6 +1491,7 @@ export function AdminPage() {
               ...current,
               jsonFileName: file.name,
               jsonSourceVersion: '',
+              language: catalog.language ?? 'en-CA',
             }
           : current,
       )
@@ -1578,16 +1580,26 @@ export function AdminPage() {
       if (source.module === 'grants-loans') {
         if (source.provider === 'json-file') {
           const file = jsonFiles[source.id]
-          if (!file) {
+          let content = ''
+          if (file) {
+            content = await file.text()
+          } else if (source.jsonFileName) {
+            const response = await fetch(`/${encodeURIComponent(source.jsonFileName)}`)
+            if (!response.ok) {
+              throw new Error(`The bundled JSON file could not be loaded (${response.status}).`)
+            }
+            content = await response.text()
+          } else {
             throw new Error('Select the JSON file again before syncing this source.')
           }
-          const catalog = parseJsonFundingCatalog(JSON.parse(await file.text()))
+          const catalog = parseJsonFundingCatalog(JSON.parse(content))
           const result = await importJsonFundingProgramsViaApi({
             sourceId: source.id,
             sourceName: source.name,
             sourceVersion: source.jsonSourceVersion,
             sourceUrl: catalog.sourceUrl,
             category: catalog.category,
+            language: source.language ?? catalog.language ?? 'en-CA',
             records: catalog.records,
             fieldMapping: getFundingProgramFieldMapping(source),
           })
@@ -2962,10 +2974,12 @@ export function AdminPage() {
                     <span
                       className={`admin-source-provider is-${source.provider}`}
                       role="img"
-                      aria-label={dataSourceProviderLabels[source.provider]}
-                      title={dataSourceProviderLabels[source.provider]}
+                      aria-label={source.isBuiltIn ? 'Built-in catalog' : dataSourceProviderLabels[source.provider]}
+                      title={source.isBuiltIn ? 'Built-in catalog' : dataSourceProviderLabels[source.provider]}
                     >
-                      {source.provider === 'google-sheets'
+                      {source.isBuiltIn
+                        ? 'B'
+                        : source.provider === 'google-sheets'
                         ? 'G'
                         : source.provider === 'airtable'
                           ? 'A'
@@ -3002,35 +3016,41 @@ export function AdminPage() {
                       <div className="admin-source-action-buttons">
                         <button
                           type="button"
-                          disabled={syncingSourceId === source.id}
+                          disabled={source.isBuiltIn || syncingSourceId === source.id}
                           onClick={() => syncDataSource(source)}
                         >
                           {syncingSourceId === source.id ? 'Syncing…' : 'Sync'}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSourceEditor({ ...source })
-                            setSourceNotice('')
-                          }}
-                        >
-                          Edit
-                        </button>
-                        {deleteSourceId === source.id ? (
-                          <button
-                            type="button"
-                            className="is-danger"
-                            onClick={() => deleteDataSource(source.id)}
-                          >
-                            Confirm
-                          </button>
+                        {source.isBuiltIn ? (
+                          <span className="admin-source-built-in-note">Built-in catalog</span>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => setDeleteSourceId(source.id)}
-                          >
-                            Delete
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSourceEditor({ ...source })
+                                setSourceNotice('')
+                              }}
+                            >
+                              Edit
+                            </button>
+                            {deleteSourceId === source.id ? (
+                              <button
+                                type="button"
+                                className="is-danger"
+                                onClick={() => deleteDataSource(source.id)}
+                              >
+                                Confirm
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteSourceId(source.id)}
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                       <span className="admin-source-last-sync">
@@ -5002,21 +5022,41 @@ export function AdminPage() {
                     </label>
                   </>
                 ) : (
-                  <label className="admin-source-field-wide">
-                    <span>JSON catalog file</span>
-                    <input
-                      type="file"
-                      accept=".json,application/json"
-                      onChange={selectJsonDataSourceFile}
-                    />
-                    <small>
-                      Select a catalog with a top-level <code>records</code> array. The file is
-                      sent to the backend only when you click Sync.
-                    </small>
-                    {sourceEditor.jsonFileName ? (
-                      <small>Selected: {sourceEditor.jsonFileName}</small>
-                    ) : null}
-                  </label>
+                  <>
+                    <label>
+                      <span>Catalog language</span>
+                      <select
+                        value={sourceEditor.language ?? 'en-CA'}
+                        onChange={(event) =>
+                          updateDataSource(
+                            'language',
+                            normalizeLocale(event.target.value),
+                          )
+                        }
+                      >
+                        {languageOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="admin-source-field-wide">
+                      <span>JSON catalog file</span>
+                      <input
+                        type="file"
+                        accept=".json,application/json"
+                        onChange={selectJsonDataSourceFile}
+                      />
+                      <small>
+                        Select a catalog with a top-level <code>records</code> array. Bundled
+                        files can be synced without selecting them again.
+                      </small>
+                      {sourceEditor.jsonFileName ? (
+                        <small>Selected: {sourceEditor.jsonFileName}</small>
+                      ) : null}
+                    </label>
+                  </>
                 )}
 
                 {sourceEditor.module === 'grants-loans' ? (

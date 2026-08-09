@@ -547,10 +547,10 @@ def build_model_gateway(
     environment_mode: EnvironmentMode = "test",
     model_config: GenerationModelConfig | None = None,
 ) -> ModelGateway:
-    # Test mode still isolates database/payment writes, but an explicitly
-    # supplied admin model is allowed to make a real provider request.
-    if model_config is not None:
-        return OpenAIModelGateway(settings, model_config)
+    # Test mode must never make an external model request. It exercises the
+    # complete graph and persistence flow with deterministic mock output.
     if environment_mode == "test" or settings.use_mock_llm:
         return MockModelGateway()
+    if model_config is not None:
+        return OpenAIModelGateway(settings, model_config)
     return OpenAIModelGateway(settings)

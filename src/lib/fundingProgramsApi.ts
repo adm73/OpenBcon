@@ -4,6 +4,8 @@ import type {
   FundingProgramRecord,
 } from '../data/fundingSources'
 
+export type FundingProgramLanguage = 'en-CA' | 'fr-CA' | 'zh-CN'
+
 export type ManualFundingProgramInput = {
   name: string
   fundingType: 'Grant' | 'Loan'
@@ -28,6 +30,7 @@ export type JsonFundingProgramImportInput = {
   sourceVersion?: string
   sourceUrl?: string
   category: 'Grant' | 'Loan'
+  language?: FundingProgramLanguage
   records: Array<Record<string, unknown>>
   fieldMapping?: FundingProgramFieldMapping
 }
@@ -42,11 +45,17 @@ async function readError(response: Response, fallback: string) {
   return fallback
 }
 
-export async function loadFundingProgramsViaApi() {
-  const response = await fetch('/api/funding-programs', {
-    headers: getEnvironmentModeHeaders(),
-    credentials: 'include',
-  })
+export async function loadFundingProgramsViaApi(
+  language: FundingProgramLanguage = 'en-CA',
+  includeBuiltIn = false,
+) {
+  const response = await fetch(
+    `/api/funding-programs?language=${encodeURIComponent(language)}&includeBuiltIn=${includeBuiltIn ? 'true' : 'false'}`,
+    {
+      headers: getEnvironmentModeHeaders(),
+      credentials: 'include',
+    },
+  )
 
   if (!response.ok) {
     throw new Error(
