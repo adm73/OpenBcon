@@ -15,8 +15,8 @@ export function getClientEnvironmentMode(): EnvironmentMode {
   }
 }
 
-export function getEnvironmentModeHeaders() {
+export function getEnvironmentModeHeaders(mode: EnvironmentMode = getClientEnvironmentMode()) {
   return {
-    [environmentModeHeader]: getClientEnvironmentMode(),
+    [environmentModeHeader]: mode,
   }
 }

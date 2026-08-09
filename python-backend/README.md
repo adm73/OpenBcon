@@ -86,14 +86,17 @@ Create `.env` from your own values:
 
 ```bash
 OPENBCON_DB_DSN=postgresql://bconomics:bconomics@localhost:5432/bconomics
-OPENBCON_DB_DSN_TEST=postgresql://bconomics:bconomics@localhost:5432/bconomics
+OPENBCON_DB_DSN_SHARED=postgresql://bconomics:bconomics@localhost:5432/bconomics
+OPENBCON_DB_DSN_TEST=postgresql://bconomics:bconomics@localhost:5432/bconomics_test
 OPENBCON_DB_DSN_LIVE=postgresql://bconomics:bconomics@localhost:5432/bconomics_live
+OPENBCON_ENVIRONMENT_MODE=test
 OPENBCON_OPENAI_MODEL=gpt-5
 OPENBCON_OPENAI_API_KEY=your-key
 OPENBCON_USE_MOCK_LLM=false
 OPENBCON_MONGODB_URL=mongodb://localhost:27017
 OPENBCON_MONGODB_DATABASE=bconomics
-OPENBCON_MONGODB_DATABASE_TEST=bconomics
+OPENBCON_MONGODB_DATABASE_SHARED=bconomics
+OPENBCON_MONGODB_DATABASE_TEST=bconomics_test
 OPENBCON_MONGODB_DATABASE_LIVE=bconomics_live
 OPENBCON_API_HOST=0.0.0.0
 OPENBCON_API_PORT=8010
@@ -111,11 +114,13 @@ OPENBCON_USE_MOCK_LLM=true
 ```
 
 Advisory Hub sections have no Python-side defaults. Every generation reads the
-current Admin Console section and agent configuration from the MongoDB database
-selected by the `x-openbcon-environment-mode` request header. Test mode always
-uses the mock model gateway; Live mode uses the configured provider. Generation
-fails if the selected database configuration is missing, contains no enabled
-sections, or a section references an unavailable agent.
+current Admin Console section and agent configuration from the shared MongoDB
+database. The server's `OPENBCON_ENVIRONMENT_MODE` environment variable is
+authoritative for the Test/Live business database boundary; request headers
+cannot switch it. Change that variable and restart the Node and Python
+services to apply a mode switch. Generation fails if the selected database
+configuration is missing, contains no enabled sections, or a section
+references an unavailable agent.
 
 ## Install and run
 

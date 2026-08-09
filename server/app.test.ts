@@ -74,6 +74,18 @@ describe('persistence API', () => {
     expect(response.body.database).toBe('connected')
   })
 
+  it('reports the server mode instead of trusting a client mode header', async () => {
+    const response = await request(createApp(createDatabaseStub()))
+      .get('/api/runtime/environment')
+      .set('x-openbcon-environment-mode', 'live')
+
+    expect(response.status).toBe(200)
+    expect(response.body.activeEnvironmentMode).toBe('test')
+    expect(response.body.environmentMode).toBe('test')
+    expect(response.body.requestedEnvironmentMode).toBeNull()
+    expect(response.body.restartRequired).toBe(false)
+  })
+
   it('returns active funding programs from the current workspace database', async () => {
     const database = {
       query: vi.fn(async (query: string, _params: unknown[] = []) => {

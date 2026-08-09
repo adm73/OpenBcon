@@ -18,3 +18,21 @@ def get_connection(mode: EnvironmentMode = "test"):
         raise
     finally:
         connection.close()
+
+
+@contextmanager
+def get_shared_connection():
+    """Open the shared platform catalog database connection."""
+    settings = get_settings()
+    connection = connect(
+        settings.db_dsn_shared or settings.db_dsn_test or settings.db_dsn,
+        row_factory=dict_row,
+    )
+    try:
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()

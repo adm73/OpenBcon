@@ -55,6 +55,7 @@ import {
 } from '../lib/fundingProgramsApi'
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
 import {
+  getClientEnvironmentMode,
   getEnvironmentModeHeaders,
   platformConfigStorageKey,
 } from '../lib/environmentMode'
@@ -520,7 +521,12 @@ function formatAIChatResponse(value: string) {
 }
 
 export function AdminPage() {
-  const { config, updateConfig, resetConfig } = usePlatformConfig()
+  const {
+    config,
+    updateConfig,
+    updateConfigLocally,
+    resetConfig,
+  } = usePlatformConfig()
   const { setLocale } = useLocale()
   const [draft, setDraft] = useState<PlatformConfig>(config)
   const [saved, setSaved] = useState(false)
@@ -1854,11 +1860,36 @@ export function AdminPage() {
     setSaved(false)
     setSettingsNotice('')
     try {
-      updateConfig(draft)
+      let activeEnvironmentMode = getClientEnvironmentMode()
+      try {
+        const runtimeResponse = await fetch('/api/runtime/environment', {
+          credentials: 'include',
+        })
+        if (runtimeResponse.ok) {
+          const runtime = (await runtimeResponse.json()) as {
+            activeEnvironmentMode?: unknown
+            environmentMode?: unknown
+          }
+          const serverMode = runtime.activeEnvironmentMode ?? runtime.environmentMode
+          activeEnvironmentMode = serverMode === 'live' ? 'live' : 'test'
+        }
+      } catch {
+        // Keep the cached mode if runtime status is temporarily unavailable.
+      }
+
+      const requestedEnvironmentMode = draft.environmentMode
+      const activeConfig =
+        requestedEnvironmentMode === activeEnvironmentMode
+          ? draft
+          : { ...draft, environmentMode: activeEnvironmentMode }
       const persistenceMode = await persistPersistentItem(
         platformConfigStorageKey,
         JSON.stringify(sanitizePlatformConfigForPersistence(draft)),
       )
+      // Keep the browser cache aligned with the mode actually enforced by the
+      // server. The requested mode remains in shared config until restart.
+      updateConfigLocally(activeConfig)
+      setDraft(activeConfig)
 
       const authSecrets: Record<string, string> = {}
       const googleClientSecret = draft.authentication.googleOAuth.clientSecret.trim()
@@ -1890,7 +1921,9 @@ export function AdminPage() {
       setLocale(draft.language)
       setSaved(true)
       setSettingsNotice(
-        `Settings saved to ${persistenceMode === 'database' ? 'the database' : 'local cache'}.`,
+        requestedEnvironmentMode !== activeEnvironmentMode
+          ? `Settings saved to ${persistenceMode === 'database' ? 'the database' : 'local cache'}. Restart the server after updating OPENBCON_ENVIRONMENT_MODE to apply the requested ${requestedEnvironmentMode === 'live' ? 'Live' : 'Test'} Mode.`
+          : `Settings saved to ${persistenceMode === 'database' ? 'the database' : 'local cache'}.`,
       )
     } catch (error) {
       setSettingsNotice(

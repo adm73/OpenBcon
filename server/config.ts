@@ -12,12 +12,15 @@ function booleanFromEnvironment(defaultValue: boolean) {
 
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  OPENBCON_ENVIRONMENT_MODE: z.enum(['test', 'live']).default('test'),
   DATABASE_URL: z
     .string()
     .min(1)
     .default('postgresql://bconomics:bconomics@localhost:5432/bconomics'),
   DATABASE_URL_TEST: z.string().min(1).optional(),
   DATABASE_URL_LIVE: z.string().min(1).optional(),
+  // Platform catalogs (funding programs) are shared by both runtime modes.
+  DATABASE_URL_SHARED: z.string().min(1).optional(),
   DATABASE_SSL: booleanFromEnvironment(false),
   DATABASE_SSL_REJECT_UNAUTHORIZED: booleanFromEnvironment(true),
   DATABASE_SSL_CA: z.string().min(1).optional(),
@@ -26,6 +29,7 @@ const environmentSchema = z.object({
     .min(1)
     .default('mongodb://localhost:27017'),
   MONGODB_DATABASE: z.string().min(1).default('bconomics'),
+  MONGODB_DATABASE_SHARED: z.string().min(1).optional(),
   MONGODB_DATABASE_TEST: z.string().min(1).optional(),
   MONGODB_DATABASE_LIVE: z.string().min(1).optional(),
   API_PORT: z.coerce.number().int().positive().default(8787),
@@ -103,6 +107,62 @@ export const environment = environmentSchema
         code: 'custom',
         path: ['EMAIL_PROVIDER'],
         message: 'Production email delivery cannot use the console provider.',
+      })
+    }
+    if (!values.DATABASE_URL_SHARED || !values.DATABASE_URL_TEST || !values.DATABASE_URL_LIVE) {
+      context.addIssue({
+        code: 'custom',
+        path: ['DATABASE_URL_SHARED'],
+        message: 'Production requires separate shared, Test, and Live PostgreSQL databases.',
+      })
+    }
+    if (values.DATABASE_URL_SHARED && values.DATABASE_URL_TEST === values.DATABASE_URL_SHARED) {
+      context.addIssue({
+        code: 'custom',
+        path: ['DATABASE_URL_TEST'],
+        message: 'Test PostgreSQL must not reuse the shared catalog database.',
+      })
+    }
+    if (values.DATABASE_URL_SHARED && values.DATABASE_URL_LIVE === values.DATABASE_URL_SHARED) {
+      context.addIssue({
+        code: 'custom',
+        path: ['DATABASE_URL_LIVE'],
+        message: 'Live PostgreSQL must not reuse the shared catalog database.',
+      })
+    }
+    if (values.DATABASE_URL_TEST && values.DATABASE_URL_LIVE === values.DATABASE_URL_TEST) {
+      context.addIssue({
+        code: 'custom',
+        path: ['DATABASE_URL_LIVE'],
+        message: 'Live PostgreSQL must not reuse the Test database.',
+      })
+    }
+    if (!values.MONGODB_DATABASE_SHARED || !values.MONGODB_DATABASE_TEST || !values.MONGODB_DATABASE_LIVE) {
+      context.addIssue({
+        code: 'custom',
+        path: ['MONGODB_DATABASE_SHARED'],
+        message: 'Production requires separate shared, Test, and Live MongoDB databases.',
+      })
+    }
+    if (values.MONGODB_DATABASE_SHARED && values.MONGODB_DATABASE_TEST === values.MONGODB_DATABASE_SHARED) {
+      context.addIssue({
+        code: 'custom',
+        path: ['MONGODB_DATABASE_TEST'],
+        message: 'Test MongoDB must not reuse the shared platform database.',
+      })
+    }
+    if (values.MONGODB_DATABASE_LIVE && values.MONGODB_DATABASE_LIVE === values.MONGODB_DATABASE_SHARED) {
+      context.addIssue({
+        code: 'custom',
+        path: ['MONGODB_DATABASE_LIVE'],
+        message: 'Live MongoDB must not reuse the shared platform database.',
+      })
+    }
+    if (values.MONGODB_DATABASE_TEST && values.MONGODB_DATABASE_LIVE === values.MONGODB_DATABASE_TEST) {
+      context.addIssue({
+        code: 'custom',
+        path: ['MONGODB_DATABASE_LIVE'],
+        message: 'Live MongoDB must not reuse the Test database.',
       })
     }
   })

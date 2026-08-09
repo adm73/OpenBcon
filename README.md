@@ -425,30 +425,69 @@ kept private and does not require an API key.
 
 ### Test and Live Mode data isolation
 
-Admin Console's **Mode Switch** is also a database boundary. Every browser
-request sends the selected mode to both backend services:
+Admin Console's **Mode Switch** is also a database boundary. Test Mode is a
+fully independent demonstration environment, including its own `app_users`
+table and authentication sessions:
 
 - **Test Mode** uses `DATABASE_URL_TEST` and `MONGODB_DATABASE_TEST`; generation
-  always uses the deterministic mock gateway and writes test applications,
-  configuration, and reports without calling an external LLM or payment
-  provider.
+  uses the deterministic mock gateway and writes test users, sessions,
+  companies, applications, reports, usage, billing bindings, and audit data.
 - **Live Mode** uses `DATABASE_URL_LIVE` and `MONGODB_DATABASE_LIVE`; generation
-  uses the configured real model gateway and writes only to the live stores.
+  uses the configured real model gateway and writes only to the live tenant
+  stores.
+- **Shared platform data** uses `DATABASE_URL_SHARED` and
+  `MONGODB_DATABASE_SHARED`. This contains platform configuration, Admin
+  Console settings, AI model configuration, Advisory Hub sections and agents,
+  authentication/provider settings, data-source settings, and the shared
+  funding-program catalog. It never stores user sessions or tenant business
+  records.
+
+The server-authoritative active mode is `OPENBCON_ENVIRONMENT_MODE` and
+defaults to `test`. Changing it requires updating the deployment environment
+and restarting the Node and Python services. Admin Console saves a requested
+mode in the shared configuration and keeps the browser cache aligned with the
+currently active server mode until that restart completes. Client localStorage,
+query parameters, and request headers cannot switch the server across database
+boundaries. The public `GET /api/runtime/environment` endpoint exposes only the
+active mode and whether a restart is pending; it never returns secrets.
 
 Live connection variables are intentionally required before Live Mode can be
-used. Do not point the live PostgreSQL URL or MongoDB database at the test
-stores. With the bundled Compose stack, create the live PostgreSQL database
-before starting the API migrations, for example:
+used. Test and Live PostgreSQL databases must both be separate from the
+shared catalog database. Do not point either mode at the shared stores. The
+bundled `deploy/deploy.sh` creates the mode databases before API migrations.
+To do this manually, run the two database creation commands separately:
 
 ```bash
+docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
+  exec postgres psql -U bconomics -d postgres \
+  -c "CREATE DATABASE bconomics_test OWNER bconomics;"
 docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
   exec postgres psql -U bconomics -d postgres \
   -c "CREATE DATABASE bconomics_live OWNER bconomics;"
 ```
 
-The browser cache is hydrated from the selected mode's database and missing
-keys are not copied into the other mode. This prevents deleted Admin sections,
-applications, and old local snapshots from reappearing after a mode switch.
+The browser cache is hydrated from the server-reported active mode's database
+and missing keys are not copied into the other mode. This prevents deleted
+Admin sections, applications, and old local snapshots from reappearing after a
+mode switch.
+
+Verify the active mode after deployment with:
+
+```bash
+curl -sS https://open.bconomics.ai/api/runtime/environment
+```
+
+The response reports `activeEnvironmentMode`, the requested mode saved by
+Admin Console, and whether a restart is required. It does not expose database
+URLs, credentials, API keys, or other secrets. After changing
+`OPENBCON_ENVIRONMENT_MODE`, recreate the API and Python services so both
+processes load the same mode from their environment:
+
+```bash
+docker compose --env-file deploy/.env.production \
+  -f deploy/docker-compose.production.yml \
+  up -d --force-recreate api python
+```
 
 For updates:
 

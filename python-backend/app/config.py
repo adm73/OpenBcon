@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8010
     runtime_env: Literal["development", "test", "production"] = "development"
+    environment_mode: Literal["test", "live"] = "test"
     demo_user_id: int = 1
     demo_workspace_id: str = "00000000-0000-4000-8000-000000000002"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
@@ -25,8 +26,10 @@ class Settings(BaseSettings):
     )
     db_dsn_test: str | None = None
     db_dsn_live: str | None = None
+    db_dsn_shared: str | None = None
     mongodb_url: str = "mongodb://localhost:27017"
     mongodb_database: str = "bconomics"
+    mongodb_database_shared: str | None = None
     mongodb_database_test: str | None = None
     mongodb_database_live: str | None = None
     platform_config_key: str = "bconomics-platform-config-v1"
@@ -75,8 +78,10 @@ def get_settings() -> Settings:
 EnvironmentMode = Literal["test", "live"]
 
 
-def get_environment_mode(request: Request) -> EnvironmentMode:
-    return "live" if request.headers.get("x-openbcon-environment-mode") == "live" else "test"
+def get_environment_mode(_request: Request) -> EnvironmentMode:
+    # The server environment is authoritative. Client headers cannot switch
+    # the Python service across database boundaries.
+    return get_settings().environment_mode
 
 
 def database_dsn_for_mode(settings: Settings, mode: EnvironmentMode) -> str:
@@ -93,3 +98,8 @@ def mongodb_database_for_mode(settings: Settings, mode: EnvironmentMode) -> str:
     if not settings.mongodb_database_live:
         raise RuntimeError("Live mode is not configured with a live MongoDB database.")
     return settings.mongodb_database_live
+
+
+def mongodb_database_for_shared(settings: Settings) -> str:
+    """Return the Mongo database containing platform-wide configuration."""
+    return settings.mongodb_database_shared or settings.mongodb_database

@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from psycopg import OperationalError
 
 from .config import get_environment_mode, get_settings
-from .db import get_connection
+from .db import get_connection, get_shared_connection
 from .advisory_config import (
     load_advisory_hub_configuration,
     load_generation_configuration,
@@ -63,10 +63,10 @@ def generate_financial_forecast(
         else system_language
     )
     payload = payload.model_copy(update={"language": requested_language})
-    with get_connection(environment_mode) as connection:
+    with get_connection(environment_mode) as connection, get_shared_connection() as catalog_connection:
         try:
             workspace = require_application_access(request, connection, payload.app_id)
-            context = FundingPlanRepository(connection).load_generation_context(
+            context = FundingPlanRepository(connection, catalog_connection).load_generation_context(
                 payload,
                 workspace.workspace_id,
             )
@@ -166,9 +166,9 @@ def update_business_plan_section(
     payload: StrategicReportSectionRequest,
 ) -> StrategicReportSectionResult:
     environment_mode = get_environment_mode(request)
-    with get_connection(environment_mode) as connection:
+    with get_connection(environment_mode) as connection, get_shared_connection() as catalog_connection:
         workspace = require_application_access(request, connection, payload.app_id)
-        repository = FundingPlanRepository(connection)
+        repository = FundingPlanRepository(connection, catalog_connection)
         context = repository.load_generation_context(payload, workspace.workspace_id)
         section = _configured_section(context, payload.section_key)
         if section is None:
@@ -214,9 +214,9 @@ def regenerate_business_plan_section(
     payload = payload.model_copy(
         update={"language": requested_language, "model": model_config}
     )
-    with get_connection(environment_mode) as connection:
+    with get_connection(environment_mode) as connection, get_shared_connection() as catalog_connection:
         workspace = require_application_access(request, connection, payload.app_id)
-        repository = FundingPlanRepository(connection)
+        repository = FundingPlanRepository(connection, catalog_connection)
         context = repository.load_generation_context(payload, workspace.workspace_id)
         advisory_hub = load_advisory_hub_configuration(settings, environment_mode)
         configured_sections = _selected_advisory_sections(context, advisory_hub)
@@ -519,8 +519,8 @@ def generate_business_plan(
     graph_trace: dict = {}
     gateway = None
 
-    with get_connection(environment_mode) as connection:
-        repository = FundingPlanRepository(connection)
+    with get_connection(environment_mode) as connection, get_shared_connection() as catalog_connection:
+        repository = FundingPlanRepository(connection, catalog_connection)
 
         try:
             system_language, model_config = load_generation_configuration(

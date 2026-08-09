@@ -244,12 +244,25 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
   if (!persistenceEnabled) return 'local'
 
   const localValues = collectLocalState()
-  const mode = getClientEnvironmentMode()
+  let mode = getClientEnvironmentMode()
   try {
+    const runtimeResponse = await fetch(`${apiBaseUrl}/runtime/environment`, {
+      signal: AbortSignal.timeout(3_000),
+      credentials: 'include',
+    })
+    if (runtimeResponse.ok) {
+      const runtime = (await runtimeResponse.json()) as {
+        activeEnvironmentMode?: unknown
+        environmentMode?: unknown
+      }
+      const activeMode = runtime.activeEnvironmentMode ?? runtime.environmentMode
+      mode = activeMode === 'live' ? 'live' : 'test'
+    }
+
     const response = await fetch(`${apiBaseUrl}/bootstrap`, {
       signal: AbortSignal.timeout(3_000),
       credentials: 'include',
-      headers: getEnvironmentModeHeaders(),
+      headers: getEnvironmentModeHeaders(mode),
     })
     if (!response.ok) return 'local'
 

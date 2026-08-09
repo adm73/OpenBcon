@@ -77,6 +77,16 @@ export function PlatformConfigProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  function updateConfigLocally(nextConfig: PlatformConfig) {
+    setConfig(nextConfig)
+    setSecureConfigReady(true)
+    void persistLocalPlatformSecureConfig(nextConfig)
+    window.localStorage.setItem(
+      platformConfigStorageKey,
+      JSON.stringify(sanitizePlatformConfigForPersistence(nextConfig)),
+    )
+  }
+
   function resetConfig() {
     setConfig(defaultPlatformConfig)
     setSecureConfigReady(true)
@@ -86,7 +96,13 @@ export function PlatformConfigProvider({ children }: { children: ReactNode }) {
 
   return (
     <PlatformConfigContext.Provider
-      value={{ config, secureConfigReady, updateConfig, resetConfig }}
+      value={{
+        config,
+        secureConfigReady,
+        updateConfig,
+        updateConfigLocally,
+        resetConfig,
+      }}
     >
       {children}
     </PlatformConfigContext.Provider>

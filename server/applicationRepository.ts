@@ -4,6 +4,7 @@ type DatabaseApplicationRow = {
   id: string
   app_id: string
   title: string
+  funding_program_id?: string
   program_name: string
   program_url: string | null
   company_name: string
@@ -173,9 +174,11 @@ function mapStrategicReportRow(
 export async function readApplicationsForWorkspace(
   database: Pick<Pool, 'query'>,
   workspaceId: string,
+  catalogDatabase: Pick<Pool, 'query'> = database,
 ) {
-  const result = await database.query<DatabaseApplicationRow>(
-    `
+  const result = catalogDatabase === database
+    ? await database.query<DatabaseApplicationRow>(
+      `
       SELECT
         applications.id::text,
         applications.app_id,
@@ -203,8 +206,68 @@ export async function readApplicationsForWorkspace(
       WHERE applications.workspace_id = $1
       ORDER BY applications.id ASC
     `,
-    [workspaceId],
-  )
+      [workspaceId],
+    )
+    : await database.query<DatabaseApplicationRow>(
+      `
+      SELECT
+        applications.id::text,
+        applications.app_id,
+        applications.title,
+        applications.funding_program_id::text,
+        companies.name AS company_name,
+        applications.amount,
+        applications.status,
+        applications.progress,
+        applications.deadline,
+        applications.deadline_order,
+        applications.documents_complete,
+        applications.documents_total,
+        applications.next_action,
+        applications.note,
+        app_users.display_name AS owner,
+        applications.metadata,
+        applications.updated_at
+      FROM applications
+      JOIN companies ON companies.id = applications.company_id
+      JOIN app_users ON app_users.id = applications.owner_user_id
+      WHERE applications.workspace_id = $1
+      ORDER BY applications.id ASC
+    `,
+      [workspaceId],
+    )
+
+  if (catalogDatabase !== database) {
+    const programIds = [...new Set(result.rows.map((row) => row.funding_program_id).filter(Boolean))]
+    const programs = new Map<string, {
+      program_name: string
+      program_url: string | null
+      category: string | null
+    }>()
+    if (programIds.length > 0) {
+      const placeholders = programIds.map((_, index) => `$${index + 1}`).join(', ')
+      const programResult = await catalogDatabase.query<{
+        id: string
+        program_name: string
+        program_url: string | null
+        category: string | null
+      }>(
+        `
+          SELECT id::text, name AS program_name, program_url, category
+          FROM funding_programs
+          WHERE id::text IN (${placeholders})
+        `,
+        programIds,
+      )
+      for (const program of programResult.rows) programs.set(program.id, program)
+    }
+    for (const row of result.rows) {
+      const program = row.funding_program_id ? programs.get(row.funding_program_id) : undefined
+      row.program_name = program?.program_name ?? 'Funding program'
+      row.program_url = program?.program_url ?? null
+      row.category = program?.category ?? null
+    }
+  }
 
   const strategicReportsResult = await database.query<DatabaseStrategicReportRow>(
     `

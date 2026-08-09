@@ -5,6 +5,7 @@ export type PlatformConfigContextValue = {
   config: PlatformConfig
   secureConfigReady: boolean
   updateConfig: (nextConfig: PlatformConfig) => void
+  updateConfigLocally: (nextConfig: PlatformConfig) => void
   resetConfig: () => void
 }
 

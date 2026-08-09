@@ -3,17 +3,31 @@ import { environment } from './config'
 import { runMigrations } from './db/migrate'
 import { createDatabasePool, databasePool } from './db/pool'
 import { seedDatabase } from './db/seed'
-import { createDocumentStore } from './documentStore'
+import { createDocumentStore, createSharedDocumentStore } from './documentStore'
 
 let liveDatabasePool: ReturnType<typeof createDatabasePool> | undefined
+let sharedDatabasePool: ReturnType<typeof createDatabasePool> | undefined
 
 async function startServer() {
-  if (environment.AUTO_MIGRATE) await runMigrations()
-  if (environment.SEED_DEMO_DATA) await seedDatabase()
+  const sharedDatabaseUrl =
+    environment.DATABASE_URL_SHARED ?? environment.DATABASE_URL_TEST ?? environment.DATABASE_URL
+  const testDatabaseUrl = environment.DATABASE_URL_TEST ?? environment.DATABASE_URL
+  sharedDatabasePool =
+    sharedDatabaseUrl === testDatabaseUrl
+      ? databasePool
+      : createDatabasePool(sharedDatabaseUrl)
+  if (environment.AUTO_MIGRATE) await runMigrations(databasePool)
+  if (sharedDatabasePool !== databasePool && environment.AUTO_MIGRATE) {
+    await runMigrations(sharedDatabasePool)
+  }
+  if (environment.SEED_DEMO_DATA) {
+    await seedDatabase(databasePool, sharedDatabasePool)
+  }
 
   const testDocumentStore = createDocumentStore(
     environment.MONGODB_DATABASE_TEST ?? environment.MONGODB_DATABASE,
   )
+  const sharedDocumentStore = createSharedDocumentStore()
   liveDatabasePool = environment.DATABASE_URL_LIVE
     ? createDatabasePool(environment.DATABASE_URL_LIVE)
     : undefined
@@ -28,7 +42,7 @@ async function startServer() {
       liveDatabasePool && liveDocumentStore
         ? { database: liveDatabasePool, documentStore: liveDocumentStore }
         : undefined,
-  })
+  }, sharedDatabasePool, sharedDocumentStore)
   const server = app.listen(
     environment.API_PORT,
     environment.API_HOST,
@@ -43,6 +57,9 @@ async function startServer() {
     server.close(async () => {
       await databasePool.end()
       await liveDatabasePool?.end()
+      if (sharedDatabasePool && sharedDatabasePool !== databasePool && sharedDatabasePool !== liveDatabasePool) {
+        await sharedDatabasePool.end()
+      }
       process.exit(0)
     })
   }

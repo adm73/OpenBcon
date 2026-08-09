@@ -112,3 +112,9 @@ export function createDocumentStore(
 ): DocumentStore {
   return createMongoDocumentStore(databaseName)
 }
+
+export function createSharedDocumentStore(
+  databaseName = environment.MONGODB_DATABASE_SHARED ?? environment.MONGODB_DATABASE,
+): DocumentStore {
+  return createMongoDocumentStore(databaseName)
+}

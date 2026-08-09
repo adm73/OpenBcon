@@ -49,7 +49,6 @@ import {
   createGoogleState,
   exchangeGoogleCode,
   getGoogleAuthorizationUrl,
-  googleModeCookieName,
   googleNextCookieName,
   googleStateCookieName,
   isGoogleOAuthConfigured,
@@ -121,11 +120,10 @@ type RuntimeResources = {
 
 type ModeResources = Partial<Record<EnvironmentMode, RuntimeResources>>
 
-function getRequestedEnvironmentMode(request: express.Request): EnvironmentMode {
-  const header = request.headers['x-openbcon-environment-mode']
-  if (header === 'live') return 'live'
-  if (request.query.mode === 'live') return 'live'
-  return readCookie(request, googleModeCookieName) === 'live' ? 'live' : 'test'
+function getRequestedEnvironmentMode(_request: express.Request): EnvironmentMode {
+  // The server environment is authoritative. Client headers and query params
+  // are retained as request metadata, but cannot switch database boundaries.
+  return environment.OPENBCON_ENVIRONMENT_MODE
 }
 
 async function requireAdminContext(
@@ -733,6 +731,8 @@ export function createApp(
       ? createInMemoryDocumentStore()
       : createDocumentStore(),
   modeResources: ModeResources = {},
+  sharedDatabase: Pool = defaultDatabase,
+  sharedDocumentStore: DocumentStore = defaultDocumentStore,
 ) {
   const app = express()
   const requestResources = new AsyncLocalStorage<RuntimeResources>()
@@ -756,6 +756,12 @@ export function createApp(
       return typeof value === 'function' ? value.bind(target) : value
     },
   }) as DocumentStore
+  const catalogDatabase = new Proxy(sharedDatabase, {
+    get(_target, property) {
+      const value = Reflect.get(sharedDatabase, property, sharedDatabase)
+      return typeof value === 'function' ? value.bind(sharedDatabase) : value
+    },
+  }) as Pool
   const failedLoginAttempts = new Map<string, { count: number; resetAt: number }>()
   const authRequestAttempts = new Map<string, { count: number; resetAt: number }>()
   const authRateLimitWindowMs = 15 * 60 * 1000
@@ -811,6 +817,38 @@ export function createApp(
       credentials: true,
     }),
   )
+
+  app.get('/api/runtime/environment', async (_request, response) => {
+    let requestedEnvironmentMode: EnvironmentMode | null = null
+    try {
+      const storedConfig = await sharedDocumentStore.findStateValue(
+        'platform',
+        'platform',
+        'bconomics-platform-config-v1',
+      )
+      if (storedConfig && typeof storedConfig === 'object' && !Array.isArray(storedConfig)) {
+        requestedEnvironmentMode =
+          (storedConfig as Record<string, unknown>).environmentMode === 'live'
+            ? 'live'
+            : (storedConfig as Record<string, unknown>).environmentMode === 'test'
+              ? 'test'
+              : null
+      }
+    } catch {
+      // Runtime status remains available even if the shared config store is unavailable.
+    }
+
+    const activeEnvironmentMode = environment.OPENBCON_ENVIRONMENT_MODE
+    response.json({
+      activeEnvironmentMode,
+      environmentMode: activeEnvironmentMode,
+      requestedEnvironmentMode,
+      restartRequired:
+        requestedEnvironmentMode !== null &&
+        requestedEnvironmentMode !== activeEnvironmentMode,
+      liveConfigured: Boolean(liveResources),
+    })
+  })
 
   app.post(
     '/api/webhooks/stripe',
@@ -875,12 +913,12 @@ export function createApp(
   })
 
   app.get('/api/auth/google/status', async (_request, response) => {
-    const authConfig = await getRuntimeAuthConfig(documentStore)
+    const authConfig = await getRuntimeAuthConfig(sharedDocumentStore)
     response.json({ enabled: isGoogleOAuthConfigured(authConfig.googleOAuth) })
   })
 
   app.get('/api/auth/google/start', async (request, response) => {
-    const authConfig = await getRuntimeAuthConfig(documentStore)
+    const authConfig = await getRuntimeAuthConfig(sharedDocumentStore)
     if (!isGoogleOAuthConfigured(authConfig.googleOAuth)) {
       authErrorRedirect(response, 'google_not_configured')
       return
@@ -904,7 +942,7 @@ export function createApp(
     }
 
     try {
-      const authConfig = await getRuntimeAuthConfig(documentStore)
+      const authConfig = await getRuntimeAuthConfig(sharedDocumentStore)
       const profile = await exchangeGoogleCode(code, authConfig.googleOAuth)
       const existingIdentity = await database.query<{
         id: string
@@ -1067,7 +1105,7 @@ export function createApp(
           : 'en-CA'
       const includeBuiltIn = request.query.includeBuiltIn === 'true'
 
-      const result = await database.query<FundingProgramApiRow>(
+      const result = await catalogDatabase.query<FundingProgramApiRow>(
         `
           SELECT
             funding_programs.id::text,
@@ -1098,20 +1136,13 @@ export function createApp(
             funding_programs.metadata
           FROM funding_programs
           WHERE funding_programs.status = 'active'
-            AND funding_programs.language = $2
-            AND ($3::boolean OR funding_programs.source_type <> 'builtin')
-            AND (
-              funding_programs.workspace_id = $1
-              OR funding_programs.workspace_id IS NULL
-              OR funding_programs.workspace_id = $4
-            )
+            AND funding_programs.language = $1
+            AND ($2::boolean OR funding_programs.source_type <> 'builtin')
           ORDER BY funding_programs.updated_at DESC, funding_programs.name ASC
         `,
         [
-          context.workspaceId,
           requestedLanguage,
           includeBuiltIn,
-          environment.DEMO_WORKSPACE_ID,
         ],
       )
 
@@ -1136,7 +1167,7 @@ export function createApp(
 
       const sourceRecordId = `manual-${randomUUID()}`
       const recordVersion = `manual-${new Date().toISOString()}`
-      const result = await database.query<FundingProgramApiRow>(
+      const result = await catalogDatabase.query<FundingProgramApiRow>(
         `
           INSERT INTO funding_programs (
             workspace_id,
@@ -1196,7 +1227,7 @@ export function createApp(
             status
         `,
         [
-          context.workspaceId,
+          null,
           parsed.data.name,
           parsed.data.provider,
           parsed.data.fundingType,
@@ -1271,7 +1302,7 @@ export function createApp(
         return
       }
 
-      const client = await database.connect()
+      const client = await catalogDatabase.connect()
       let imported = 0
       let updated = 0
       const sourceRecordIds = normalizedRecords.map((record) => record.sourceRecordId)
@@ -1316,7 +1347,7 @@ export function createApp(
                 $7, NULLIF($8, ''), $9, $10, $11, $12, $13, $14, $15, $16, $17,
                 0, 'json-file', $18, $19, $20, $20, $21, $22, $23, $23
               )
-              ON CONFLICT (workspace_id, source_id, source_record_id)
+              ON CONFLICT (source_id, source_record_id)
               WHERE source_id IS NOT NULL AND source_record_id IS NOT NULL
               DO UPDATE SET
                 name = EXCLUDED.name,
@@ -1345,7 +1376,7 @@ export function createApp(
               RETURNING (xmax = 0) AS inserted
             `,
             [
-              context.workspaceId,
+              null,
               record.name,
               record.provider,
               record.category,
@@ -1383,16 +1414,15 @@ export function createApp(
             WITH archived AS (
               UPDATE funding_programs
               SET status = 'archived', updated_at = now(), updated_by = $1
-              WHERE workspace_id = $2
-                AND source_id = $3
+              WHERE source_id = $2
                 AND source_type = 'json-file'
                 AND source_record_id IS NOT NULL
-                AND NOT (source_record_id = ANY($4::text[]))
+                AND NOT (source_record_id = ANY($3::text[]))
               RETURNING id
             )
             SELECT count(*)::text AS count FROM archived
           `,
-          [context.userId, context.workspaceId, parsed.data.sourceId, sourceRecordIds],
+          [context.userId, parsed.data.sourceId, sourceRecordIds],
         )
 
         const programsResult = await client.query<FundingProgramApiRow>(
@@ -1425,12 +1455,11 @@ export function createApp(
               status,
               metadata
             FROM funding_programs
-            WHERE workspace_id = $1
-              AND source_id = $2
+            WHERE source_id = $1
               AND status = 'active'
             ORDER BY name ASC
           `,
-          [context.workspaceId, parsed.data.sourceId],
+          [parsed.data.sourceId],
         )
 
         await client.query('COMMIT')
@@ -1466,20 +1495,19 @@ export function createApp(
         return
       }
 
-      const result = await database.query<{ count: string }>(
+      const result = await catalogDatabase.query<{ count: string }>(
         `
           WITH archived AS (
             UPDATE funding_programs
             SET status = 'archived', updated_at = now(), updated_by = $1
-            WHERE workspace_id = $2
-              AND source_id = $3
+            WHERE source_id = $2
               AND source_type = 'json-file'
               AND status = 'active'
             RETURNING id
           )
           SELECT count(*)::text AS count FROM archived
         `,
-        [context.userId, context.workspaceId, sourceId],
+        [context.userId, sourceId],
       )
 
       response.json({ archived: Number(result.rows[0]?.count ?? 0) })
@@ -1690,7 +1718,7 @@ export function createApp(
           email: user.email,
           fullName: user.display_name,
           verificationUrl,
-        }, (await getRuntimeAuthConfig(documentStore)).smtp)
+        }, (await getRuntimeAuthConfig(sharedDocumentStore)).smtp)
         emailVerification = {
           sent: true,
           ...(environment.NODE_ENV !== 'production' && delivery.previewUrl
@@ -1798,7 +1826,7 @@ export function createApp(
           email: user.email,
           fullName: user.display_name,
           resetUrl,
-        }, (await getRuntimeAuthConfig(documentStore)).smtp)
+        }, (await getRuntimeAuthConfig(sharedDocumentStore)).smtp)
         response.status(202).json({
           sent: true,
           message: 'If an account exists for this email, a password reset link has been sent.',
@@ -1920,7 +1948,7 @@ export function createApp(
         email: user.email,
         fullName: user.display_name,
         verificationUrl,
-      }, (await getRuntimeAuthConfig(documentStore)).smtp)
+      }, (await getRuntimeAuthConfig(sharedDocumentStore)).smtp)
       response.status(202).json({
         sent: true,
         ...(environment.NODE_ENV !== 'production' && delivery.previewUrl
@@ -2395,19 +2423,19 @@ export function createApp(
         throw new Error('The application company could not be created.')
       }
 
-      const existingProgramResult = await client.query<{ id: string }>(
+      const existingProgramResult = await catalogDatabase.query<{ id: string }>(
         `
           SELECT id::text
           FROM funding_programs
-          WHERE workspace_id = $1 AND name = $2
+          WHERE name = $1
           ORDER BY updated_at DESC
           LIMIT 1
         `,
-        [context.workspaceId, parsed.data.programName],
+        [parsed.data.programName],
       )
       let programId = existingProgramResult.rows[0]?.id
       if (!programId) {
-        const programResult = await client.query<{ id: string }>(
+        const programResult = await catalogDatabase.query<{ id: string }>(
           `
             INSERT INTO funding_programs (
               workspace_id,
@@ -2445,7 +2473,7 @@ export function createApp(
             RETURNING id::text
           `,
           [
-            context.workspaceId,
+            null,
             parsed.data.programName,
             parsed.data.provider,
             parsed.data.fundingType,
@@ -2611,7 +2639,13 @@ export function createApp(
     try {
       const context = await requireRequestContext(database, request, response)
       if (!context) return
-      const state = await readBootstrapState(database, documentStore, context)
+      const state = await readBootstrapState(
+        database,
+        documentStore,
+        sharedDocumentStore,
+        context,
+        catalogDatabase,
+      )
       response.json({
         ...state,
         context,
@@ -2660,7 +2694,13 @@ export function createApp(
     try {
       const context = await requireRequestContext(database, request, response)
       if (!context) return
-      await applyStateBatch(database, documentStore, context, parsed.data.mutations)
+      await applyStateBatch(
+        database,
+        documentStore,
+        sharedDocumentStore,
+        context,
+        parsed.data.mutations,
+      )
       response.status(202).json({
         saved: parsed.data.mutations.length,
       })
@@ -2680,7 +2720,7 @@ export function createApp(
       const context = await requireRequestContext(database, request, response)
       if (!context) return
 
-      const currentValue = await documentStore.findStateValue(
+      const currentValue = await sharedDocumentStore.findStateValue(
         'platform',
         'platform',
         'bconomics-platform-config-v1',
@@ -2723,7 +2763,7 @@ export function createApp(
         },
       }
 
-      await applyStateMutation(database, documentStore, context, {
+      await applyStateMutation(database, documentStore, sharedDocumentStore, context, {
         operation: 'upsert',
         key: 'bconomics-platform-config-v1',
         scope: 'platform',
@@ -2746,7 +2786,7 @@ export function createApp(
       const context = await requireAdminContext(database, request, response)
       if (!context) return
 
-      const currentValue = await documentStore.findStateValue(
+      const currentValue = await sharedDocumentStore.findStateValue(
         'platform',
         'platform',
         'bconomics-platform-config-v1',
@@ -2791,7 +2831,7 @@ export function createApp(
         },
       }
 
-      await applyStateMutation(database, documentStore, context, {
+      await applyStateMutation(database, documentStore, sharedDocumentStore, context, {
         operation: 'upsert',
         key: 'bconomics-platform-config-v1',
         scope: 'platform',
@@ -2814,7 +2854,7 @@ export function createApp(
       const session = await createStripeCheckoutSession(
         request,
         database,
-        documentStore,
+        sharedDocumentStore,
         context,
         payload,
       )
@@ -2836,7 +2876,7 @@ export function createApp(
       const session = await createStripeBillingPortalSession(
         request,
         database,
-        documentStore,
+        sharedDocumentStore,
         context,
         payload,
       )
@@ -2857,7 +2897,7 @@ export function createApp(
       const payload = parseStripeCheckoutLookupRequest(request.body)
       const session = await lookupStripeCheckoutSession(
         database,
-        documentStore,
+        sharedDocumentStore,
         context,
         payload,
       )
@@ -2886,7 +2926,7 @@ export function createApp(
     try {
       const context = await requireRequestContext(database, request, response)
       if (!context) return
-      await applyStateMutation(database, documentStore, context, {
+      await applyStateMutation(database, documentStore, sharedDocumentStore, context, {
         operation: 'upsert',
         key: keyResult.data,
         scope: bodyResult.data.scope,
@@ -2913,7 +2953,7 @@ export function createApp(
     try {
       const context = await requireRequestContext(database, request, response)
       if (!context) return
-      await applyStateMutation(database, documentStore, context, {
+      await applyStateMutation(database, documentStore, sharedDocumentStore, context, {
         operation: 'delete',
         key: keyResult.data,
         scope: scopeResult.data,

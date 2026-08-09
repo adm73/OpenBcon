@@ -18,8 +18,13 @@ from .models import (
 )
 
 class FundingPlanRepository:
-    def __init__(self, connection: Connection):
+    def __init__(
+        self,
+        connection: Connection,
+        catalog_connection: Connection | None = None,
+    ):
         self.connection = connection
+        self.catalog_connection = catalog_connection
 
     def load_generation_context(
         self,
@@ -31,8 +36,9 @@ class FundingPlanRepository:
         if workspace_id:
             workspace_clause = " AND applications.workspace_id = %s"
             query_values += (workspace_id,)
-        application_row = self.connection.execute(
-            """
+        if self.catalog_connection is None:
+            application_row = self.connection.execute(
+                """
             SELECT
               applications.id AS application_id,
               applications.workspace_id,
@@ -84,8 +90,79 @@ class FundingPlanRepository:
             """ + workspace_clause + """
             LIMIT 1
             """,
-            query_values,
-        ).fetchone()
+                query_values,
+            ).fetchone()
+        else:
+            application_row = self.connection.execute(
+                """
+                SELECT
+                  applications.id AS application_id,
+                  applications.workspace_id,
+                  applications.owner_user_id,
+                  applications.title,
+                  applications.amount,
+                  applications.currency AS application_currency,
+                  applications.source_id,
+                  applications.funding_program_id AS program_id,
+                  companies.id AS company_id,
+                  companies.owner_user_id AS company_owner_user_id,
+                  companies.created_by AS company_created_by,
+                  companies.name AS company_name,
+                  companies.legal_name,
+                  companies.founder_name,
+                  companies.business_summary,
+                  companies.industry,
+                  companies.location,
+                  companies.stage,
+                  companies.revenue_model,
+                  companies.team_background,
+                  companies.traction,
+                  companies.use_of_funds,
+                  companies.annual_revenue,
+                  companies.monthly_revenue,
+                  companies.employee_count,
+                  companies.website,
+                  companies.metadata AS company_metadata,
+                  applications.metadata AS application_metadata
+                FROM applications
+                JOIN companies ON companies.id = applications.company_id
+                WHERE (
+                    applications.app_id = %s
+                    OR applications.id::text = %s
+                    OR applications.source_id = %s
+                )
+                """ + workspace_clause + """
+                LIMIT 1
+                """,
+                query_values,
+            ).fetchone()
+            if application_row:
+                program_row = self.catalog_connection.execute(
+                    """
+                    SELECT
+                      id AS program_id,
+                      workspace_id AS program_workspace_id,
+                      name AS program_name,
+                      provider,
+                      category,
+                      program_url,
+                      funding_amount,
+                      currency AS program_currency,
+                      location AS program_location,
+                      raw_guidelines_text,
+                      target_outcome,
+                      metadata AS program_metadata
+                    FROM funding_programs
+                    WHERE id = %s
+                    LIMIT 1
+                    """,
+                    (application_row["program_id"],),
+                ).fetchone()
+                if not program_row:
+                    raise ValueError(
+                        f"Funding program {application_row['program_id']} was not found."
+                    )
+                application_row = {**application_row, **program_row}
         if not application_row:
             raise ValueError(f"Application {request.app_id} was not found.")
 
@@ -269,7 +346,8 @@ class FundingPlanRepository:
             }
         )
 
-        self.connection.execute(
+        catalog_connection = self.catalog_connection or self.connection
+        catalog_connection.execute(
             """
             INSERT INTO funding_programs (
               id,

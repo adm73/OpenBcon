@@ -373,10 +373,17 @@ const demoApplications = [
   },
 ] as const
 
-export async function seedDatabase() {
-  const client = await databasePool.connect()
+export async function seedDatabase(
+  database = databasePool,
+  catalogDatabase = database,
+) {
+  const client = await database.connect()
+  const catalogClient = catalogDatabase === database
+    ? client
+    : await catalogDatabase.connect()
   try {
     await client.query('BEGIN')
+    if (catalogClient !== client) await catalogClient.query('BEGIN')
     const userIds = new Map<string, string>()
     for (const user of demoUsers) {
       const userResult = await client.query<{ id: string }>(
@@ -524,18 +531,20 @@ export async function seedDatabase() {
 
     const programIds = new Map<string, string>()
     for (const program of demoPrograms) {
-      const existingProgram = await client.query<{ id: string }>(
+      const existingProgram = await catalogClient.query<{ id: string }>(
         `
           SELECT id::text
           FROM funding_programs
-          WHERE workspace_id = $1 AND name = $2
+          WHERE workspace_id IS NULL
+            AND source_id = $1
+            AND name = $2
           LIMIT 1
         `,
-        [environment.DEMO_WORKSPACE_ID, program.name],
+        ['seed-demo-catalog', program.name],
       )
       let programId = existingProgram.rows[0]?.id
       if (!programId) {
-        const programResult = await client.query<{ id: string }>(
+        const programResult = await catalogClient.query<{ id: string }>(
           `
             INSERT INTO funding_programs (
               workspace_id,
@@ -568,7 +577,7 @@ export async function seedDatabase() {
             RETURNING id::text
           `,
           [
-            environment.DEMO_WORKSPACE_ID,
+            null,
             program.name,
             program.provider,
             program.category,
@@ -641,12 +650,15 @@ export async function seedDatabase() {
         ],
       )
     }
+    if (catalogClient !== client) await catalogClient.query('COMMIT')
     await client.query('COMMIT')
   } catch (error) {
     await client.query('ROLLBACK')
+    if (catalogClient !== client) await catalogClient.query('ROLLBACK')
     throw error
   } finally {
     client.release()
+    if (catalogClient !== client) catalogClient.release()
   }
 }
 

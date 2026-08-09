@@ -45,13 +45,23 @@ function getOwnerId(scope: StateScope, context: RequestContext) {
 export async function readBootstrapState(
   database: QueryClient,
   documentStore: DocumentStore,
+  sharedDocumentStore: DocumentStore,
   context: RequestContext,
+  catalogDatabase: QueryClient = database,
 ) {
-  const rows = await documentStore.findState({
-    scopes: ['platform', 'workspace', 'user'],
-    ownerIds: [platformOwnerId, context.workspaceId, context.userId],
-    keys: [...persistentStateKeys],
-  })
+  const [sharedRows, modeRows] = await Promise.all([
+    sharedDocumentStore.findState({
+      scopes: ['platform'],
+      ownerIds: [platformOwnerId],
+      keys: [...persistentStateKeys],
+    }),
+    documentStore.findState({
+      scopes: ['workspace', 'user'],
+      ownerIds: [context.workspaceId, context.userId],
+      keys: [...persistentStateKeys],
+    }),
+  ])
+  const rows = [...sharedRows, ...modeRows]
 
   const values: Record<string, unknown> = {}
   let updatedAt: Date | null = null
@@ -63,7 +73,11 @@ export async function readBootstrapState(
     if (!updatedAt || row.updatedAt > updatedAt) updatedAt = row.updatedAt
   }
 
-  const applications = await readApplicationsForWorkspace(database, context.workspaceId)
+  const applications = await readApplicationsForWorkspace(
+    database,
+    context.workspaceId,
+    catalogDatabase,
+  )
   if (applications.length > 0) {
     values['bconomics-applications-v1'] = applications
   }
@@ -112,6 +126,7 @@ async function writeAuditLog(
 export async function applyStateMutation(
   database: QueryClient,
   documentStore: DocumentStore,
+  sharedDocumentStore: DocumentStore,
   context: RequestContext,
   mutation: StateMutation,
 ) {
@@ -126,19 +141,21 @@ export async function applyStateMutation(
   }
 
   const ownerId = getOwnerId(mutation.scope, context)
+  const targetDocumentStore =
+    mutation.scope === 'platform' ? sharedDocumentStore : documentStore
 
   if (mutation.operation === 'delete') {
-    await documentStore.deleteState(mutation.scope, ownerId, mutation.key)
+    await targetDocumentStore.deleteState(mutation.scope, ownerId, mutation.key)
   } else {
     const value =
       mutation.scope === 'platform' &&
       mutation.key === 'bconomics-platform-config-v1'
         ? securePlatformConfigForPersistence(
             mutation.value,
-            await documentStore.findStateValue('platform', platformOwnerId, mutation.key),
+            await sharedDocumentStore.findStateValue('platform', platformOwnerId, mutation.key),
           )
         : mutation.value
-    await documentStore.upsertState({
+    await targetDocumentStore.upsertState({
       scope: mutation.scope,
       ownerId,
       key: mutation.key,
@@ -156,6 +173,7 @@ export async function applyStateMutation(
 export async function applyStateBatch(
   database: QueryClient,
   documentStore: DocumentStore,
+  sharedDocumentStore: DocumentStore,
   context: RequestContext,
   mutations: StateMutation[],
 ) {
@@ -170,6 +188,6 @@ export async function applyStateBatch(
   }
 
   for (const mutation of mutations) {
-    await applyStateMutation(database, documentStore, context, mutation)
+    await applyStateMutation(database, documentStore, sharedDocumentStore, context, mutation)
   }
 }

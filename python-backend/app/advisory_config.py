@@ -9,7 +9,7 @@ from urllib.parse import urlsplit, urlunsplit
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from pymongo import MongoClient
 
-from .config import EnvironmentMode, Settings, mongodb_database_for_mode
+from .config import EnvironmentMode, Settings, mongodb_database_for_shared
 from .models import (
     AdvisoryHubAgentConfig,
     AdvisoryHubConfiguration,
@@ -148,7 +148,7 @@ def load_advisory_hub_configuration(
             serverSelectionTimeoutMS=2000,
             connectTimeoutMS=2000,
         ) as client:
-            document = client[mongodb_database_for_mode(settings, mode)]["dynamic_state"].find_one(
+            document = client[mongodb_database_for_shared(settings)]["dynamic_state"].find_one(
                 {
                     "scope": "platform",
                     "ownerId": "platform",
@@ -301,7 +301,7 @@ def load_model_api_key(
             serverSelectionTimeoutMS=2000,
             connectTimeoutMS=2000,
         ) as client:
-            document = client[mongodb_database_for_mode(settings, mode)]["dynamic_state"].find_one(
+            document = client[mongodb_database_for_shared(settings)]["dynamic_state"].find_one(
                 {
                     "scope": "platform",
                     "ownerId": "platform",
@@ -344,7 +344,7 @@ def load_generation_configuration(
             serverSelectionTimeoutMS=2000,
             connectTimeoutMS=2000,
         ) as client:
-            document = client[mongodb_database_for_mode(settings, mode)]["dynamic_state"].find_one(
+            document = client[mongodb_database_for_shared(settings)]["dynamic_state"].find_one(
                 {
                     "scope": "platform",
                     "ownerId": "platform",
