@@ -432,6 +432,10 @@ backed up before it is replaced. The domain must have an A record pointing to
 the VPS first. If an external Traefik owns ports 80/443, it must route the
 selected domain to `127.0.0.1:8080`; the bootstrap step creates the OpenBcon
 Caddy override but cannot modify a separately managed Traefik installation.
+After saving, the setup page shows configuration-write status, DNS resolution,
+service startup, HTTPS, and `/api/health` checks. It also shows the final public
+URL or the next troubleshooting step. The temporary setup service is stopped
+automatically after deployment succeeds or fails.
 
 The AGPL community build keeps the Commercial licensing section visible and
 read-only in Admin Console. A paid commercial deployment can hide that section

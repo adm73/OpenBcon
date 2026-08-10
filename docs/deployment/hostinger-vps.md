@@ -213,6 +213,11 @@ terminal. The URL contains a one-time token and expires after 24 hours. Close
 port `8090` again after the form is saved; the deployment script stops the setup
 container automatically.
 
+After saving, the page continues to display configuration, DNS, service,
+HTTPS, and `/api/health` checks. When deployment succeeds it shows the public
+application URL; when it fails it points you to the `deploy.sh` terminal output
+and the retry command.
+
 Run all Compose commands with the production env file. Compose does not
 automatically load `.env.production` for interpolation:
 

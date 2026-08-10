@@ -5,9 +5,18 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/deploy/docker-compose.production.yml"
 ENV_FILE="$ROOT_DIR/deploy/.env.production"
 SETUP_COMPLETE_FILE="$ROOT_DIR/deploy/.setup-complete"
+SETUP_STATUS_FILE="$ROOT_DIR/deploy/.setup-status.json"
 PROXY_OVERRIDE_FILE="$ROOT_DIR/deploy/docker-compose.proxy.yml"
 SETUP_CONTAINER="openbcon-bootstrap-setup"
 SETUP_MODE=0
+SETUP_STATUS_ENABLED=0
+
+write_setup_status() {
+  local phase="$1"
+  local message="$2"
+  printf '{"phase":"%s","message":"%s","updatedAt":"%s"}\n' \
+    "$phase" "$message" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$SETUP_STATUS_FILE"
+}
 
 if [ "${1:-}" = "--setup" ]; then
   SETUP_MODE=1
@@ -22,7 +31,9 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 if [ "$SETUP_MODE" -eq 1 ] || [ ! -f "$ENV_FILE" ]; then
+  SETUP_STATUS_ENABLED=1
   rm -f "$SETUP_COMPLETE_FILE"
+  rm -f "$SETUP_STATUS_FILE"
   setup_token="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')"
   server_address="$(hostname -I 2>/dev/null | awk '{print $1}')"
   server_address="${server_address:-$(hostname 2>/dev/null || printf 'your-server-ip')}"
@@ -41,9 +52,17 @@ if [ "$SETUP_MODE" -eq 1 ] || [ ! -f "$ENV_FILE" ]; then
     node /setup/setup-server.mjs >/dev/null
 
   cleanup_setup() {
+    local exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+      write_setup_status "completed" "OpenBcon is deployed."
+    elif [ -f "$SETUP_COMPLETE_FILE" ]; then
+      write_setup_status "failed" "Deployment failed. Check the VPS terminal output."
+    fi
+    sleep 8
     docker rm -f "$SETUP_CONTAINER" >/dev/null 2>&1 || true
+    return "$exit_code"
   }
-  trap cleanup_setup EXIT INT TERM
+  trap cleanup_setup EXIT
 
   printf '\nOpenBcon Bootstrap Setup is ready.\n'
   printf 'The temporary setup server is available on %s:8090.\n' "$server_address"
@@ -53,10 +72,12 @@ if [ "$SETUP_MODE" -eq 1 ] || [ ! -f "$ENV_FILE" ]; then
   printf 'This terminal will continue automatically after you save the form.\n\n'
 
   while [ ! -f "$SETUP_COMPLETE_FILE" ]; do
+    if ! docker inspect -f '{{.State.Running}}' "$SETUP_CONTAINER" 2>/dev/null | grep -q '^true$'; then
+      write_setup_status "failed" "The setup page stopped before saving the configuration."
+      exit 1
+    fi
     sleep 1
   done
-  cleanup_setup
-  trap - EXIT INT TERM
 fi
 
 cd "$ROOT_DIR"
@@ -71,6 +92,9 @@ fi
 compose=(docker compose --project-name openbcon --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 if [ -f "$PROXY_OVERRIDE_FILE" ]; then
   compose+=( -f "$PROXY_OVERRIDE_FILE" )
+fi
+if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
+  write_setup_status "starting_services" "Starting PostgreSQL, MongoDB, and Ollama."
 fi
 "${compose[@]}" config >/dev/null
 "${compose[@]}" up -d --build postgres mongodb ollama ollama-model
@@ -104,7 +128,13 @@ done
 
 # Recreate the API/Python containers after the tenant databases exist, so
 # their health checks observe fully initialized Test and Live stores.
+if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
+  write_setup_status "starting_application" "Starting the OpenBcon API, AI service, and HTTPS proxy."
+fi
 "${compose[@]}" up -d --build api python caddy
+if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
+  write_setup_status "verifying" "Waiting for application health checks and HTTPS routing."
+fi
 "${compose[@]}" ps
 
 printf '\nDeployment started.\n'

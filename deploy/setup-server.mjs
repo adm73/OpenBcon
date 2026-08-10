@@ -1,5 +1,6 @@
 import http from 'node:http'
 import { randomBytes } from 'node:crypto'
+import { lookup } from 'node:dns/promises'
 import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { URL } from 'node:url'
@@ -11,6 +12,7 @@ const envFile = join(setupRoot, '.env.production')
 const exampleEnvFile = join(setupRoot, '.env.production.example')
 const overrideFile = join(setupRoot, 'docker-compose.proxy.yml')
 const completionFile = join(setupRoot, '.setup-complete')
+const statusFile = join(setupRoot, '.setup-status.json')
 const port = Number(process.env.SETUP_PORT || 8090)
 const bindAddress = process.env.SETUP_BIND_ADDRESS || '0.0.0.0'
 const ttlSeconds = Number(process.env.SETUP_TTL_SECONDS || 86400)
@@ -19,6 +21,7 @@ if (!token) throw new Error('SETUP_TOKEN is required.')
 if (!Number.isInteger(ttlSeconds) || ttlSeconds < 60) throw new Error('SETUP_TTL_SECONDS must be at least 60 seconds.')
 
 let setupCompleted = existsSync(completionFile)
+let setupInput = null
 
 function escapeHtml(value) {
   return String(value)
@@ -101,7 +104,67 @@ function writeEnvironment(input) {
   renameSync(tempFile, envFile)
   saveProxyOverride(input.proxy)
   writeFileSync(completionFile, new Date().toISOString(), { mode: 0o600 })
+  writeStatus('configuration_saved', 'Configuration was written to deploy/.env.production.')
+  setupInput = input
   setupCompleted = true
+}
+
+function writeStatus(phase, message) {
+  writeFileSync(statusFile, JSON.stringify({ phase, message, updatedAt: new Date().toISOString() }) + '\n', { mode: 0o600 })
+}
+
+function readStatus() {
+  if (!existsSync(statusFile)) return { phase: 'waiting', message: 'Waiting for configuration.' }
+  try {
+    return JSON.parse(readFileSync(statusFile, 'utf8'))
+  } catch {
+    return { phase: 'failed', message: 'The deployment status file could not be read.' }
+  }
+}
+
+function configuredDomain() {
+  if (setupInput?.domain) return setupInput.domain.trim().toLowerCase()
+  if (!existsSync(envFile)) return ''
+  const match = readFileSync(envFile, 'utf8').match(/^DOMAIN=(.+)$/mu)
+  return match?.[1]?.trim().toLowerCase() || ''
+}
+
+async function checkDns(domain) {
+  if (domain === 'localhost') return { status: 'ready', message: 'Localhost is available.', addresses: ['127.0.0.1'] }
+  try {
+    const records = await lookup(domain, { all: true })
+    const addresses = records.map((record) => record.address)
+    const pointsToServer = addresses.includes(serverAddress) || addresses.length > 0 && !/^\d{1,3}(?:\.\d{1,3}){3}$/u.test(serverAddress)
+    return {
+      status: pointsToServer ? 'ready' : 'warning',
+      message: pointsToServer ? `DNS resolves to ${addresses.join(', ')}.` : `DNS resolves, but not to ${serverAddress}.`,
+      addresses,
+    }
+  } catch {
+    return { status: 'pending', message: 'DNS is not resolving yet. Create or update the domain A record.', addresses: [] }
+  }
+}
+
+async function checkApplication(domain, dnsStatus) {
+  if (!domain || dnsStatus.status !== 'ready') return { status: 'pending', message: 'Waiting for DNS before checking HTTPS and the API.' }
+  const protocol = domain === 'localhost' ? 'http' : 'https'
+  try {
+    const response = await fetch(`${protocol}://${domain}/api/health`, { signal: AbortSignal.timeout(5000) })
+    if (!response.ok) return { status: 'pending', message: `The public endpoint returned HTTP ${response.status}.` }
+    const payload = await response.json().catch(() => ({}))
+    return { status: payload.status === 'ok' ? 'ready' : 'warning', message: payload.status === 'ok' ? 'HTTPS and the API health check are ready.' : 'The endpoint responded, but the API is not healthy yet.' }
+  } catch {
+    return { status: 'pending', message: 'The application is still starting or HTTPS is not ready yet.' }
+  }
+}
+
+async function statusPayload() {
+  const deployment = readStatus()
+  const domain = configuredDomain()
+  if (!domain) return { ...deployment, dns: { status: 'pending', message: 'Save the deployment form to check the domain.' }, application: { status: 'pending', message: 'Waiting for configuration.' } }
+  const dns = await checkDns(domain)
+  const application = await checkApplication(domain, dns)
+  return { ...deployment, configurationSaved: existsSync(completionFile), domain, publicUrl: domain === 'localhost' ? 'http://localhost' : `https://${domain}`, dns, application }
 }
 
 function page() {
@@ -132,6 +195,25 @@ function page() {
     .choice:has(input:checked) { border-color: #5760d9; box-shadow: 0 0 0 3px #5760d91a; }
     .choice input { width: auto; min-height: auto; }
     .notice { padding: 13px 15px; border-radius: 11px; background: #fff8e9; color: #795b29; font-size: 13px; line-height: 1.55; }
+    .status-panel { display: grid; gap: 18px; }
+    .status-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 6px; }
+    .status-head strong { display: block; font-size: 18px; }
+    .status-head p { margin: 6px 0 0; }
+    .status-badge, .status-state { display: inline-flex; align-items: center; white-space: nowrap; border-radius: 999px; padding: 6px 10px; background: #f0f2f7; color: #747d92; font-size: 12px; font-weight: 800; }
+    .status-badge.ready, .status-state.ready { background: #e5f7ee; color: #218354; }
+    .status-badge.failed, .status-state.failed { background: #fff0f0; color: #a64040; }
+    .status-badge.warning, .status-state.warning { background: #fff5dd; color: #8a6727; }
+    .status-list { display: grid; gap: 10px; }
+    .status-row { display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: 12px; padding: 14px; border: 1px solid #e1e6f0; border-radius: 12px; }
+    .status-row strong { display: block; color: #30394e; font-size: 13px; }
+    .status-row small { display: block; margin-top: 4px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #aeb6c7; }
+    .status-row.ready .status-dot { background: #2bb673; }
+    .status-row.warning .status-dot { background: #e0a52b; }
+    .status-row.failed .status-dot { background: #d45b5b; }
+    .next-step { padding: 16px; border-radius: 12px; background: #eef3ff; color: #3340a5; }
+    .next-step strong { display: block; font-size: 13px; }
+    .next-step p { margin: 5px 0 0; color: #59658c; font-size: 13px; }
     .error { display: none; padding: 12px 14px; border-radius: 10px; background: #fff1f1; color: #a64040; font-size: 13px; }
     button { min-height: 46px; padding: 0 18px; border: 0; border-radius: 10px; background: #5760d9; color: white; font: inherit; font-weight: 800; cursor: pointer; }
     button:disabled { opacity: .6; cursor: wait; }
@@ -163,9 +245,66 @@ function page() {
   </main>
   <script>
     const token = ${setupToken};
+    const serverAddress = ${JSON.stringify(serverAddress)};
     const form = document.querySelector('#setup-form');
     const error = document.querySelector('#error');
     const submit = document.querySelector('#submit');
+    const statusPanelMarkup = '<section class="status-panel" aria-live="polite">' +
+      '<div class="status-head"><div><strong id="status-title">Deployment in progress.</strong><p id="status-message">Checking the deployment status...</p></div><span id="overall-badge" class="status-badge">Checking</span></div>' +
+      '<div class="status-list">' +
+        '<div class="status-row" id="config-row"><span class="status-dot"></span><div><strong>Configuration written</strong><small>Waiting for the VPS to save the environment file.</small></div><span class="status-state">Waiting</span></div>' +
+        '<div class="status-row" id="dns-row"><span class="status-dot"></span><div><strong>Domain connection</strong><small>Checking DNS resolution.</small></div><span class="status-state">Checking</span></div>' +
+        '<div class="status-row" id="services-row"><span class="status-dot"></span><div><strong>OpenBcon services</strong><small>Waiting for the deployment to start.</small></div><span class="status-state">Waiting</span></div>' +
+        '<div class="status-row" id="health-row"><span class="status-dot"></span><div><strong>HTTPS and API health</strong><small>Waiting for the public URL.</small></div><span class="status-state">Waiting</span></div>' +
+      '</div>' +
+      '<div class="next-step" id="next-step"><strong>Next step</strong><p>Keep this page open while the VPS starts OpenBcon.</p></div>' +
+    '</section>';
+
+    function statusLabel(status) {
+      return status === 'ready' ? 'Ready' : status === 'failed' ? 'Failed' : status === 'warning' ? 'Check' : 'Checking';
+    }
+
+    function updateRow(id, status, message) {
+      const row = document.querySelector('#' + id);
+      const state = row.querySelector('.status-state');
+      row.classList.remove('ready', 'warning', 'failed');
+      if (status === 'ready' || status === 'warning' || status === 'failed') row.classList.add(status);
+      state.className = 'status-state ' + status;
+      state.textContent = statusLabel(status);
+      row.querySelector('small').textContent = message;
+    }
+
+    async function refreshStatus() {
+      try {
+        const response = await fetch('/api/status?token=' + encodeURIComponent(token), { cache: 'no-store' });
+        if (!response.ok) throw new Error('The setup status page is no longer available.');
+        const payload = await response.json();
+        const failed = payload.phase === 'failed';
+        const completed = payload.phase === 'completed' && payload.application.status === 'ready';
+        const deploymentStatus = failed ? 'failed' : completed ? 'ready' : 'pending';
+        const badge = document.querySelector('#overall-badge');
+        badge.className = 'status-badge ' + deploymentStatus;
+        badge.textContent = failed ? 'Failed' : completed ? 'Ready' : 'In progress';
+        document.querySelector('#status-title').textContent = failed ? 'Deployment needs attention.' : completed ? 'OpenBcon is ready.' : 'Deployment in progress.';
+        document.querySelector('#status-message').textContent = payload.message || 'Checking the deployment status...';
+        const configStatus = payload.configurationSaved ? 'ready' : failed ? 'failed' : 'pending';
+        updateRow('config-row', configStatus, payload.configurationSaved ? 'Written to deploy/.env.production on the VPS.' : failed ? 'The environment file was not written.' : 'Waiting for the VPS to save the environment file.');
+        updateRow('dns-row', payload.dns.status, payload.dns.message);
+        const servicesStatus = failed ? 'failed' : payload.phase === 'completed' ? 'ready' : 'pending';
+        updateRow('services-row', servicesStatus, failed ? payload.message : payload.phase === 'completed' ? 'PostgreSQL, MongoDB, Ollama, API, and proxy started.' : payload.message || 'The VPS is starting the services.');
+        updateRow('health-row', failed ? 'failed' : payload.application.status, payload.application.message);
+        const nextStep = document.querySelector('#next-step p');
+        if (failed) nextStep.textContent = 'Review the deploy.sh terminal output, fix the reported issue, then run ./deploy/deploy.sh --setup again.';
+        else if (completed) nextStep.textContent = 'Open ' + payload.publicUrl + '. Then close inbound TCP port 8090 in the VPS firewall.';
+        else if (payload.dns.status !== 'ready') nextStep.textContent = 'Point an A record for your domain to ' + serverAddress + '. DNS changes may take a few minutes.';
+        else nextStep.textContent = 'Keep this page open. The VPS is starting OpenBcon and will test HTTPS and /api/health automatically.';
+        if (!failed && !completed) window.setTimeout(refreshStatus, 2500);
+      } catch (requestError) {
+        document.querySelector('#status-message').textContent = requestError.message || 'The status check failed. Refresh this page to try again.';
+        window.setTimeout(refreshStatus, 5000);
+      }
+    }
+
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       error.style.display = 'none';
@@ -175,7 +314,8 @@ function page() {
         const response = await fetch('/api/setup', { method: 'POST', headers: { 'content-type': 'application/json', 'x-openbcon-setup-token': token }, body: JSON.stringify(data) });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.message || 'Setup could not be saved.');
-        form.innerHTML = '<div class="notice"><strong>Configuration saved.</strong><p>You can close this page. The deploy script is now starting PostgreSQL, MongoDB, Ollama, the API, and the HTTPS proxy.</p></div>';
+        form.innerHTML = statusPanelMarkup;
+        refreshStatus();
       } catch (requestError) {
         error.textContent = requestError.message || 'Setup could not be saved.';
         error.style.display = 'block';
@@ -200,7 +340,6 @@ function readBody(request) {
 }
 
 function authorized(request, url) {
-  if (setupCompleted) return false
   return request.headers['x-openbcon-setup-token'] === token || url.searchParams.get('token') === token
 }
 
@@ -218,7 +357,18 @@ const server = http.createServer(async (request, response) => {
     return
   }
 
+  if (request.method === 'GET' && url.pathname === '/api/status') {
+    response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+    response.end(JSON.stringify(await statusPayload()))
+    return
+  }
+
   if (request.method === 'POST' && url.pathname === '/api/setup') {
+    if (setupCompleted) {
+      response.writeHead(409, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ message: 'Setup has already been saved. Refresh the status page.' }))
+      return
+    }
     try {
       const input = JSON.parse(await readBody(request))
       if (!isValidDomain(input.domain || '')) throw new Error('Enter a valid public domain.')
