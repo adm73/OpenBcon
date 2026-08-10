@@ -2180,12 +2180,46 @@ export function AdminPage() {
   }
 
   async function installUpdate() {
-    if (
-      updateCheck.status !== 'available' ||
-      !updateCheck.automaticUpdatesConfigured ||
-      updateCheck.installStatus === 'running' ||
-      updateCheck.installStatus === 'starting'
-    ) return
+    if (updateCheck.installStatus === 'running' || updateCheck.installStatus === 'starting') {
+      return
+    }
+
+    if (updateCheck.status !== 'available') {
+      const message =
+        updateCheck.status === 'current'
+          ? 'No newer OpenBcon build is available.'
+          : updateCheck.status === 'checking'
+            ? 'The update check is still running. Please wait for it to finish.'
+            : 'Check for updates first, then install the available build.'
+      setUpdateCheck((current) => ({
+        ...current,
+        installStatus: 'failed',
+        installPhase: 'not_ready',
+        installMessage: message,
+      }))
+      return
+    }
+
+    if (!updateCheck.automaticUpdatesConfigured) {
+      setUpdateCheck((current) => ({
+        ...current,
+        installStatus: 'failed',
+        installPhase: 'not_configured',
+        installMessage:
+          'Automatic updates are not configured. Run the deployment script once on the VPS to enable secure updates.',
+      }))
+      return
+    }
+
+    if (!updateCheck.latestShortCommit) {
+      setUpdateCheck((current) => ({
+        ...current,
+        installStatus: 'failed',
+        installPhase: 'missing_target',
+        installMessage: 'No target build was returned. Check for updates again before installing.',
+      }))
+      return
+    }
 
     setUpdateCheck((current) => ({
       ...current,
@@ -5388,7 +5422,12 @@ export function AdminPage() {
                   type="button"
                   className="admin-button-primary"
                   onClick={installUpdate}
-                  disabled={updateCheck.status !== 'available' || !updateCheck.automaticUpdatesConfigured || updateCheck.installStatus === 'running' || updateCheck.installStatus === 'starting'}
+                  disabled={updateCheck.installStatus === 'running' || updateCheck.installStatus === 'starting'}
+                  aria-label={
+                    updateCheck.status === 'available'
+                      ? 'Install available update'
+                      : 'Check for updates before installing'
+                  }
                 >
                   {updateCheck.installStatus === 'starting' || updateCheck.installStatus === 'running'
                     ? 'Installing...'

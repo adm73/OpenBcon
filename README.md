@@ -20,6 +20,20 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 2.5.6
+
+Version 2.5.6 improves local build visibility and Admin Console update feedback:
+
+- Local Vite development and builds automatically read the current Git tag and
+  commit when deployment environment variables are not provided, so the
+  Updates page does not incorrectly show `Unreleased` for a tagged checkout.
+- `Install update` now explains when updates have not been checked, no newer
+  build is available, the update service is not configured, or no target build
+  was returned.
+- The install action remains available until an update is actually running, so
+  administrators receive feedback instead of silently clicking a disabled
+  button.
+
 ## Version 2.5.5
 
 Version 2.5.5 completes first-admin provisioning during VPS bootstrap:
@@ -704,8 +718,8 @@ updates launched by the containerized agent use the host checkout correctly.
 - `deploy/deploy.sh` sets `VITE_APP_COMMIT` automatically from `git rev-parse`
 - `deploy/deploy.sh` sets `VITE_APP_VERSION` from the exact Git tag, or
   `unreleased` for an untagged checkout
-- local builds without a commit stamp show `Unreleased` and cannot report
-  whether the current build is behind
+- local Vite builds fall back to the current Git tag and commit when no build
+  stamp is provided; untagged checkouts are labeled `Unreleased`
 - production deployments include a private update agent on the Docker network;
   the agent is enabled automatically by `deploy/deploy.sh` and receives a
   random token stored in the ignored `deploy/.env.production`
