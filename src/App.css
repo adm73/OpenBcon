@@ -10428,7 +10428,7 @@
 
 .landing-v2-footer-navs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(140px, auto));
+  grid-template-columns: repeat(3, minmax(140px, auto));
   gap: 28px;
 }
 
@@ -16969,6 +16969,96 @@
   font-size: 0.54rem;
   font-weight: 900;
   cursor: pointer;
+}
+
+.funding-directory-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 15px 17px;
+  background: #f9fafb;
+}
+
+.funding-directory-pagination button,
+.funding-directory-access-action {
+  min-height: 37px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 1px solid #dce1e9;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #4f56c1;
+  font-size: 0.58rem;
+  font-weight: 850;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.funding-directory-pagination button:disabled {
+  color: #aeb4c0;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.funding-directory-pagination > span {
+  min-width: 110px;
+  color: #7f8798;
+  font-size: 0.58rem;
+  font-weight: 750;
+  text-align: center;
+}
+
+.funding-directory-access-gate {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  margin: 0 15px 17px;
+  padding: 34px 20px;
+  border: 1px solid #dce2f2;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f4f6ff, #ffffff);
+  text-align: center;
+}
+
+.funding-directory-access-gate-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #e7eaff;
+  color: #5961cb;
+}
+
+.funding-directory-access-gate-icon svg {
+  width: 18px;
+}
+
+.funding-directory-access-gate strong {
+  color: #273047;
+  font-size: 0.88rem;
+}
+
+.funding-directory-access-gate p {
+  max-width: 510px;
+  margin: 0;
+  color: #7a8396;
+  font-size: 0.62rem;
+  line-height: 1.6;
+}
+
+.funding-directory-access-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.funding-directory-access-action:not(.is-secondary) {
+  border-color: #1b2744;
+  background: #1b2744;
+  color: #ffffff;
 }
 
 .funding-program-detail dl {

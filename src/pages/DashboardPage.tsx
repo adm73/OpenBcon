@@ -3510,6 +3510,8 @@ function FundingProgramDetailsDialog({
 }
 
 export function ProgramsPage() {
+  const PROGRAMS_PER_PAGE = 9
+  const PUBLIC_PAGE_LIMIT = 3
   const { t } = useTranslation()
   const { locale } = useLocale()
   const { config } = usePlatformConfig()
@@ -3532,6 +3534,7 @@ export function ProgramsPage() {
   const [programsLoading, setProgramsLoading] = useState(true)
   const [programsError, setProgramsError] = useState('')
   const [selectedProgram, setSelectedProgram] = useState<FundingProgramRecord | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const [searchParams, setSearchParams] = useSearchParams()
   const seedDemoCatalogEnabled = config.dataSources.some(
     (source) => source.id === 'seed-demo-catalog' && source.enabled,
@@ -3667,6 +3670,31 @@ export function ProgramsPage() {
     amountRange !== 'All',
     deadlineType !== 'All',
   ].filter(Boolean).length
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [
+    query,
+    type,
+    provider,
+    country,
+    location,
+    sourceName,
+    sourceType,
+    programStatus,
+    currency,
+    amountRange,
+    deadlineType,
+  ])
+
+  const totalPages = Math.max(1, Math.ceil(visiblePrograms.length / PROGRAMS_PER_PAGE))
+  const pagePrograms = visiblePrograms.slice(
+    (currentPage - 1) * PROGRAMS_PER_PAGE,
+    currentPage * PROGRAMS_PER_PAGE,
+  )
+  const isBeyondPublicPreview = currentPage > PUBLIC_PAGE_LIMIT
+  const isRegisteredUser = hasActiveSession()
+
   function clearFilters() {
     setType('All')
     setProvider('All')
@@ -3890,8 +3918,8 @@ export function ProgramsPage() {
               <p>{programsError}</p>
             </div>
           ) : null}
-          {!programsLoading && !programsError
-            ? visiblePrograms.map((program) => (
+          {!programsLoading && !programsError && !isBeyondPublicPreview
+            ? pagePrograms.map((program) => (
                 <article key={program.id} className="funding-directory-card">
                   <div className="funding-card-topline">
                     <span className={`funding-card-type is-${program.type.toLowerCase()}`}>
@@ -3939,6 +3967,58 @@ export function ProgramsPage() {
             : null}
         </div>
 
+        {!programsLoading && !programsError && visiblePrograms.length > 0 && isBeyondPublicPreview ? (
+          <section className="funding-directory-access-gate" aria-live="polite">
+            <span className="funding-directory-access-gate-icon"><Glyph type="shield" /></span>
+            <strong>
+              {isRegisteredUser
+                ? t('workspacePages.programs.memberAccessTitle')
+                : t('workspacePages.programs.guestAccessTitle')}
+            </strong>
+            <p>
+              {isRegisteredUser
+                ? t('workspacePages.programs.memberAccessDescription')
+                : t('workspacePages.programs.guestAccessDescription')}
+            </p>
+            {isRegisteredUser ? (
+              <Link to="/dashboard" className="funding-directory-access-action">
+                {t('workspacePages.programs.openDashboard')}
+              </Link>
+            ) : (
+              <div className="funding-directory-access-actions">
+                <Link to="/login" className="funding-directory-access-action is-secondary">
+                  {t('workspacePages.programs.signIn')}
+                </Link>
+                <Link to="/signup" className="funding-directory-access-action">
+                  {t('workspacePages.programs.signUp')}
+                </Link>
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {!programsLoading && !programsError && visiblePrograms.length > 0 ? (
+          <nav className="funding-directory-pagination" aria-label={t('workspacePages.programs.pagination')}>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+            >
+              {t('workspacePages.programs.previous')}
+            </button>
+            <span>
+              {t('workspacePages.programs.pageOf', { current: currentPage, total: totalPages })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={currentPage === totalPages}
+            >
+              {t('workspacePages.programs.next')}
+            </button>
+          </nav>
+        ) : null}
+
         {!programsLoading && !programsError && visiblePrograms.length === 0 ? (
           <div className="workspace-empty">
             <span><Glyph type="search" /></span>
@@ -3951,7 +4031,7 @@ export function ProgramsPage() {
         <FundingProgramDetailsDialog
           program={selectedProgram}
           onClose={closeProgramDetails}
-          isRegisteredUser={hasActiveSession()}
+          isRegisteredUser={isRegisteredUser}
         />
       </main>
       <PublicSiteFooter />

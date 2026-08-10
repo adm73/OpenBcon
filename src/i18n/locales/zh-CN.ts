@@ -47,7 +47,7 @@ const zhCN = {
   },
   publicSite: {
     nav: {
-      home: '首页', features: '功能', workflow: '工作方式', programs: '补助与贷款', pricing: '价格', 'open-source': '开源', openSource: '开源', caseStudies: '案例研究', documents: '文档', aboutUs: '关于我们', openHomepageMenu: '打开首页菜单', 'sign-in': '登录 / 注册', dashboard: '进入仪表盘', 'grants-loans': '补助与贷款',
+      home: '首页', features: '功能', workflow: '工作方式', programs: '补助与贷款', pricing: '价格', 'open-source': '信任与安全', openSource: '信任与安全', caseStudies: '案例研究', documents: '文档', aboutUs: '关于我们', openHomepageMenu: '打开首页菜单', 'sign-in': '登录 / 注册', dashboard: '进入仪表盘', 'grants-loans': '补助与贷款',
     },
     heroEyebrow: '为有 ambition 的企业提供融资基础设施',
     content: {
@@ -83,7 +83,7 @@ const zhCN = {
     ],
     pricing: { eyebrow: '灵活的价格方案', heading: '选择适合团队融资工作方式的配置。', body: '下面的方案在管理控制台中配置，也可以连接 Stripe 或 Waffo Pancake 商品用于正式结账。', oneTime: '一次性收费', annual: '按年计费', monthly: '按月计费', getStarted: '开始使用', topline: '价格', emptyTitle: '价格正在配置中', emptyBody: '请在管理控制台添加有效的产品或服务，以便在这里发布价格方案。', adminCta: '打开管理控制台' },
     openSource: { communityEdition: '社区版本', license: 'AGPL-3.0', description: '完整源代码访问权，并遵守网络 copyleft 义务。', commercialLicense: '商业许可', metrics: [{ label: '活跃项目', value: '12' }, { label: '已生成文档', value: '148' }, { label: '审批率目标', value: '82%' }, { label: '顾问席位', value: '4' }] },
-    footer: { description: '为下一代企业提供开放的融资基础设施。', sitemap: '网站地图', platform: '平台', privacy: '隐私政策', terms: '服务条款', poweredBy: '由 OpenBcon 提供支持。' },
+    footer: { description: '为下一代企业提供开放的融资基础设施。', sitemap: '网站地图', explore: '探索', platform: '平台', privacy: '隐私政策', terms: '服务条款', poweredBy: '由 OpenBcon 提供支持。' },
   },
   onboarding: {
     ...enCA.onboarding,
@@ -301,7 +301,7 @@ const zhCN = {
     },
     programs: {
       ...enCA.workspacePages.programs,
-      eyebrow: '补助与贷款项目', title: '融资项目', description: '浏览工作区目录中所有可用的补助和贷款项目。', available: '可用项目', catalogSummary: '来自有效融资数据源', programCount: '个项目', search: '搜索项目、提供方、地区或数据源', loading: '正在加载项目', readingDatabase: '正在从当前数据库读取所有项目。', loadError: '无法加载项目', active: '有效', archived: '已归档', providerNotListed: '未列出提供方', locationNotListed: '未列出地点', maximumFunding: '最高融资金额', viewDetails: '查看详情', noMatch: '没有匹配的项目', noMatchHint: '尝试其他搜索，或切换项目类型筛选。', filters: '筛选', refine: '细化项目', refineHint: '根据项目的公开字段筛选目录。', provider: '融资提供方', allProviders: '全部提供方', country: '国家/地区', allCountries: '全部国家/地区', location: '地区或地点', allLocations: '全部地点', dataSource: '数据源', allSources: '全部来源', sourceType: '来源类型', allSourceTypes: '全部来源类型', programStatus: '项目状态', allStatuses: '全部项目状态', currency: '货币', allCurrencies: '全部货币', fundingAmount: '融资金额', anyAmount: '不限金额', under50: '低于 5 万', amount50to100: '5 万至 9.9 万', amount100Plus: '10 万或以上', deadline: '截止日期', anyDeadline: '不限截止日期', openRolling: '开放或滚动', fixedDeadline: '固定截止日期', clearFilters: '全部清除', activeFilters: '个有效筛选',
+      eyebrow: '补助与贷款项目', title: '融资项目', description: '浏览工作区目录中所有可用的补助和贷款项目。', available: '可用项目', catalogSummary: '来自有效融资数据源', programCount: '个项目', search: '搜索项目、提供方、地区或数据源', loading: '正在加载项目', readingDatabase: '正在从当前数据库读取所有项目。', loadError: '无法加载项目', active: '有效', archived: '已归档', providerNotListed: '未列出提供方', locationNotListed: '未列出地点', maximumFunding: '最高融资金额', viewDetails: '查看详情', noMatch: '没有匹配的项目', noMatchHint: '尝试其他搜索，或切换项目类型筛选。', filters: '筛选', refine: '细化项目', refineHint: '根据项目的公开字段筛选目录。', provider: '融资提供方', allProviders: '全部提供方', country: '国家/地区', allCountries: '全部国家/地区', location: '地区或地点', allLocations: '全部地点', dataSource: '数据源', allSources: '全部来源', sourceType: '来源类型', allSourceTypes: '全部来源类型', programStatus: '项目状态', allStatuses: '全部项目状态', currency: '货币', allCurrencies: '全部货币', fundingAmount: '融资金额', anyAmount: '不限金额', under50: '低于 5 万', amount50to100: '5 万至 9.9 万', amount100Plus: '10 万或以上', deadline: '截止日期', anyDeadline: '不限截止日期', openRolling: '开放或滚动', fixedDeadline: '固定截止日期', clearFilters: '全部清除', activeFilters: '个有效筛选', pagination: '项目分页', previous: '上一页', next: '下一页', pageOf: '第 {{current}} 页，共 {{total}} 页', guestAccessTitle: '注册或登录以继续浏览', guestAccessDescription: '无需账号即可预览前 27 个项目。注册或登录后可以继续浏览。', memberAccessTitle: '请在工作区继续', memberAccessDescription: '你已到达公开预览范围，请进入 Dashboard 继续查看完整目录。', signIn: '登录', signUp: '注册', openDashboard: '打开 Dashboard',
     },
     templates: {
       ...enCA.workspacePages.templates,

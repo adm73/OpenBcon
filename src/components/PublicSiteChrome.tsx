@@ -234,6 +234,13 @@ export function PublicSiteFooter() {
             )}
           </div>
           <div className="landing-v2-footer-column">
+            <span>{t('publicSite.footer.explore')}</span>
+            {renderPublicLink('/programs', t('publicSite.nav.programs'), 'footer-explore-programs')}
+            {renderPublicLink('/#case-studies', t('publicSite.nav.caseStudies'), 'footer-explore-case-studies')}
+            {renderPublicLink('/#documents', t('publicSite.nav.documents'), 'footer-explore-documents')}
+            {renderPublicLink('/#about-us', t('publicSite.nav.aboutUs'), 'footer-explore-about-us')}
+          </div>
+          <div className="landing-v2-footer-column">
             <span>
               {footer.platformLabel === defaultFooter.platformLabel
                 ? t('publicSite.footer.platform')
