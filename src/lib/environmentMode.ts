@@ -1,8 +1,9 @@
 export type EnvironmentMode = 'test' | 'live'
 
 export const platformConfigStorageKey = 'bconomics-platform-config-v1'
-export const environmentModeHeader = 'x-openbcon-environment-mode'
 
+// This value is only used for browser cache/display state. The server chooses
+// the database boundary from OPENBCON_ENVIRONMENT_MODE and ignores client mode.
 export function getClientEnvironmentMode(): EnvironmentMode {
   if (typeof window === 'undefined') return 'test'
 
@@ -12,11 +13,5 @@ export function getClientEnvironmentMode(): EnvironmentMode {
     return parsed?.environmentMode === 'live' ? 'live' : 'test'
   } catch {
     return 'test'
-  }
-}
-
-export function getEnvironmentModeHeaders(mode: EnvironmentMode = getClientEnvironmentMode()) {
-  return {
-    [environmentModeHeader]: mode,
   }
 }

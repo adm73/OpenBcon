@@ -43,6 +43,21 @@ npm audit --omit=dev --audit-level=moderate
 git diff --check
 ```
 
+Latest local smoke validation also starts the Node API and checks the workspace
+routes with real catalog data. The API health check returned `200`, Grants &
+Loans loaded 2,545 active programs (2,326 grants and 219 loans), Programs
+loaded the same catalog, the Dashboard showed a dynamic date and greeting, and
+the Guide and Templates Preview dialogs opened and closed successfully.
+
+The shared catalog migration safely consolidates older workspace-scoped
+duplicates before enforcing the global `(source_id, source_record_id)` unique
+index. Existing application and package references are retargeted to the
+canonical program record during the migration.
+
+The final local check passed with 14 test files and 74 tests, followed by a
+successful TypeScript and Vite production build. Lint reports only the existing
+React Fast Refresh and hook-dependency warnings.
+
 ## Why OpenBcon
 
 Funding consultants and business advisors still spend too much time on repetitive work:
@@ -448,8 +463,10 @@ and restarting the Node and Python services. Admin Console saves a requested
 mode in the shared configuration and keeps the browser cache aligned with the
 currently active server mode until that restart completes. Client localStorage,
 query parameters, and request headers cannot switch the server across database
-boundaries. The public `GET /api/runtime/environment` endpoint exposes only the
-active mode and whether a restart is pending; it never returns secrets.
+boundaries. The frontend does not send the platform mode in API requests;
+every request is resolved from the server's `OPENBCON_ENVIRONMENT_MODE`.
+The public `GET /api/runtime/environment` endpoint exposes only the active mode
+and whether a restart is pending; it never returns secrets.
 
 Live connection variables are intentionally required before Live Mode can be
 used. Test and Live PostgreSQL databases must both be separate from the

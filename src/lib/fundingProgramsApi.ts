@@ -1,4 +1,3 @@
-import { getEnvironmentModeHeaders } from './environmentMode'
 import type {
   FundingProgramFieldMapping,
   FundingProgramRecord,
@@ -52,7 +51,6 @@ export async function loadFundingProgramsViaApi(
   const response = await fetch(
     `/api/funding-programs?language=${encodeURIComponent(language)}&includeBuiltIn=${includeBuiltIn ? 'true' : 'false'}`,
     {
-      headers: getEnvironmentModeHeaders(),
       credentials: 'include',
     },
   )
@@ -78,7 +76,6 @@ export async function createManualFundingProgramViaApi(
   const response = await fetch('/api/funding-programs', {
     method: 'POST',
     headers: {
-      ...getEnvironmentModeHeaders(),
       'Content-Type': 'application/json',
     },
     credentials: 'include',
@@ -109,7 +106,6 @@ export async function importJsonFundingProgramsViaApi(
   const response = await fetch('/api/funding-programs/import', {
     method: 'POST',
     headers: {
-      ...getEnvironmentModeHeaders(),
       'Content-Type': 'application/json',
     },
     credentials: 'include',
@@ -149,7 +145,6 @@ export async function archiveJsonFundingProgramsViaApi(sourceId: string) {
     `/api/funding-programs/source/${encodeURIComponent(sourceId)}/archive`,
     {
       method: 'POST',
-      headers: getEnvironmentModeHeaders(),
       credentials: 'include',
     },
   )

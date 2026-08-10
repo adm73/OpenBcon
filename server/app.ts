@@ -120,9 +120,9 @@ type RuntimeResources = {
 
 type ModeResources = Partial<Record<EnvironmentMode, RuntimeResources>>
 
-function getRequestedEnvironmentMode(_request: express.Request): EnvironmentMode {
+function getActiveEnvironmentMode(): EnvironmentMode {
   // The server environment is authoritative. Client headers and query params
-  // are retained as request metadata, but cannot switch database boundaries.
+  // are never used to select a database boundary.
   return environment.OPENBCON_ENVIRONMENT_MODE
 }
 
@@ -799,8 +799,8 @@ export function createApp(
     }),
   )
 
-  app.use((request, _response, next) => {
-    const mode = getRequestedEnvironmentMode(request)
+  app.use((_request, _response, next) => {
+    const mode = getActiveEnvironmentMode()
     const resources = mode === 'live' ? liveResources : testResources
     if (!resources) {
       next(new Error('Live mode is not configured with a live database.'))
@@ -926,7 +926,7 @@ export function createApp(
 
     const state = createGoogleState()
     const next = safeNextPath(typeof request.query.next === 'string' ? request.query.next : null)
-    setGoogleFlowCookies(response, state, next, getRequestedEnvironmentMode(request))
+    setGoogleFlowCookies(response, state, next, getActiveEnvironmentMode())
     response.redirect(302, getGoogleAuthorizationUrl(state, authConfig.googleOAuth))
   })
 
@@ -1702,7 +1702,7 @@ export function createApp(
       )
 
       const verificationUrl = publicUrl(
-        `/api/auth/verify-email?token=${encodeURIComponent(verificationToken)}&mode=${getRequestedEnvironmentMode(request)}`,
+        `/api/auth/verify-email?token=${encodeURIComponent(verificationToken)}`,
       )
 
       const sessionToken = await createSession(database, user.id, user.workspace_id)
@@ -1819,7 +1819,7 @@ export function createApp(
       )
 
       const resetUrl = publicUrl(
-        `/reset-password?token=${encodeURIComponent(resetToken)}&mode=${getRequestedEnvironmentMode(request)}`,
+        `/reset-password?token=${encodeURIComponent(resetToken)}`,
       )
       try {
         const delivery = await sendPasswordResetEmail({
@@ -1942,7 +1942,7 @@ export function createApp(
         [user.id, hashToken(verificationToken)],
       )
       const verificationUrl = publicUrl(
-        `/api/auth/verify-email?token=${encodeURIComponent(verificationToken)}&mode=${getRequestedEnvironmentMode(request)}`,
+        `/api/auth/verify-email?token=${encodeURIComponent(verificationToken)}`,
       )
       const delivery = await sendVerificationEmail({
         email: user.email,

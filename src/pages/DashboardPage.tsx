@@ -12017,9 +12017,7 @@ export function DashboardPage() {
               to={itemPath(item.id)}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `clone-footer-link ${item.id === 'settings' ? 'is-strong' : ''} ${
-                  isActive ? 'is-active' : ''
-                }`
+                `clone-footer-link ${isActive ? 'is-active' : ''}`
               }
             >
               <span className="clone-nav-icon">

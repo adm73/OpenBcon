@@ -1,5 +1,4 @@
 import type { PaymentConfig } from '../config/platform'
-import { getEnvironmentModeHeaders } from './environmentMode'
 
 const apiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api'
 
@@ -47,7 +46,6 @@ async function postJson<TResponse>(
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      ...getEnvironmentModeHeaders(),
     },
     credentials: 'include',
     body: JSON.stringify(body),

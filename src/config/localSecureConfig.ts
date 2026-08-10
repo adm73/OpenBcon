@@ -6,10 +6,6 @@ import {
   type PlatformConfig,
   type SMTPConfig,
 } from './platform'
-import {
-  getEnvironmentModeHeaders,
-} from '../lib/environmentMode'
-
 const secureConfigDatabaseName = 'bconomics-local-secure-config'
 const secureConfigStoreName = 'entries'
 const secureSecretsPayloadKey = 'bconomics-platform-config-secrets-v1'
@@ -341,7 +337,6 @@ async function syncRemoteAIModelKeys(config: PlatformConfig) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getEnvironmentModeHeaders(),
       },
       credentials: 'include',
       body: JSON.stringify({ models }),

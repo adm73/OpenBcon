@@ -1,5 +1,4 @@
 import type { SupportedLocale } from '../i18n'
-import { getEnvironmentModeHeaders } from './environmentMode'
 
 export type CreateApplicationRequest = {
   programName: string
@@ -45,7 +44,6 @@ export async function updateApplicationDocumentTypesViaApi(payload: {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        ...getEnvironmentModeHeaders(),
       },
       credentials: 'include',
       body: JSON.stringify({
@@ -76,7 +74,6 @@ export async function createApplicationViaApi(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...getEnvironmentModeHeaders(),
     },
     credentials: 'include',
     body: JSON.stringify(payload),

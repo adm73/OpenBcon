@@ -1,9 +1,6 @@
 import {
   getClientEnvironmentMode,
-  getEnvironmentModeHeaders,
-  environmentModeHeader,
   platformConfigStorageKey,
-  type EnvironmentMode,
 } from '../lib/environmentMode'
 
 export type PersistenceMode = 'database' | 'local'
@@ -15,13 +12,11 @@ type PendingMutation =
       key: string
       scope: PersistentStateScope
       value: unknown
-      mode: EnvironmentMode
     }
   | {
       operation: 'delete'
       key: string
       scope: PersistentStateScope
-      mode: EnvironmentMode
     }
 
 type BootstrapResponse = {
@@ -112,17 +107,12 @@ function collectLocalState() {
   return values
 }
 
-async function sendMutations(mutations: PendingMutation[], mode: EnvironmentMode) {
+async function sendMutations(mutations: PendingMutation[]) {
   const response = await fetch(`${apiBaseUrl}/state/batch`, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      [environmentModeHeader]: mode,
-    },
+    headers: { 'content-type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({
-      mutations: mutations.map(({ mode: _mode, ...mutation }) => mutation),
-    }),
+    body: JSON.stringify({ mutations }),
     keepalive: true,
   })
   if (!response.ok) {
@@ -136,31 +126,21 @@ async function flushPendingMutations() {
 
   const mutations = [...pendingMutations.values()]
   pendingMutations.clear()
-  const mutationsByMode = new Map<EnvironmentMode, PendingMutation[]>()
-  for (const mutation of mutations) {
-    const modeMutations = mutationsByMode.get(mutation.mode) ?? []
-    modeMutations.push(mutation)
-    mutationsByMode.set(mutation.mode, modeMutations)
-  }
-
-  for (const [mode, modeMutations] of mutationsByMode) {
-    try {
-      await sendMutations(modeMutations, mode)
-    } catch {
-      for (const mutation of modeMutations) {
-        const mutationKey = `${mutation.mode}:${mutation.key}`
-        if (!pendingMutations.has(mutationKey)) {
-          pendingMutations.set(mutationKey, mutation)
-        }
+  try {
+    await sendMutations(mutations)
+  } catch {
+    for (const mutation of mutations) {
+      if (!pendingMutations.has(mutation.key)) {
+        pendingMutations.set(mutation.key, mutation)
       }
-      flushTimer = setTimeout(flushPendingMutations, 2_000)
     }
+    flushTimer = setTimeout(flushPendingMutations, 2_000)
   }
 }
 
 function queueMutation(mutation: PendingMutation) {
   if (!remotePersistenceReady) return
-  pendingMutations.set(`${mutation.mode}:${mutation.key}`, mutation)
+  pendingMutations.set(mutation.key, mutation)
   if (flushTimer) clearTimeout(flushTimer)
   flushTimer = setTimeout(flushPendingMutations, 180)
 }
@@ -169,13 +149,11 @@ export function setPersistentItem(key: string, value: string) {
   window.localStorage.setItem(key, value)
   if (!isRemotePersistentStateKey(key)) return
 
-  const mode = getClientEnvironmentMode()
   queueMutation({
     operation: 'upsert',
     key,
     scope: getPersistentStateScope(key),
     value: parseStoredValue(value),
-    mode,
   })
 }
 
@@ -188,21 +166,19 @@ export async function persistPersistentItem(
     return 'local'
   }
 
-  const mode = getClientEnvironmentMode()
   const mutation: PendingMutation = {
     operation: 'upsert',
     key,
     scope: getPersistentStateScope(key),
     value: parseStoredValue(value),
-    mode,
   }
-  pendingMutations.delete(`${mode}:${key}`)
+  pendingMutations.delete(key)
 
   try {
-    await sendMutations([mutation], mode)
+    await sendMutations([mutation])
     return 'database'
   } catch (error) {
-    pendingMutations.set(`${mode}:${key}`, mutation)
+    pendingMutations.set(key, mutation)
     if (flushTimer) clearTimeout(flushTimer)
     flushTimer = setTimeout(flushPendingMutations, 2_000)
     throw error
@@ -217,13 +193,11 @@ export function setPersistentItemWithRemoteValue(
   window.localStorage.setItem(key, localValue)
   if (!isRemotePersistentStateKey(key)) return
 
-  const mode = getClientEnvironmentMode()
   queueMutation({
     operation: 'upsert',
     key,
     scope: getPersistentStateScope(key),
     value: remoteValue,
-    mode,
   })
 }
 
@@ -231,12 +205,10 @@ export function removePersistentItem(key: string) {
   window.localStorage.removeItem(key)
   if (!isRemotePersistentStateKey(key)) return
 
-  const mode = getClientEnvironmentMode()
   queueMutation({
     operation: 'delete',
     key,
     scope: getPersistentStateScope(key),
-    mode,
   })
 }
 
@@ -262,7 +234,6 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
     const response = await fetch(`${apiBaseUrl}/bootstrap`, {
       signal: AbortSignal.timeout(3_000),
       credentials: 'include',
-      headers: getEnvironmentModeHeaders(mode),
     })
     if (!response.ok) return 'local'
 
@@ -273,7 +244,6 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
     const companiesResponse = await fetch(`${apiBaseUrl}/companies`, {
       signal: AbortSignal.timeout(3_000),
       credentials: 'include',
-      headers: getEnvironmentModeHeaders(),
     })
     if (companiesResponse.ok) {
       const companiesBody = (await companiesResponse.json()) as {
@@ -287,7 +257,6 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
     const fundingProgramsResponse = await fetch(`${apiBaseUrl}/funding-programs`, {
       signal: AbortSignal.timeout(3_000),
       credentials: 'include',
-      headers: getEnvironmentModeHeaders(),
     })
     if (fundingProgramsResponse.ok) {
       const fundingProgramsBody = (await fundingProgramsResponse.json()) as {
@@ -326,7 +295,6 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
             key,
             scope: 'user',
             value: localValues[key],
-            mode,
           })
           continue
         }

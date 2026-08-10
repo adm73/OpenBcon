@@ -56,7 +56,6 @@ import {
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
 import {
   getClientEnvironmentMode,
-  getEnvironmentModeHeaders,
   platformConfigStorageKey,
 } from '../lib/environmentMode'
 import { languageOptions, normalizeLocale, useLocale } from '../i18n'
@@ -585,7 +584,6 @@ export function AdminPage() {
     try {
       const response = await fetch(`/api/admin/users?query=${encodeURIComponent(query)}`, {
         credentials: 'include',
-        headers: getEnvironmentModeHeaders(),
       })
       const payload = (await response.json().catch(() => null)) as
         | { users?: AdminUser[]; message?: string }
@@ -631,7 +629,6 @@ export function AdminPage() {
           credentials: 'include',
           headers: {
             'content-type': 'application/json',
-            ...getEnvironmentModeHeaders(),
           },
           body: JSON.stringify({
             fullName: adminUserEditor.fullName,
@@ -675,7 +672,6 @@ export function AdminPage() {
       const response = await fetch(`/api/admin/users/${user.id}`, {
         method: 'DELETE',
         credentials: 'include',
-        headers: getEnvironmentModeHeaders(),
       })
       const payload = (await response.json().catch(() => null)) as { message?: string } | null
       if (!response.ok) {
@@ -1739,7 +1735,6 @@ export function AdminPage() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...getEnvironmentModeHeaders(),
           },
           credentials: 'include',
           body: JSON.stringify({
@@ -1906,7 +1901,6 @@ export function AdminPage() {
           credentials: 'include',
           headers: {
             'content-type': 'application/json',
-            ...getEnvironmentModeHeaders(),
           },
           body: JSON.stringify(authSecrets),
         })
@@ -1948,7 +1942,7 @@ export function AdminPage() {
     try {
       const response = await fetch(
         `/api/updates?currentCommit=${encodeURIComponent(updateCheck.currentCommit)}`,
-        { credentials: 'include', headers: getEnvironmentModeHeaders() },
+        { credentials: 'include' },
       )
       const payload = (await response.json()) as Partial<UpdateCheckState> & {
         message?: string

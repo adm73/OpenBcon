@@ -1,4 +1,3 @@
-import { getEnvironmentModeHeaders } from './environmentMode'
 import type { SupportedLocale } from '../i18n'
 
 export type BusinessPlanGenerateRequest = {
@@ -76,7 +75,6 @@ async function postGenerationRequest<T>(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getEnvironmentModeHeaders(),
       },
       credentials: 'include',
       signal: controller.signal,
@@ -174,7 +172,6 @@ async function mutateStrategicReportSection(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...getEnvironmentModeHeaders(),
       },
       credentials: 'include',
       signal: controller.signal,

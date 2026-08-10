@@ -1,5 +1,3 @@
-import { getEnvironmentModeHeaders } from './environmentMode'
-
 export type CompanyTeamMember = {
   id: string
   name: string
@@ -57,7 +55,6 @@ async function readError(response: Response, fallback: string) {
 
 export async function loadCompaniesViaApi() {
   const response = await fetch('/api/companies', {
-    headers: getEnvironmentModeHeaders(),
     credentials: 'include',
   })
   if (!response.ok) {
@@ -79,7 +76,6 @@ export async function saveCompanyViaApi(company: SaveCompanyRequest) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...getEnvironmentModeHeaders(),
     },
     credentials: 'include',
     body: JSON.stringify({

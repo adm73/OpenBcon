@@ -4574,7 +4574,9 @@
 .workspace-guide-link {
   width: 100%;
   grid-template-columns: 22px minmax(0, 1fr);
-  font: inherit;
+  font-family: inherit;
+  font-size: 0.59rem;
+  font-weight: 500;
 }
 
 .onboarding-backdrop {
