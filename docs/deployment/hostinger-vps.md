@@ -108,12 +108,15 @@ ports:
 
 Do not map the project Caddy `443` port in this mode.
 
-Change the first line of `deploy/Caddyfile` to make the internal Caddy listener
-HTTP-only:
+The Bootstrap Setup wizard applies this change automatically by mounting the
+repository's `deploy/Caddyfile.http`:
 
 ```caddyfile
 http://{$DOMAIN} {
 ```
+
+Do not manually change the main `deploy/Caddyfile`; that file is reserved for
+direct Caddy HTTPS mode.
 
 Keep the internal routes pointed at Docker service names:
 
@@ -219,6 +222,14 @@ After saving, the page continues to display configuration, DNS, service,
 HTTPS, and `/api/health` checks. When deployment succeeds it shows the public
 application URL; when it fails it points you to the `deploy.sh` terminal output
 and the retry command.
+
+The deployment script validates the Caddy configuration before starting the
+application, waits for the API, Python, and Caddy health checks, and then
+verifies the public HTTPS `/api/health` endpoint. A deployment is not reported
+as complete until that public check returns the healthy API response. If the
+wizard reports a refused connection, TLS handshake failure, timeout, or HTTP
+error, follow the next-step message in the wizard and inspect the Caddy or
+Traefik logs before retrying setup.
 
 Run all Compose commands with the production env file. Compose does not
 automatically load `.env.production` for interpolation:

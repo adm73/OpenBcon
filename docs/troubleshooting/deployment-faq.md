@@ -89,7 +89,27 @@ ports:
 
 Then configure a Traefik router for the public hostname and point it to
 `http://127.0.0.1:8080` when Traefik uses host networking. The project Caddy
-should use `http://{$DOMAIN}` in this architecture.
+must use HTTP-only routing in this architecture. The Bootstrap Setup wizard
+creates the proxy override and mounts `deploy/Caddyfile.http` automatically.
+The primary `deploy/Caddyfile` is reserved for direct Caddy HTTPS mode.
+
+## The setup wizard shows a TLS handshake failure
+
+This means DNS resolved, but the public HTTPS connection could not complete a
+certificate handshake. Check which proxy owns port 443 and inspect its recent
+logs:
+
+```bash
+ss -ltnp | grep -E ':(80|443|8080)\\b'
+docker compose --env-file deploy/.env.production \
+  -f deploy/docker-compose.production.yml logs --tail=200 caddy
+```
+
+For direct Caddy mode, the site address should be the public hostname, for
+example `www.example.com {`, not `http://www.example.com {`. For Traefik mode,
+Caddy should listen only on `127.0.0.1:8080` and Traefik should terminate TLS
+with its Let’s Encrypt resolver. Do not use `curl -k` as the final fix; it
+bypasses certificate verification.
 
 ## HTTPS returns a self-signed certificate
 

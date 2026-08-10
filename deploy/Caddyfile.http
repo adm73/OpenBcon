@@ -1,0 +1,21 @@
+# Used only when an existing Traefik instance owns public HTTPS.
+# Traefik terminates TLS and forwards HTTP to this private Caddy listener.
+http://{$DOMAIN} {
+    encode gzip
+
+    handle_path /ai-api/* {
+        reverse_proxy python:8010
+    }
+
+    handle /api/* {
+        reverse_proxy api:8787
+    }
+
+    handle /api {
+        reverse_proxy api:8787
+    }
+
+    handle {
+        reverse_proxy api:8787
+    }
+}

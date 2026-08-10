@@ -11,11 +11,20 @@ SETUP_CONTAINER="openbcon-bootstrap-setup"
 SETUP_MODE=0
 SETUP_STATUS_ENABLED=0
 
+json_escape() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//$'\n'/\\n}"
+  value="${value//$'\r'/\\r}"
+  printf '%s' "$value"
+}
+
 write_setup_status() {
   local phase="$1"
   local message="$2"
   printf '{"phase":"%s","message":"%s","updatedAt":"%s"}\n' \
-    "$phase" "$message" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$SETUP_STATUS_FILE"
+    "$(json_escape "$phase")" "$(json_escape "$message")" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$SETUP_STATUS_FILE"
 }
 
 if [ "${1:-}" = "--setup" ]; then
@@ -54,11 +63,15 @@ if [ "$SETUP_MODE" -eq 1 ] || [ ! -f "$ENV_FILE" ]; then
   cleanup_setup() {
     local exit_code=$?
     if [ "$exit_code" -eq 0 ]; then
-      write_setup_status "completed" "OpenBcon is deployed."
+      if ! grep -q '"phase":"completed"' "$SETUP_STATUS_FILE" 2>/dev/null; then
+        write_setup_status "completed" "OpenBcon is deployed."
+      fi
     elif [ -f "$SETUP_COMPLETE_FILE" ]; then
-      write_setup_status "failed" "Deployment failed. Check the VPS terminal output."
+      if ! grep -q '"phase":"failed"' "$SETUP_STATUS_FILE" 2>/dev/null; then
+        write_setup_status "failed" "Deployment failed. Check the VPS terminal output."
+      fi
     fi
-    sleep 8
+    sleep 20
     docker rm -f "$SETUP_CONTAINER" >/dev/null 2>&1 || true
     return "$exit_code"
   }
@@ -96,7 +109,11 @@ fi
 if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
   write_setup_status "starting_services" "Starting PostgreSQL, MongoDB, and Ollama."
 fi
-"${compose[@]}" config >/dev/null
+if ! compose_config_error="$("${compose[@]}" config 2>&1)"; then
+  write_setup_status "failed" "Docker Compose configuration is invalid: $(printf '%s' "$compose_config_error" | tr '\n' ' ' | cut -c1-240)"
+  printf '%s\n' "$compose_config_error" >&2
+  exit 1
+fi
 "${compose[@]}" up -d --build postgres mongodb ollama ollama-model
 
 # The primary Postgres database is the shared platform catalog. Create the
@@ -131,11 +148,84 @@ done
 if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
   write_setup_status "starting_application" "Starting the OpenBcon API, AI service, and HTTPS proxy."
 fi
+if ! caddy_config_error="$("${compose[@]}" run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1)"; then
+  write_setup_status "failed" "Caddy configuration validation failed: $(printf '%s' "$caddy_config_error" | tr '\n' ' ' | cut -c1-240)"
+  printf '%s\n' "$caddy_config_error" >&2
+  exit 1
+fi
 "${compose[@]}" up -d --build api python caddy
 if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
-  write_setup_status "verifying" "Waiting for application health checks and HTTPS routing."
+  write_setup_status "starting_application" "Waiting for API, AI service, and Caddy health checks."
 fi
 "${compose[@]}" ps
+
+wait_for_healthy_service() {
+  local service="$1"
+  local timeout_seconds=180
+  local started_at
+  local container_id
+  local health
+  started_at="$(date +%s)"
+  while true; do
+    container_id="$("${compose[@]}" ps -q "$service" 2>/dev/null || true)"
+    if [ -n "$container_id" ]; then
+      health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
+      if [ "$health" = "healthy" ] || { [ "$service" = "caddy" ] && [ "$health" = "running" ]; }; then
+        return 0
+      fi
+      if [ "$health" = "unhealthy" ] || [ "$health" = "exited" ] || [ "$health" = "dead" ]; then
+        write_setup_status "failed" "The ${service} service is ${health}. Inspect its logs with: docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml logs --tail=200 ${service}"
+        return 1
+      fi
+    fi
+    if [ "$(( $(date +%s) - started_at ))" -ge "$timeout_seconds" ]; then
+      write_setup_status "failed" "The ${service} service did not become healthy within ${timeout_seconds} seconds. Inspect its logs with: docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml logs --tail=200 ${service}"
+      return 1
+    fi
+    sleep 3
+  done
+}
+
+wait_for_public_health() {
+  local domain
+  local protocol
+  local url
+  local attempt
+  local response
+  local body
+  local http_status
+  local last_error="No response yet."
+  domain="$(sed -n 's/^DOMAIN=//p' "$ENV_FILE" | head -n 1)"
+  protocol="http"
+  [ "$domain" != "localhost" ] && protocol="https"
+  url="${protocol}://${domain}/api/health"
+  if ! command -v curl >/dev/null 2>&1; then
+    write_setup_status "failed" "Public health verification needs curl on the VPS. Install curl, then run ./deploy/deploy.sh --setup again."
+    return 1
+  fi
+  for attempt in $(seq 1 24); do
+    response="$(curl -sS --max-time 8 -w $'\n%{http_code}' "$url" 2>&1 || true)"
+    http_status="${response##*$'\n'}"
+    body="${response%$'\n'*}"
+    if [ "$http_status" = "200" ] && printf '%s' "$body" | grep -q '"status":"ok"'; then
+      return 0
+    fi
+    last_error="HTTP ${http_status}: $(printf '%s' "$body" | tr '\n' ' ' | cut -c1-160)"
+    sleep 5
+  done
+  write_setup_status "failed" "Public ${protocol^^} health check failed for ${domain}. ${last_error} Check DNS, inbound TCP 80/443, and Caddy or Traefik logs."
+  return 1
+}
+
+if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
+  for service in api python caddy; do
+    wait_for_healthy_service "$service" || exit 1
+  done
+  write_setup_status "services_ready" "PostgreSQL, MongoDB, Ollama, API, Python, and Caddy are healthy. Verifying public HTTPS."
+  write_setup_status "verifying" "Services are healthy. Waiting for ${domain:-the public domain} HTTPS and /api/health."
+  wait_for_public_health || exit 1
+  write_setup_status "completed" "OpenBcon is deployed and the public HTTPS health check passed."
+fi
 
 printf '\nDeployment started.\n'
 printf 'Open https://%s after DNS and the first certificate issuance complete.\n' "$(sed -n 's/^DOMAIN=//p' "$ENV_FILE" | head -n 1)"
