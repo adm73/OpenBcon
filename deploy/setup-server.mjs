@@ -46,8 +46,13 @@ function randomSecret(bytes = 24) {
   return randomBytes(bytes).toString('base64url')
 }
 
-function randomDatabaseUsername(prefix) {
-  return `${prefix}_${randomBytes(6).toString('hex')}`
+function randomDatabasePrefix() {
+  const digits = Array.from(randomBytes(10), (byte) => String(byte % 10)).join('')
+  return `dbob${digits}`
+}
+
+function isDatabasePrefix(value) {
+  return /^dbob\d{10}$/u.test(value)
 }
 
 function setEnvValue(text, key, value) {
@@ -90,15 +95,11 @@ function buildEnvironment(input) {
   text = setEnvValue(text, 'OPENBCON_ENVIRONMENT_MODE', input.environmentMode)
 
   // Generate server-side secrets so the setup form never transports them.
-  if (!/^POSTGRES_USER=(?!replace_with_)/mu.test(text)) {
-    text = setEnvValue(text, 'POSTGRES_USER', randomDatabaseUsername('obc_pg'))
-  }
+  text = setEnvValue(text, 'POSTGRES_USER', 'admin')
   if (!/^POSTGRES_PASSWORD=(?!replace_with_)/mu.test(text)) {
     text = setEnvValue(text, 'POSTGRES_PASSWORD', randomSecret())
   }
-  if (!/^MONGODB_ROOT_USERNAME=(?!replace_with_)/mu.test(text)) {
-    text = setEnvValue(text, 'MONGODB_ROOT_USERNAME', randomDatabaseUsername('obc_mongo'))
-  }
+  text = setEnvValue(text, 'MONGODB_ROOT_USERNAME', 'admin')
   if (!/^MONGODB_ROOT_PASSWORD=(?!replace_with_)/mu.test(text)) {
     text = setEnvValue(text, 'MONGODB_ROOT_PASSWORD', randomSecret())
   }
@@ -106,10 +107,21 @@ function buildEnvironment(input) {
     text = setEnvValue(text, 'APP_STATE_ENCRYPTION_KEY', randomBytes(32).toString('hex'))
   }
 
+  // Generate one database prefix per deployment. Test and Live databases use
+  // suffixes derived from this prefix so every environment stays isolated.
+  const configuredPrefix = getEnvValue(text, 'DBOB_DATABASE_PREFIX')
+  const databasePrefix = isDatabasePrefix(configuredPrefix) ? configuredPrefix : randomDatabasePrefix()
+  const sharedDatabase = databasePrefix
+  const testDatabase = `${databasePrefix}_test`
+  const liveDatabase = `${databasePrefix}_live`
+  text = setEnvValue(text, 'DBOB_DATABASE_PREFIX', databasePrefix)
+  text = setEnvValue(text, 'POSTGRES_DB', sharedDatabase)
+  text = setEnvValue(text, 'MONGODB_DATABASE', sharedDatabase)
+
   // Keep every service on the same credentials and on the required
   // shared/test/live database names. This prevents a generated password from
   // drifting away from the connection URLs in the production example.
-  const postgresUser = getEnvValue(text, 'POSTGRES_USER', 'bconomics')
+  const postgresUser = getEnvValue(text, 'POSTGRES_USER', 'admin')
   const postgresPassword = getEnvValue(text, 'POSTGRES_PASSWORD')
   const postgresUrl = (database) =>
     `postgresql://${encodeURIComponent(postgresUser)}:${encodeURIComponent(postgresPassword)}@postgres:5432/${database}`
@@ -119,16 +131,16 @@ function buildEnvironment(input) {
       text = setEnvValue(text, key, postgresUrl(database))
     }
   }
-  syncLocalPostgresUrl('DATABASE_URL_SHARED', 'bconomics')
-  syncLocalPostgresUrl('DATABASE_URL_TEST', 'bconomics_test')
-  syncLocalPostgresUrl('DATABASE_URL_LIVE', 'bconomics_live')
-  syncLocalPostgresUrl('OPENBCON_DB_DSN_SHARED', 'bconomics')
-  syncLocalPostgresUrl('OPENBCON_DB_DSN_TEST', 'bconomics_test')
-  syncLocalPostgresUrl('OPENBCON_DB_DSN_LIVE', 'bconomics_live')
+  syncLocalPostgresUrl('DATABASE_URL_SHARED', sharedDatabase)
+  syncLocalPostgresUrl('DATABASE_URL_TEST', testDatabase)
+  syncLocalPostgresUrl('DATABASE_URL_LIVE', liveDatabase)
+  syncLocalPostgresUrl('OPENBCON_DB_DSN_SHARED', sharedDatabase)
+  syncLocalPostgresUrl('OPENBCON_DB_DSN_TEST', testDatabase)
+  syncLocalPostgresUrl('OPENBCON_DB_DSN_LIVE', liveDatabase)
 
-  const sharedMongo = getEnvValue(text, 'MONGODB_DATABASE_SHARED', 'bconomics')
-  const testMongo = getEnvValue(text, 'MONGODB_DATABASE_TEST', 'bconomics_test')
-  const liveMongo = getEnvValue(text, 'MONGODB_DATABASE_LIVE', 'bconomics_live')
+  const sharedMongo = sharedDatabase
+  const testMongo = testDatabase
+  const liveMongo = liveDatabase
   text = setEnvValue(text, 'MONGODB_DATABASE_SHARED', sharedMongo)
   text = setEnvValue(text, 'MONGODB_DATABASE_TEST', testMongo)
   text = setEnvValue(text, 'MONGODB_DATABASE_LIVE', liveMongo)

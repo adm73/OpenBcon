@@ -276,21 +276,21 @@ new_postgres_password="$(openssl rand -hex 32)"
 new_mongodb_password="$(openssl rand -hex 32)"
 ```
 
-Change the PostgreSQL role while the database container is running. Replace
-`POSTGRES_USER` with the generated username from `deploy/.env.production`:
+Change the PostgreSQL role while the database container is running. The
+administrator username is fixed as `admin`:
 
 ```bash
-postgres_user="$(awk -F= '$1 == "POSTGRES_USER" { print $2; exit }' deploy/.env.production)"
+postgres_user="admin"
 docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
   exec -T postgres psql -U "$postgres_user" -d postgres \
   --set=role_name="$postgres_user" --set=role_password="$new_postgres_password" \
   -c "ALTER ROLE :\"role_name\" PASSWORD :'role_password';"
 ```
 
-Change the MongoDB root password with the generated MongoDB username:
+Change the MongoDB root password with the fixed administrator username `admin`:
 
 ```bash
-mongo_user="$(awk -F= '$1 == "MONGODB_ROOT_USERNAME" { print $2; exit }' deploy/.env.production)"
+mongo_user="admin"
 mongo_password="$(awk -F= '$1 == "MONGODB_ROOT_PASSWORD" { print $2; exit }' deploy/.env.production)"
 docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
   exec -T mongodb mongosh --username "$mongo_user" --password "$mongo_password" \

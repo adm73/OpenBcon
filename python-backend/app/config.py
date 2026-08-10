@@ -22,13 +22,13 @@ class Settings(BaseSettings):
     demo_workspace_id: str = "00000000-0000-4000-8000-000000000002"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     db_dsn: str = Field(
-        default="postgresql://bconomics:bconomics@localhost:5432/bconomics",
+        default="postgresql://admin:bconomics@localhost:5432/dbob1234567890",
     )
     db_dsn_test: str | None = None
     db_dsn_live: str | None = None
     db_dsn_shared: str | None = None
     mongodb_url: str = "mongodb://localhost:27017"
-    mongodb_database: str = "bconomics"
+    mongodb_database: str = "dbob1234567890"
     mongodb_database_shared: str | None = None
     mongodb_database_test: str | None = None
     mongodb_database_live: str | None = None

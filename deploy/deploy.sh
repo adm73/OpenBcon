@@ -120,7 +120,7 @@ fi
 # tenant databases before the API starts its per-database migrations. This is
 # idempotent so repeated deployments do not disturb existing tenant data.
 postgres_user="$(sed -n 's/^POSTGRES_USER=//p' "$ENV_FILE" | head -n 1)"
-postgres_user="${postgres_user:-bconomics}"
+postgres_user="${postgres_user:-admin}"
 database_name_from_url() {
   local url="${1%%\?*}"
   printf '%s' "${url##*/}"
@@ -128,9 +128,11 @@ database_name_from_url() {
 
 database_url_test="$(sed -n 's/^DATABASE_URL_TEST=//p' "$ENV_FILE" | head -n 1)"
 database_url_live="$(sed -n 's/^DATABASE_URL_LIVE=//p' "$ENV_FILE" | head -n 1)"
+database_prefix="$(sed -n 's/^DBOB_DATABASE_PREFIX=//p' "$ENV_FILE" | head -n 1)"
+database_prefix="${database_prefix:-dbob1234567890}"
 tenant_databases=(
-  "$(database_name_from_url "${database_url_test:-postgresql://localhost/bconomics_test}")"
-  "$(database_name_from_url "${database_url_live:-postgresql://localhost/bconomics_live}")"
+  "$(database_name_from_url "${database_url_test:-postgresql://localhost/${database_prefix}_test}")"
+  "$(database_name_from_url "${database_url_live:-postgresql://localhost/${database_prefix}_live}")"
 )
 for tenant_database in "${tenant_databases[@]}"; do
   if [[ ! "$tenant_database" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then

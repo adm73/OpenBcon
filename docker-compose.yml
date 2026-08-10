@@ -6,15 +6,15 @@ services:
     container_name: bconomics-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: bconomics
-      POSTGRES_USER: bconomics
-      POSTGRES_PASSWORD: bconomics
+      POSTGRES_DB: ${DBOB_DATABASE_PREFIX:-dbob1234567890}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bconomics}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - bconomics-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bconomics -d bconomics"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 3s
       timeout: 3s
       retries: 20
@@ -24,7 +24,7 @@ services:
     container_name: bconomics-mongodb
     restart: unless-stopped
     environment:
-      MONGO_INITDB_DATABASE: bconomics
+      MONGO_INITDB_DATABASE: ${DBOB_DATABASE_PREFIX:-dbob1234567890}
     ports:
       - "${MONGODB_PORT:-27017}:27017"
     volumes:

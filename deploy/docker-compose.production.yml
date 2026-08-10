@@ -5,8 +5,8 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-bconomics}
-      POSTGRES_USER: ${POSTGRES_USER:-bconomics}
+      POSTGRES_DB: ${POSTGRES_DB:-dbob1234567890}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env.production}
     volumes:
       - bconomics-postgres-data:/var/lib/postgresql/data
@@ -20,8 +20,8 @@ services:
     image: mongo:8
     restart: unless-stopped
     environment:
-      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-bconomics}
-      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-bconomics}
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE:-dbob1234567890}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:?Set MONGODB_ROOT_PASSWORD in deploy/.env.production}
     volumes:
       - bconomics-mongodb-data:/data/db
@@ -66,8 +66,8 @@ services:
     env_file:
       - .env.production
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-bconomics}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bconomics}
-      MONGODB_URL: mongodb://${MONGODB_ROOT_USERNAME:-bconomics}:${MONGODB_ROOT_PASSWORD}@mongodb:27017/?authSource=admin
+      DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dbob1234567890}
+      MONGODB_URL: mongodb://${MONGODB_ROOT_USERNAME:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017/?authSource=admin
       API_HOST: 0.0.0.0
       API_PORT: 8787
       NODE_ENV: production
@@ -98,9 +98,9 @@ services:
     env_file:
       - .env.production
     environment:
-      OPENBCON_DB_DSN: postgresql://${POSTGRES_USER:-bconomics}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bconomics}
-      OPENBCON_MONGODB_URL: mongodb://${MONGODB_ROOT_USERNAME:-bconomics}:${MONGODB_ROOT_PASSWORD}@mongodb:27017/?authSource=admin
-      OPENBCON_MONGODB_DATABASE: ${MONGODB_DATABASE:-bconomics}
+      OPENBCON_DB_DSN: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dbob1234567890}
+      OPENBCON_MONGODB_URL: mongodb://${MONGODB_ROOT_USERNAME:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017/?authSource=admin
+      OPENBCON_MONGODB_DATABASE: ${MONGODB_DATABASE:-dbob1234567890}
       OPENBCON_CORS_ORIGINS: https://${DOMAIN}
       OPENBCON_API_HOST: 0.0.0.0
       OPENBCON_API_PORT: 8010

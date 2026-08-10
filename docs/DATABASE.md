@@ -114,10 +114,10 @@ Inspect the database:
 
 ```bash
 docker exec -it bconomics-postgres \
-  psql -U bconomics -d bconomics
+  psql -U admin -d dbob1234567890
 
 docker exec -it bconomics-mongodb \
-  mongosh bconomics
+  mongosh dbob1234567890
 ```
 
 Stop the local database:

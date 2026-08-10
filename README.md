@@ -407,7 +407,7 @@ custom domain. It validates the hostname, lets you choose whether Caddy or an
 existing Traefik instance owns HTTPS ports 80/443, selects the initial Test or
 Live Mode, and generates a server-side environment template plus deployment
 commands. The wizard keeps only non-secret draft values in the current browser;
-database usernames and passwords are generated inside the VPS and shown once
+the database administrator username is fixed as `admin`; passwords are generated inside the VPS and shown once
 on the result page. API keys, SMTP credentials, and OAuth secrets must still be
 entered in `deploy/.env.production` on the VPS. The wizard prepares the
 configuration but does not remotely execute Docker commands.
@@ -425,8 +425,9 @@ be saved. Open the one-time public URL printed by the script, enter the domain,
 certificate email, proxy plan, and initial mode, then save. The setup URL is
 protected by a one-time token and expires after 24 hours. If the VPS firewall
 blocks it, temporarily allow inbound TCP `8090` while configuring, then close
-that port after setup completes. The script generates the database usernames,
-passwords, and encryption key on the VPS, displays the database credentials
+that port after setup completes. The script sets the database administrator
+usernames to `admin`, generates the passwords and encryption key on the VPS,
+and displays the database credentials
 once so they can be stored securely, writes `deploy/.env.production`, and
 continues with the normal database migration and Docker startup. To reconfigure an existing
 deployment, run `./deploy/deploy.sh --setup`; the previous environment file is
@@ -437,7 +438,12 @@ Caddy override but cannot modify a separately managed Traefik installation.
 After saving, the setup page shows configuration-write status, DNS resolution,
 service startup, HTTPS, and `/api/health` checks. It also shows the final public
 URL or the next troubleshooting step. The temporary setup service is stopped
-automatically after deployment succeeds or fails.
+automatically after deployment succeeds or fails. The deployment wizard creates
+one shared database prefix using the format `dbob` plus 10 random digits, for
+example `dbob4829137056`. PostgreSQL and MongoDB use that prefix for the
+shared catalog, then add `_test` and `_live` for the isolated runtime
+databases. The prefix is stored in `DBOB_DATABASE_PREFIX` and reused on later
+restarts of the same deployment.
 
 #### Rotate database credentials
 
@@ -479,7 +485,7 @@ platform administrator before changing platform settings:
 
 ```bash
 docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
-  exec postgres psql -U bconomics -d bconomics \
+  exec postgres psql -U admin -d dbob1234567890 \
   -c "UPDATE app_users SET role = 'admin' WHERE lower(email) = lower('admin@example.com');"
 ```
 
@@ -539,11 +545,11 @@ To do this manually, run the two database creation commands separately:
 
 ```bash
 docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
-  exec postgres psql -U bconomics -d postgres \
-  -c "CREATE DATABASE bconomics_test OWNER bconomics;"
+  exec postgres psql -U admin -d postgres \
+  -c "CREATE DATABASE dbob1234567890_test OWNER admin;"
 docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
-  exec postgres psql -U bconomics -d postgres \
-  -c "CREATE DATABASE bconomics_live OWNER bconomics;"
+  exec postgres psql -U admin -d postgres \
+  -c "CREATE DATABASE dbob1234567890_live OWNER admin;"
 ```
 
 The browser cache is hydrated from the server-reported active mode's database

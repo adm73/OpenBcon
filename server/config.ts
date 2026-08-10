@@ -16,7 +16,7 @@ const environmentSchema = z.object({
   DATABASE_URL: z
     .string()
     .min(1)
-    .default('postgresql://bconomics:bconomics@localhost:5432/bconomics'),
+    .default('postgresql://admin:bconomics@localhost:5432/dbob1234567890'),
   DATABASE_URL_TEST: z.string().min(1).optional(),
   DATABASE_URL_LIVE: z.string().min(1).optional(),
   // Platform catalogs (funding programs) are shared by both runtime modes.
@@ -28,7 +28,7 @@ const environmentSchema = z.object({
     .string()
     .min(1)
     .default('mongodb://localhost:27017'),
-  MONGODB_DATABASE: z.string().min(1).default('bconomics'),
+  MONGODB_DATABASE: z.string().min(1).default('dbob1234567890'),
   MONGODB_DATABASE_SHARED: z.string().min(1).optional(),
   MONGODB_DATABASE_TEST: z.string().min(1).optional(),
   MONGODB_DATABASE_LIVE: z.string().min(1).optional(),
