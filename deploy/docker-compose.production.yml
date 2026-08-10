@@ -1,3 +1,5 @@
+name: openbcon
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -144,7 +146,12 @@ services:
 
 volumes:
   bconomics-postgres-data:
+    name: deploy_bconomics-postgres-data
   bconomics-mongodb-data:
+    name: deploy_bconomics-mongodb-data
   bconomics-ollama-data:
+    name: deploy_bconomics-ollama-data
   caddy-data:
+    name: deploy_caddy-data
   caddy-config:
+    name: deploy_caddy-config

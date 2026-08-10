@@ -25,7 +25,7 @@ if [ -z "${VITE_APP_COMMIT:-}" ]; then
   export VITE_APP_COMMIT
 fi
 
-compose=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
+compose=(docker compose --project-name openbcon --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 "${compose[@]}" config >/dev/null
 "${compose[@]}" up -d --build postgres mongodb ollama ollama-model
 
