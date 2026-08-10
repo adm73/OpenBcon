@@ -20,6 +20,18 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 2.5.4
+
+Version 2.5.4 fixes funding data-source synchronization in the workspace:
+
+- Google Sheets and Airtable funding records are now persisted to the shared
+  PostgreSQL catalog instead of only being kept in browser cache.
+- External catalog records are upserted by source and record identity, and
+  records omitted from a completed sync are archived.
+- JSON catalog field mappings are used consistently for duplicate detection.
+- A local API proxy failure now explains that the API on port `8787` must be
+  running instead of presenting an opaque `502` import error.
+
 ## Version 2.5.3
 
 Version 2.5.3 makes the installed release visible immediately after an
@@ -118,7 +130,7 @@ duplicates before enforcing the global `(source_id, source_record_id)` unique
 index. Existing application and package references are retargeted to the
 canonical program record during the migration.
 
-The final local check passed with 14 test files and 76 tests, followed by a
+The final local check passed with 14 test files and 77 tests, followed by a
 successful TypeScript and Vite production build. Lint reports only the existing
 React Fast Refresh and hook-dependency warnings.
 
@@ -398,6 +410,19 @@ npm run db:seed
 `npm run db:setup` runs the same migration and seed steps after the database
 services are available. `npm run dev` starts the API on port `8787` and Vite on
 port `5173`.
+
+Run `npm run dev`, rather than only `npm run dev:web`, when using Admin Console
+data-source synchronization. Vite proxies `/api/*` to the API on port `8787`;
+if that API is stopped, the browser will receive `502 Bad Gateway`. Verify the
+API before retrying a sync:
+
+```bash
+curl -i http://localhost:8787/api/health
+```
+
+The response should be `HTTP/1.1 200 OK` with `{"status":"ok"}`. A successful
+funding-source sync updates the PostgreSQL catalog and also refreshes the
+browser cache for fast page loads.
 For the Python AI backend used by the model connection chat, create the
 Python environment described in `python-backend/README.md`, then run
 `npm run dev:python` in a second terminal. It listens on port `8010`.

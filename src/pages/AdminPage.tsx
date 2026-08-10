@@ -54,6 +54,7 @@ import {
   chunkJsonFundingRecords,
   getJsonFundingSyncMetadata,
   importJsonFundingProgramsViaApi,
+  syncFundingProgramsViaApi,
 } from '../lib/fundingProgramsApi'
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
 import {
@@ -1804,8 +1805,21 @@ export function AdminPage() {
           )
         } else {
           const programs = await syncFundingDataSource(source)
-          saveSyncedFundingPrograms(source.id, programs)
-          recordCount = programs.length
+          const result = await syncFundingProgramsViaApi({
+            sourceId: source.id,
+            sourceName: source.name,
+            sourceVersion: programs[0]?.sourceVersion || '',
+            sourceUrl: source.spreadsheetUrl || source.proxyUrl || '',
+            sourceType: source.provider,
+            records: programs,
+            syncComplete: true,
+            syncRecordIds: programs.map((program) => program.sourceRecordId || program.id),
+          })
+          saveSyncedFundingPrograms(source.id, result.programs)
+          recordCount = result.programs.length
+          setSourceNotice(
+            `${result.imported} new, ${result.updated} updated, and ${result.archived} archived records imported from ${source.name}.`,
+          )
         }
       } else {
         const resources = await syncResourceDataSource(source)

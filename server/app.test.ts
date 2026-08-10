@@ -345,6 +345,102 @@ describe('persistence API', () => {
     expect(clientQueries.some((query) => query.includes('WITH archived'))).toBe(false)
   })
 
+  it('persists normalized external catalog records during a data-source sync', async () => {
+    const syncedRow = {
+      id: 'program-sheet-1',
+      pid: '1000000000000123',
+      language: 'en-CA',
+      name: 'Sheet Growth Grant',
+      provider: 'Regional Fund',
+      category: 'Grant',
+      funding_amount: '50000',
+      currency: 'CAD',
+      deadline: 'Open',
+      program_status: 'Accepting applications',
+      match_score: 0,
+      program_url: 'https://example.ca/sheet-grant',
+      location: 'Ontario',
+      country: 'Canada',
+      description: 'A synchronized external catalog record.',
+      process: 'Contact the provider.',
+      eligibility: 'Ontario businesses.',
+      eligible_uses: 'Equipment.',
+      target_company_types: 'Growth businesses.',
+      required_evidence: 'Business plan.',
+      source_type: 'google-sheets',
+      source_id: 'sheets-grants',
+      source_record_id: 'row-1',
+      source_version: 'sheet-version-1',
+      record_version: 'sheet-row-version-1',
+      status: 'active',
+      metadata: { sourceName: 'Google Sheets grants' },
+    }
+    const client = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('RETURNING (xmax = 0)')) {
+          return { rows: [{ inserted: true }], rowCount: 1 }
+        }
+        if (query.includes('SELECT count(*)')) {
+          return { rows: [{ count: '0' }], rowCount: 1 }
+        }
+        if (query.includes('FROM funding_programs')) {
+          return { rows: [syncedRow], rowCount: 1 }
+        }
+        return { rows: [], rowCount: 0 }
+      }),
+      release: vi.fn(),
+    }
+    const database = {
+      query: vi.fn(async () => ({ rows: [], rowCount: 0 })),
+      connect: vi.fn(async () => client),
+    } as unknown as Pool
+
+    const response = await request(createApp(database))
+      .post('/api/funding-programs/sync')
+      .send({
+        sourceId: 'sheets-grants',
+        sourceName: 'Google Sheets grants',
+        sourceType: 'google-sheets',
+        records: [{
+          id: 'sheet-record-1',
+          pid: '1000000000000123',
+          name: 'Sheet Growth Grant',
+          type: 'Grant',
+          provider: 'Regional Fund',
+          amount: 50000,
+          currency: 'CAD',
+          deadline: 'Open',
+          match: 0,
+          url: 'https://example.ca/sheet-grant',
+          location: 'Ontario',
+          country: 'Canada',
+          description: 'A synchronized external catalog record.',
+          process: 'Contact the provider.',
+          eligibility: 'Ontario businesses.',
+          eligibleUses: 'Equipment.',
+          targetCompanyTypes: 'Growth businesses.',
+          requiredEvidence: 'Business plan.',
+          sourceRecordId: 'row-1',
+        }],
+      })
+
+    expect(response.status).toBe(200)
+    expect(response.body).toMatchObject({
+      imported: 1,
+      updated: 0,
+      programs: [expect.objectContaining({
+        name: 'Sheet Growth Grant',
+        sourceType: 'google-sheets',
+      })],
+    })
+    const insertCall = client.query.mock.calls.find(([query]) =>
+      query.includes('INSERT INTO funding_programs'),
+    )
+    expect(insertCall).toBeDefined()
+    expect(JSON.stringify(insertCall)).toContain('google-sheets')
+    expect(client.release).toHaveBeenCalled()
+  })
+
   it('returns the latest OpenBcon commit for the admin update check', async () => {
     const latestCommit = 'd'.repeat(40)
     const fetcher = vi.fn(async () => new Response(JSON.stringify({

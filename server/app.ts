@@ -286,6 +286,42 @@ const jsonFundingProgramImportSchema = z.object({
   syncComplete: z.boolean().default(true),
   syncRecordIds: z.array(z.string().trim().min(1).max(240)).max(2000).default([]),
 })
+const syncedFundingProgramRecordSchema = z.object({
+  id: z.string().trim().min(1).max(240),
+  pid: z.string().trim().regex(/^\d{16}$/).optional(),
+  language: z.enum(['en-CA', 'fr-CA', 'zh-CN']).default('en-CA'),
+  name: z.string().trim().min(1).max(160),
+  type: z.enum(['Grant', 'Loan']),
+  provider: z.string().trim().max(240).default(''),
+  amount: z.number().finite().nonnegative().max(1_000_000_000_000).default(0),
+  currency: z.string().trim().max(12).default('CAD'),
+  deadline: z.string().trim().max(160).default('Open'),
+  programStatus: z.string().trim().max(240).default(''),
+  match: z.number().int().min(0).max(100).default(0),
+  url: z.string().trim().max(2000).default(''),
+  location: z.string().trim().max(240).default(''),
+  country: z.string().trim().max(160).default('Canada'),
+  description: z.string().trim().max(4000).default(''),
+  process: z.string().trim().max(6000).default(''),
+  eligibility: z.string().trim().max(4000).default(''),
+  eligibleUses: z.string().trim().max(4000).default(''),
+  targetCompanyTypes: z.string().trim().max(4000).default(''),
+  requiredEvidence: z.string().trim().max(4000).default(''),
+  sourceRecordId: z.string().trim().min(1).max(240),
+  sourceVersion: z.string().trim().max(240).default(''),
+  recordVersion: z.string().trim().max(240).default(''),
+  status: z.enum(['active', 'archived']).default('active'),
+})
+const fundingProgramSyncSchema = z.object({
+  sourceId: z.string().trim().min(1).max(160),
+  sourceName: z.string().trim().min(1).max(240),
+  sourceVersion: z.string().trim().max(240).default(''),
+  sourceUrl: z.string().trim().max(2000).default(''),
+  sourceType: z.enum(['google-sheets', 'airtable']),
+  records: z.array(syncedFundingProgramRecordSchema).min(1).max(2000),
+  syncComplete: z.boolean().default(true),
+  syncRecordIds: z.array(z.string().trim().min(1).max(240)).max(2000).default([]),
+})
 const companySaveSchema = z.object({
   name: z.string().trim().min(1).max(160),
   legalName: z.string().trim().max(240).default(''),
@@ -1288,9 +1324,18 @@ export function createApp(
       const normalizedRecords = parsed.data.records.flatMap((record) => {
         const identity = [
           parsed.data.category,
-          jsonFieldText(record.program_name),
-          jsonFieldText(record.provider),
-          jsonFieldText(record.official_program_site),
+          jsonFieldText(jsonMappedField(record, parsed.data.fieldMapping, 'name', [
+            'program_name',
+            'name',
+            'title',
+          ])),
+          jsonFieldText(jsonMappedField(record, parsed.data.fieldMapping, 'provider', [
+            'provider',
+          ])),
+          jsonFieldText(jsonMappedField(record, parsed.data.fieldMapping, 'url', [
+            'official_program_site',
+            'url',
+          ])),
         ].join('|').toLowerCase()
         const duplicateNumber = (duplicateCounts.get(identity) ?? 0) + 1
         duplicateCounts.set(identity, duplicateNumber)
@@ -1475,6 +1520,215 @@ export function createApp(
             ORDER BY name ASC
           `,
           [parsed.data.sourceId],
+        )
+
+        await client.query('COMMIT')
+        response.status(200).json({
+          programs: programsResult.rows.map(mapFundingProgramRow),
+          imported,
+          updated,
+          archived: Number(archivedResult.rows[0]?.count ?? 0),
+          sourceVersion,
+        })
+      } catch (error) {
+        await client.query('ROLLBACK')
+        throw error
+      } finally {
+        client.release()
+      }
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  app.post('/api/funding-programs/sync', async (request, response, next) => {
+    const parsed = fundingProgramSyncSchema.safeParse(request.body)
+    if (!parsed.success) {
+      sendValidationError(response, parsed.error)
+      return
+    }
+
+    try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
+
+      const sourceVersion = parsed.data.sourceVersion || createHash('sha256')
+        .update(JSON.stringify(parsed.data.records))
+        .digest('hex')
+      const client = await catalogDatabase.connect()
+      let imported = 0
+      let updated = 0
+
+      try {
+        await client.query('BEGIN')
+        for (const record of parsed.data.records) {
+          const result = await client.query<{ inserted: boolean }>(
+            `
+              INSERT INTO funding_programs (
+                workspace_id,
+                pid,
+                name,
+                provider,
+                category,
+                program_url,
+                funding_amount,
+                currency,
+                language,
+                location,
+                country,
+                description,
+                process,
+                deadline,
+                program_status,
+                eligibility,
+                eligible_uses,
+                target_company_types,
+                required_evidence,
+                match_score,
+                source_type,
+                source_id,
+                source_record_id,
+                source_version,
+                record_version,
+                status,
+                metadata,
+                created_by,
+                updated_by
+              )
+              VALUES (
+                NULL, NULLIF($1, ''), $2, NULLIF($3, ''), $4, NULLIF($5, ''), $6,
+                NULLIF($7, ''), $8, NULLIF($9, ''), $10, $11, $12, $13, $14, $15,
+                $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28
+              )
+              ON CONFLICT (source_id, source_record_id)
+              WHERE source_id IS NOT NULL AND source_record_id IS NOT NULL
+              DO UPDATE SET
+                name = EXCLUDED.name,
+                pid = CASE
+                  WHEN funding_programs.pid = EXCLUDED.pid THEN funding_programs.pid
+                  ELSE funding_programs.pid
+                END,
+                provider = EXCLUDED.provider,
+                category = EXCLUDED.category,
+                program_url = EXCLUDED.program_url,
+                funding_amount = EXCLUDED.funding_amount,
+                currency = EXCLUDED.currency,
+                language = EXCLUDED.language,
+                location = EXCLUDED.location,
+                country = EXCLUDED.country,
+                description = EXCLUDED.description,
+                process = EXCLUDED.process,
+                deadline = EXCLUDED.deadline,
+                program_status = EXCLUDED.program_status,
+                eligibility = EXCLUDED.eligibility,
+                eligible_uses = EXCLUDED.eligible_uses,
+                target_company_types = EXCLUDED.target_company_types,
+                required_evidence = EXCLUDED.required_evidence,
+                match_score = EXCLUDED.match_score,
+                source_version = EXCLUDED.source_version,
+                record_version = EXCLUDED.record_version,
+                status = EXCLUDED.status,
+                metadata = EXCLUDED.metadata,
+                updated_by = EXCLUDED.updated_by,
+                updated_at = now()
+              RETURNING (xmax = 0) AS inserted
+            `,
+            [
+              record.pid ?? '',
+              record.name,
+              record.provider,
+              record.type,
+              record.url,
+              record.amount,
+              record.currency,
+              record.language,
+              record.location,
+              record.country,
+              record.description,
+              record.process,
+              record.deadline,
+              record.programStatus,
+              record.eligibility,
+              record.eligibleUses,
+              record.targetCompanyTypes,
+              record.requiredEvidence,
+              record.match,
+              parsed.data.sourceType,
+              parsed.data.sourceId,
+              record.sourceRecordId,
+              record.sourceVersion || sourceVersion,
+              record.recordVersion || record.sourceVersion || sourceVersion,
+              record.status,
+              JSON.stringify({
+                sourceName: parsed.data.sourceName,
+                sourceUrl: parsed.data.sourceUrl,
+              }),
+              context.userId,
+              context.userId,
+            ],
+          )
+          if (result.rows[0]?.inserted) imported += 1
+          else updated += 1
+        }
+
+        const syncRecordIds = parsed.data.syncRecordIds.length > 0
+          ? parsed.data.syncRecordIds
+          : parsed.data.records.map((record) => record.sourceRecordId)
+        const archivedResult = parsed.data.syncComplete
+          ? await client.query<{ count: string }>(
+              `
+                WITH archived AS (
+                  UPDATE funding_programs
+                  SET status = 'archived', updated_at = now(), updated_by = $1
+                  WHERE source_id = $2
+                    AND source_type = $3
+                    AND source_record_id IS NOT NULL
+                    AND NOT (source_record_id = ANY($4::text[]))
+                  RETURNING id
+                )
+                SELECT count(*)::text AS count FROM archived
+              `,
+              [context.userId, parsed.data.sourceId, parsed.data.sourceType, syncRecordIds],
+            )
+          : { rows: [{ count: '0' }] }
+
+        const programsResult = await client.query<FundingProgramApiRow>(
+          `
+            SELECT
+              id::text,
+              pid,
+              language,
+              name,
+              provider,
+              category,
+              funding_amount::text,
+              currency,
+              deadline,
+              program_status,
+              match_score,
+              program_url,
+              location,
+              country,
+              description,
+              process,
+              eligibility,
+              eligible_uses,
+              target_company_types,
+              required_evidence,
+              source_type,
+              source_id,
+              source_record_id,
+              source_version,
+              record_version,
+              status,
+              metadata
+            FROM funding_programs
+            WHERE source_id = $1
+              AND source_type = $2
+              AND status = 'active'
+            ORDER BY name ASC
+          `,
+          [parsed.data.sourceId, parsed.data.sourceType],
         )
 
         await client.query('COMMIT')

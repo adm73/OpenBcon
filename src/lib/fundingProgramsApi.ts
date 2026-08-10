@@ -36,6 +36,17 @@ export type JsonFundingProgramImportInput = {
   syncRecordIds?: string[]
 }
 
+export type FundingProgramSyncInput = {
+  sourceId: string
+  sourceName: string
+  sourceVersion?: string
+  sourceUrl?: string
+  sourceType: 'google-sheets' | 'airtable'
+  records: FundingProgramRecord[]
+  syncComplete?: boolean
+  syncRecordIds?: string[]
+}
+
 function jsonFieldText(value: unknown): string {
   if (Array.isArray(value)) {
     return value.map((item) => jsonFieldText(item)).filter(Boolean).join('\n')
@@ -88,9 +99,9 @@ export async function getJsonFundingSyncMetadata(
     // This identity intentionally matches the server's duplicate counter.
     const duplicateIdentity = [
       category,
-      jsonFieldText(record.program_name),
-      jsonFieldText(record.provider),
-      jsonFieldText(record.official_program_site),
+      name,
+      jsonFieldText(mappedJsonField(record, fieldMapping, 'provider', ['provider'])),
+      jsonFieldText(mappedJsonField(record, fieldMapping, 'url', ['official_program_site', 'url'])),
     ].join('|').toLowerCase()
     const duplicateNumber = (duplicateCounts.get(duplicateIdentity) ?? 0) + 1
     duplicateCounts.set(duplicateIdentity, duplicateNumber)
@@ -223,7 +234,9 @@ export async function importJsonFundingProgramsViaApi(
     throw new Error(
       await readError(
         response,
-        `Funding program JSON import failed with status ${response.status}.`,
+        response.status === 502
+          ? 'Funding program JSON import could not reach the API. Start the API on port 8787 and retry.'
+          : `Funding program JSON import failed with status ${response.status}.`,
       ),
     )
   }
@@ -237,6 +250,46 @@ export async function importJsonFundingProgramsViaApi(
   }
   if (!Array.isArray(body.programs)) {
     throw new Error('The JSON import did not return database programs.')
+  }
+  return {
+    programs: body.programs,
+    imported: body.imported ?? 0,
+    updated: body.updated ?? 0,
+    archived: body.archived ?? 0,
+    sourceVersion: body.sourceVersion ?? '',
+  }
+}
+
+export async function syncFundingProgramsViaApi(input: FundingProgramSyncInput) {
+  const response = await fetch('/api/funding-programs/sync', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(input),
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      await readError(
+        response,
+        response.status === 502
+          ? 'Funding program sync could not reach the API. Start the API on port 8787 and retry.'
+          : `Funding program sync failed with status ${response.status}.`,
+      ),
+    )
+  }
+
+  const body = (await response.json()) as {
+    programs?: FundingProgramRecord[]
+    imported?: number
+    updated?: number
+    archived?: number
+    sourceVersion?: string
+  }
+  if (!Array.isArray(body.programs)) {
+    throw new Error('The funding program sync did not return database programs.')
   }
   return {
     programs: body.programs,
