@@ -226,7 +226,9 @@ type UpdateCheckState = {
   installPhase: string
   installMessage: string
   currentCommit: string
+  currentTag: string
   latestShortCommit: string
+  latestTag: string
   latestMessage: string
   latestUrl: string
   latestCommittedAt: string
@@ -344,7 +346,9 @@ const initialUpdateCheckState: UpdateCheckState = {
   installPhase: '',
   installMessage: '',
   currentCommit: String(import.meta.env.VITE_APP_COMMIT ?? '').trim() || 'unknown',
+  currentTag: String(import.meta.env.VITE_APP_VERSION ?? '').trim() || 'unreleased',
   latestShortCommit: '',
+  latestTag: '',
   latestMessage: '',
   latestUrl: '',
   latestCommittedAt: '',
@@ -2144,7 +2148,9 @@ export function AdminPage() {
         installPhase: '',
         installMessage: '',
         currentCommit: payload.currentCommit || updateCheck.currentCommit,
+        currentTag: payload.currentTag || updateCheck.currentTag,
         latestShortCommit: payload.latestShortCommit || '',
+        latestTag: payload.latestTag || '',
         latestMessage: payload.latestMessage || '',
         latestUrl: payload.latestUrl || '',
         latestCommittedAt: payload.latestCommittedAt || '',
@@ -5299,7 +5305,9 @@ export function AdminPage() {
             <div className="admin-update-panel">
               <div className="admin-update-summary">
                 <span>Current build</span>
-                <strong>{updateCheck.currentCommit}</strong>
+                <strong>
+                  {updateCheck.currentTag.replace(/^v/iu, '') || 'Unreleased'}
+                </strong>
                 <p>
                   {updateCheck.status === 'idle'
                     ? 'Check GitHub when you are ready.'
@@ -5310,15 +5318,17 @@ export function AdminPage() {
                         : updateCheck.status === 'available'
                           ? 'A newer build is available.'
                           : updateCheck.status === 'unknown'
-                            ? 'This build was not stamped with a Git commit.'
+                            ? 'This build is not linked to a Git commit.'
                             : updateCheck.error}
                 </p>
               </div>
               <div className="admin-update-result">
                 {updateCheck.latestShortCommit && (
                   <div>
-                    <span>Latest on main</span>
-                    <strong>{updateCheck.latestShortCommit}</strong>
+                    <span>{updateCheck.latestTag ? 'Latest release' : 'Latest on main'}</span>
+                    <strong>
+                      {updateCheck.latestTag.replace(/^v/iu, '') || updateCheck.latestShortCommit}
+                    </strong>
                     <p>{updateCheck.latestMessage}</p>
                   </div>
                 )}

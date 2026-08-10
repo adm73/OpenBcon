@@ -20,6 +20,18 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 2.5.1
+
+Version 2.5.1 makes release status easier to understand:
+
+- Admin Console Updates displays the current and latest release tags, such as
+  `2.5.1`, instead of exposing an internal commit hash as the primary build
+  label.
+- Tagged deployments receive their release version automatically during the
+  Docker build; untagged development builds are labeled `Unreleased`.
+- Commit hashes remain available to the update service for safe comparison and
+  fast-forward installation.
+
 ## Version 2.5
 
 Version 2.5 improves production operations and large catalog synchronization:
@@ -610,18 +622,23 @@ git pull --ff-only
 ./deploy/deploy.sh
 ```
 
-`deploy/deploy.sh` stamps the frontend image with the current Git commit. In
-Admin Console, open **Updates**, select **Check updates**, review the latest
-commit, and select **Install update** when one is available. The update agent
-fast-forwards only a clean `main` checkout to the latest `origin/main`, then
-runs the normal deployment script. Database volumes are preserved.
+`deploy/deploy.sh` stamps the frontend image with the current Git commit and
+the exact Git release tag when the checkout is tagged. In Admin Console, open
+**Updates**, select **Check updates**, review the release tag, and select
+**Install update** when one is available. The update agent fast-forwards only a
+clean `main` checkout to the latest `origin/main`, then runs the normal
+deployment script. Database volumes are preserved.
 
 ### Update checks and installation
 
 - the authenticated Node API queries the fixed OpenBcon GitHub `main` commit
+- the authenticated Node API reads GitHub release tags and matches the current
+  commit to its tag when available
 - the frontend compares that commit with the build's `VITE_APP_COMMIT` value
 - `deploy/deploy.sh` sets `VITE_APP_COMMIT` automatically from `git rev-parse`
-- local builds without a commit stamp show the latest commit but cannot report
+- `deploy/deploy.sh` sets `VITE_APP_VERSION` from the exact Git tag, or
+  `unreleased` for an untagged checkout
+- local builds without a commit stamp show `Unreleased` and cannot report
   whether the current build is behind
 - production deployments include a private update agent on the Docker network;
   the agent is enabled automatically by `deploy/deploy.sh` and receives a

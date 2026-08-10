@@ -65,6 +65,7 @@ services:
         VITE_BUSINESS_PLAN_API_URL: /ai-api
         VITE_COMMERCIAL_LICENSED: ${VITE_COMMERCIAL_LICENSED:-false}
         VITE_APP_COMMIT: ${VITE_APP_COMMIT:-unknown}
+        VITE_APP_VERSION: ${VITE_APP_VERSION:-unreleased}
     env_file:
       - .env.production
     environment:

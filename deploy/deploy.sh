@@ -130,6 +130,12 @@ if [ -z "${VITE_APP_COMMIT:-}" ]; then
   VITE_APP_COMMIT="$(git rev-parse --short=12 HEAD 2>/dev/null || printf 'unknown')"
   export VITE_APP_COMMIT
 fi
+# Stamp tagged deployments with a human-readable release version. Keep the
+# commit stamp above for update comparisons and installation targets.
+if [ -z "${VITE_APP_VERSION:-}" ]; then
+  VITE_APP_VERSION="$(git describe --tags --exact-match HEAD 2>/dev/null || printf 'unreleased')"
+  export VITE_APP_VERSION
+fi
 
 compose=(docker compose --project-name openbcon --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 enable_ollama="$(sed -n 's/^ENABLE_OLLAMA=//p' "$ENV_FILE" | head -n 1 | tr '[:upper:]' '[:lower:]')"
