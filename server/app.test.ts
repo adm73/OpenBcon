@@ -74,6 +74,58 @@ describe('persistence API', () => {
     expect(response.body.database).toBe('connected')
   })
 
+  it('allows unauthenticated visitors to browse the public funding catalog', async () => {
+    const database = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('FROM funding_programs')) {
+          return {
+            rows: [{
+              id: 'public-program-1',
+              pid: '1000000000000099',
+              language: 'en-CA',
+              name: 'Public Catalog Grant',
+              provider: 'Public Provider',
+              category: 'Grant',
+              funding_amount: '50000',
+              deadline: 'Open',
+              match_score: 90,
+              program_url: 'https://example.com/program',
+              location: 'Canada',
+              country: 'Canada',
+              description: 'A public catalog opportunity.',
+              process: 'Submit an application.',
+              eligibility: 'Canadian businesses.',
+              eligible_uses: 'Growth projects.',
+              target_company_types: 'Small businesses.',
+              required_evidence: 'Business profile.',
+              source_type: 'json-file',
+              source_id: 'public-catalog',
+              source_record_id: 'record-1',
+              source_version: 'v1',
+              record_version: 'v1-record-1',
+              status: 'active',
+            }],
+            rowCount: 1,
+          }
+        }
+        return { rows: [], rowCount: 1 }
+      }),
+    } as unknown as Pool
+
+    const response = await request(createApp(database)).get(
+      '/api/funding-programs?language=en-CA',
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.body.programs).toEqual([
+      expect.objectContaining({
+        id: 'public-program-1',
+        name: 'Public Catalog Grant',
+        sourceType: 'json-file',
+      }),
+    ])
+  })
+
   it('reports the server mode instead of trusting a client mode header', async () => {
     const response = await request(createApp(createDatabaseStub()))
       .get('/api/runtime/environment')

@@ -1147,9 +1147,9 @@ export function createApp(
 
   app.get('/api/funding-programs', async (request, response, next) => {
     try {
-      const context = await requireRequestContext(database, request, response)
-      if (!context) return
-
+      // The public Programs directory and the workspace Grants & Loans page
+      // both read the same public catalog. Do not require a workspace session
+      // here: unauthenticated visitors must be able to browse the directory.
       const rawLanguage =
         typeof request.query.language === 'string'
           ? request.query.language
