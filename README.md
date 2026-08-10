@@ -437,8 +437,13 @@ npm run db:seed
 ```
 
 `npm run db:setup` runs the same migration and seed steps after the database
-services are available. `npm run dev` starts the API on port `8787` and Vite on
-port `5173`.
+services are available. `npm run dev` starts the API on port `8787`, Vite on
+port `5173`, and a local update agent bound only to `127.0.0.1:8788`. This makes
+the local checkout act like a deployment for testing Admin Console's
+**Check updates** and **Install update** flow. Local updates fast-forward the
+clean `main` checkout, run `npm install`, and rebuild the app; they do not run
+the VPS Docker deployment. Run `npm run dev:api` and `npm run dev:web` manually
+only when you do not need the local update flow.
 
 Run `npm run dev`, rather than only `npm run dev:web`, when using Admin Console
 data-source synchronization. Vite proxies `/api/*` to the API on port `8787`;

@@ -146,9 +146,17 @@ async function runUpdate(requestedCommit) {
     const merge = await run('git', ['merge', '--ff-only', 'origin/main'])
     if (merge.code !== 0) throw new Error(`Git fast-forward failed: ${merge.output.trim()}`)
 
-    updateStatus({ status: 'running', phase: 'deploying', message: 'Building and restarting OpenBcon services. Database volumes are preserved.', currentCommit, targetCommit })
-    const deploy = await run('bash', ['deploy/deploy.sh'])
-    if (deploy.code !== 0) throw new Error(`OpenBcon deployment failed: ${deploy.output.trim()}`)
+    if (process.env.OPENBCON_LOCAL_UPDATE_MODE === 'true') {
+      updateStatus({ status: 'running', phase: 'installing', message: 'Installing local dependencies and rebuilding OpenBcon.', currentCommit, targetCommit })
+      const install = await run('npm', ['install'])
+      if (install.code !== 0) throw new Error(`Local dependency installation failed: ${install.output.trim()}`)
+      const build = await run('npm', ['run', 'build'])
+      if (build.code !== 0) throw new Error(`Local OpenBcon build failed: ${build.output.trim()}`)
+    } else {
+      updateStatus({ status: 'running', phase: 'deploying', message: 'Building and restarting OpenBcon services. Database volumes are preserved.', currentCommit, targetCommit })
+      const deploy = await run('bash', ['deploy/deploy.sh'])
+      if (deploy.code !== 0) throw new Error(`OpenBcon deployment failed: ${deploy.output.trim()}`)
+    }
 
     return updateStatus({ status: 'succeeded', phase: 'completed', message: 'OpenBcon was updated successfully. Refresh the browser.', currentCommit: targetCommit, targetCommit, startedAt, finishedAt: now() })
   } catch (error) {
