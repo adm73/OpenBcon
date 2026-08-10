@@ -118,6 +118,14 @@ fi
 if [ "${OPENBCON_SKIP_UPDATE_AGENT:-0}" != "1" ]; then
   set_env_value OPENBCON_ROOT "$ROOT_DIR"
 fi
+
+# Older setup sessions generated a relative Caddyfile path. The update agent
+# runs Compose inside a container, but the Docker daemon mounts paths from the
+# host, so normalize that generated override before Compose validates it.
+if [ -f "$PROXY_OVERRIDE_FILE" ]; then
+  sed -i 's|\./Caddyfile\.http|${OPENBCON_ROOT:-/opt/openbcon}/deploy/Caddyfile.http|g' "$PROXY_OVERRIDE_FILE"
+fi
+
 update_agent_token="$(sed -n 's/^OPENBCON_UPDATE_TOKEN=//p' "$ENV_FILE" | head -n 1)"
 if [ -z "$update_agent_token" ] || [[ "$update_agent_token" == replace_* ]]; then
   update_agent_token="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"

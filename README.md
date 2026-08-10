@@ -20,6 +20,18 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 2.5.2
+
+Version 2.5.2 fixes production updates when the private update agent runs
+Docker Compose from inside its updater container:
+
+- Caddy configuration mounts now resolve through the VPS checkout path instead
+  of the updater container's `/workspace` path.
+- Existing Traefik proxy overrides are normalized automatically before Compose
+  validates them, so deployments created by older releases can update safely.
+- Database and Caddy data volumes are preserved; the fix does not delete
+  application data.
+
 ## Version 2.5.1
 
 Version 2.5.1 makes release status easier to understand:
@@ -627,7 +639,9 @@ the exact Git release tag when the checkout is tagged. In Admin Console, open
 **Updates**, select **Check updates**, review the release tag, and select
 **Install update** when one is available. The update agent fast-forwards only a
 clean `main` checkout to the latest `origin/main`, then runs the normal
-deployment script. Database volumes are preserved.
+deployment script. Database volumes are preserved. The deployment script keeps
+the Caddy bind mount anchored to `OPENBCON_ROOT` (default `/opt/openbcon`) so
+updates launched by the containerized agent use the host checkout correctly.
 
 ### Update checks and installation
 

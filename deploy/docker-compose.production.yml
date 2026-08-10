@@ -138,7 +138,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Use the host checkout path because the update agent runs Compose from
+      # inside a container while Docker creates the Caddy container on the host.
+      - "${OPENBCON_ROOT:-/opt/openbcon}/deploy/Caddyfile:/etc/caddy/Caddyfile:ro"
       - caddy-data:/data
       - caddy-config:/config
     healthcheck:
