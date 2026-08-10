@@ -2224,7 +2224,13 @@ export function AdminPage() {
             installPhase: statusPayload.phase || current.installPhase,
             installMessage: statusPayload.message || current.installMessage,
           }))
-          if (statusPayload.status === 'succeeded' || statusPayload.status === 'failed') break
+          if (statusPayload.status === 'succeeded') {
+            // The current page is still running the pre-update bundle. Reload
+            // after the API is back so the build label comes from the new image.
+            window.setTimeout(() => window.location.reload(), 750)
+            break
+          }
+          if (statusPayload.status === 'failed') break
         } catch (error) {
           unavailableAttempts += 1
           if (unavailableAttempts >= 10) throw error

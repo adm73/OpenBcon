@@ -132,18 +132,13 @@ if [ -z "$update_agent_token" ] || [[ "$update_agent_token" == replace_* ]]; the
   set_env_value OPENBCON_UPDATE_TOKEN "$update_agent_token"
 fi
 
-# Stamp the frontend with the source commit so Admin Console can compare the
-# running build with the latest commit on GitHub.
-if [ -z "${VITE_APP_COMMIT:-}" ]; then
-  VITE_APP_COMMIT="$(git rev-parse --short=12 HEAD 2>/dev/null || printf 'unknown')"
-  export VITE_APP_COMMIT
-fi
-# Stamp tagged deployments with a human-readable release version. Keep the
-# commit stamp above for update comparisons and installation targets.
-if [ -z "${VITE_APP_VERSION:-}" ]; then
-  VITE_APP_VERSION="$(git describe --tags --exact-match HEAD 2>/dev/null || printf 'unreleased')"
-  export VITE_APP_VERSION
-fi
+# Stamp the frontend with the current checkout, not inherited values from an
+# older container or shell. This keeps Admin Console's build label accurate
+# after an update agent fast-forwards the repository.
+VITE_APP_COMMIT="$(git rev-parse --short=12 HEAD 2>/dev/null || printf 'unknown')"
+export VITE_APP_COMMIT
+VITE_APP_VERSION="$(git describe --tags --exact-match HEAD 2>/dev/null || printf 'unreleased')"
+export VITE_APP_VERSION
 
 compose=(docker compose --project-name openbcon --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 enable_ollama="$(sed -n 's/^ENABLE_OLLAMA=//p' "$ENV_FILE" | head -n 1 | tr '[:upper:]' '[:lower:]')"
@@ -218,7 +213,7 @@ application_services=(api python caddy)
 if [ "${OPENBCON_SKIP_UPDATE_AGENT:-0}" != "1" ]; then
   application_services+=(updater)
 fi
-"${compose[@]}" up -d --build "${application_services[@]}"
+"${compose[@]}" up -d --build --force-recreate "${application_services[@]}"
 if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
   write_setup_status "starting_application" "Waiting for API, AI service, and Caddy health checks."
 fi

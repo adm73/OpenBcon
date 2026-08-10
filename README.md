@@ -20,6 +20,18 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 2.5.3
+
+Version 2.5.3 makes the installed release visible immediately after an
+administrator-triggered update:
+
+- Deployment metadata is always regenerated from the current Git checkout, so
+  stale commit or release values cannot be inherited from an older container.
+- Application services are force-recreated after an update to ensure the new
+  frontend bundle is running.
+- Admin Console reloads after a successful update so the current build shows
+  the installed release tag, such as `2.5.3`.
+
 ## Version 2.5.2
 
 Version 2.5.2 fixes production updates when the private update agent runs
