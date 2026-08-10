@@ -164,15 +164,6 @@ export const dashboardGroups: DashboardGroup[] = [
         entries: makeEntries('Grants & Loans', 'funding opportunity'),
       },
       {
-        id: 'programs',
-        label: 'Programs',
-        icon: 'file',
-        description: 'Browse every grant and loan program available in the workspace catalog.',
-        intro:
-          'This directory shows the complete program catalog loaded from the configured funding data sources.',
-        entries: makeEntries('Programs', 'funding program'),
-      },
-      {
         id: 'templates',
         label: 'Templates',
         icon: 'template',

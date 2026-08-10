@@ -346,6 +346,7 @@ type FundingProgramApiRow = {
   provider: string | null
   category: string | null
   funding_amount: string | number | null
+  currency: string | null
   deadline: string | null
   program_status: string | null
   match_score: number | null
@@ -655,6 +656,7 @@ function mapFundingProgramRow(row: FundingProgramApiRow) {
     type,
     provider: row.provider ?? '',
     amount: Number(row.funding_amount ?? 0),
+    currency: row.currency ?? 'CAD',
     deadline: row.deadline ?? 'Open',
     programStatus: row.program_status ?? '',
     match: Number(row.match_score ?? 0),
@@ -1115,6 +1117,7 @@ export function createApp(
             funding_programs.provider,
             funding_programs.category,
             funding_programs.funding_amount::text,
+            funding_programs.currency,
             funding_programs.deadline,
             funding_programs.program_status,
             funding_programs.match_score,

@@ -22,6 +22,22 @@ describe('platform config persistence', () => {
     expect(defaultPlatformConfig.language).toBe('en-CA')
   })
 
+  it('links the landing page to the programs directory', () => {
+    expect(defaultPlatformConfig.landingPage.header.navItems).toContainEqual({
+      id: 'programs',
+      label: 'Grants & Loans',
+      href: '/programs',
+    })
+    expect(defaultPlatformConfig.landingPage.footer.platformItems).toContainEqual({
+      id: 'grants-loans',
+      label: 'Grants & Loans',
+      href: '/programs',
+    })
+    expect(defaultPlatformConfig.landingPage.footer.platformItems[0]?.label).toBe(
+      'Sign in / Sign up',
+    )
+  })
+
   it('provides a prompt for every Strategic Report document type', () => {
     expect(defaultPlatformConfig.advisoryHub.documentTypes.map((documentType) => documentType.name)).toEqual([
       'Business Analysis',

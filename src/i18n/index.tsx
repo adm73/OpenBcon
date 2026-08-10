@@ -4,6 +4,7 @@ import {
   initReactI18next,
   useTranslation,
 } from 'react-i18next'
+import { useLocation } from 'react-router-dom'
 import { useEffect, useState, type ReactNode } from 'react'
 import enCA from './locales/en-CA'
 import frCA from './locales/fr-CA'
@@ -19,6 +20,8 @@ export const languageOptions: Array<{ value: SupportedLocale; label: string }> =
 ]
 
 export const languageStorageKey = 'bconomics-locale-v1'
+export const workspaceLanguageStorageKey = languageStorageKey
+export const publicLanguageStorageKey = 'bconomics-public-locale-v1'
 
 const languageAliases: Record<string, SupportedLocale> = {
   en: 'en-CA',
@@ -39,11 +42,23 @@ export function normalizeLocale(value: unknown): SupportedLocale {
   return languageAliases[normalized] ?? 'en-CA'
 }
 
+function isPublicPath(pathname: string): boolean {
+  return pathname === '/' || pathname === '/programs'
+}
+
+function getStorageKey(pathname: string): string {
+  return isPublicPath(pathname)
+    ? publicLanguageStorageKey
+    : workspaceLanguageStorageKey
+}
+
 function loadInitialLocale(): SupportedLocale {
   if (typeof window === 'undefined') return 'en-CA'
 
-  const storedLocale = window.localStorage.getItem(languageStorageKey)
+  const storedLocale = window.localStorage.getItem(getStorageKey(window.location.pathname))
   if (storedLocale) return normalizeLocale(storedLocale)
+
+  if (isPublicPath(window.location.pathname)) return 'en-CA'
 
   try {
     const platformConfig = JSON.parse(
@@ -74,7 +89,9 @@ void i18n.use(initReactI18next).init({
 })
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
+  const location = useLocation()
   const [locale, setLocaleState] = useState<SupportedLocale>(loadInitialLocale)
+  const storageKey = getStorageKey(location.pathname)
 
   useEffect(() => {
     const handleLanguageChanged = (nextLanguage: string) => {
@@ -88,9 +105,15 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    const storedLocale = window.localStorage.getItem(storageKey)
+    if (storedLocale && normalizeLocale(storedLocale) !== locale) {
+      void i18n.changeLanguage(normalizeLocale(storedLocale))
+      return
+    }
+
     document.documentElement.lang = locale
-    window.localStorage.setItem(languageStorageKey, locale)
-  }, [locale])
+    window.localStorage.setItem(storageKey, locale)
+  }, [locale, storageKey])
 
   return (
     <I18nextProvider i18n={i18n}>
@@ -100,6 +123,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 }
 
 export function useLocale() {
+  const location = useLocation()
+  const storageKey = getStorageKey(location.pathname)
   const [locale, setLocaleState] = useState<SupportedLocale>(
     () => normalizeLocale(i18n.language),
   )
@@ -116,7 +141,10 @@ export function useLocale() {
 
   return {
     locale,
-    setLocale: (nextLocale: SupportedLocale) => void i18n.changeLanguage(nextLocale),
+    setLocale: (nextLocale: SupportedLocale) => {
+      window.localStorage.setItem(storageKey, nextLocale)
+      void i18n.changeLanguage(nextLocale)
+    },
   }
 }
 

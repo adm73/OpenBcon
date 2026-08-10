@@ -7,7 +7,7 @@ import { PlatformConfigProvider } from './config/PlatformConfigContext'
 import { LanguageProvider } from './i18n'
 import { AdminAccessPage } from './pages/AdminAccessPage'
 import { AdminPage } from './pages/AdminPage'
-import { DashboardPage } from './pages/DashboardPage'
+import { DashboardPage, ProgramsPage } from './pages/DashboardPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { LandingPage } from './pages/LandingPage'
 import { LegalDocumentPage } from './pages/LegalDocumentPage'
@@ -46,9 +46,9 @@ function AdminRoute() {
 function App() {
   return (
     <PersistenceProvider>
-      <LanguageProvider>
-        <PlatformConfigProvider>
-          <BrowserRouter>
+      <BrowserRouter>
+        <LanguageProvider>
+          <PlatformConfigProvider>
             <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route
@@ -71,13 +71,14 @@ function App() {
             />
             <Route path="/admin" element={<AdminRoute />} />
             <Route path="/dashboard" element={<RequireAuthRoute><DashboardPage /></RequireAuthRoute>} />
+            <Route path="/programs" element={<ProgramsPage />} />
             <Route path="/404" element={<NotFoundPage />} />
             <Route path="/:sectionId" element={<RequireAuthRoute><DashboardPage /></RequireAuthRoute>} />
             <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>
-          </BrowserRouter>
-        </PlatformConfigProvider>
-      </LanguageProvider>
+          </PlatformConfigProvider>
+        </LanguageProvider>
+      </BrowserRouter>
     </PersistenceProvider>
   )
 }

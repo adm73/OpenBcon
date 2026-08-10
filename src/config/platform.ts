@@ -433,13 +433,15 @@ const defaultLandingHeaderNavItems: LandingHeaderNavItemConfig[] = [
   { id: 'home', label: 'Homepage', href: '#' },
   { id: 'features', label: 'Features', href: '#features' },
   { id: 'workflow', label: 'How it works', href: '#workflow' },
+  { id: 'programs', label: 'Grants & Loans', href: '/programs' },
   { id: 'pricing', label: 'Pricing', href: '#pricing' },
   { id: 'open-source', label: 'Open source', href: '#opensource' },
 ]
 
 const defaultLandingFooterPlatformItems: LandingFooterNavItemConfig[] = [
-  { id: 'sign-in', label: 'Sign in', href: '/login' },
+  { id: 'sign-in', label: 'Sign in / Sign up', href: '/login' },
   { id: 'dashboard', label: 'Go to dashboard', href: '/dashboard' },
+  { id: 'grants-loans', label: 'Grants & Loans', href: '/programs' },
 ]
 
 function createDefaultFreePaymentCatalogItem(): PaymentCatalogItem {
@@ -1615,9 +1617,18 @@ export function loadPlatformConfig(): PlatformConfig {
               (item) => item.id === 'pricing' || item.href === '#pricing',
             )
 
-            return hasPricingItem
+            const withProgramsItem = mappedItems.some(
+              (item) => item.id === 'programs' || item.href === '/programs',
+            )
               ? mappedItems
-              : [...mappedItems, { id: 'pricing', label: 'Pricing', href: '#pricing' }]
+              : [
+                  ...mappedItems,
+                  { id: 'programs', label: 'Grants & Loans', href: '/programs' },
+                ]
+
+            return hasPricingItem
+              ? withProgramsItem
+              : [...withProgramsItem, { id: 'pricing', label: 'Pricing', href: '#pricing' }]
           })()
         : defaultLandingHeaderNavItems.map((item) => {
             const legacyLabelMap: Record<string, string | undefined> = {
@@ -1652,24 +1663,50 @@ export function loadPlatformConfig(): PlatformConfig {
               (item) => item.id === 'pricing' || item.href === '#pricing',
             )
 
-            return hasPricingItem
+            const withProgramsItem = mappedItems.some(
+              (item) => item.id === 'programs' || item.href === '/programs',
+            )
               ? mappedItems
-              : [...mappedItems, { id: 'pricing', label: 'Pricing', href: '#pricing' }]
+              : [
+                  ...mappedItems,
+                  { id: 'programs', label: 'Grants & Loans', href: '/programs' },
+                ]
+
+            return hasPricingItem
+              ? withProgramsItem
+              : [...withProgramsItem, { id: 'pricing', label: 'Pricing', href: '#pricing' }]
           })()
         : resolvedNavItems.map((item) => ({ ...item }))
     const resolvedFooterPlatformItems =
       parsedLandingFooter.platformItems && parsedLandingFooter.platformItems.length > 0
-        ? parsedLandingFooter.platformItems.map((item, index) => ({
-            id: item.id?.trim() || `footer-platform-${index + 1}`,
-            label:
-              item.label?.trim() ||
-              defaultLandingFooterPlatformItems[index]?.label ||
-              'Platform link',
-            href:
-              item.href?.trim() ||
-              defaultLandingFooterPlatformItems[index]?.href ||
-              '/dashboard',
-          }))
+        ? (() => {
+            const mappedItems = parsedLandingFooter.platformItems.map((item, index) => ({
+              id: item.id?.trim() || `footer-platform-${index + 1}`,
+              label:
+                item.label?.trim() ||
+                defaultLandingFooterPlatformItems[index]?.label ||
+                'Platform link',
+              href:
+                item.href?.trim() ||
+                defaultLandingFooterPlatformItems[index]?.href ||
+                '/dashboard',
+            }))
+            const migratedItems = mappedItems.map((item) =>
+              (item.id === 'sign-in' || item.href === '/login') &&
+              item.label.trim().toLowerCase() === 'sign in'
+                ? { ...item, label: 'Sign in / Sign up' }
+                : item,
+            )
+
+            return migratedItems.some(
+              (item) => item.id === 'grants-loans' || item.id === 'programs' || item.href === '/programs',
+            )
+              ? migratedItems
+              : [
+                  ...migratedItems,
+                  { id: 'grants-loans', label: 'Grants & Loans', href: '/programs' },
+                ]
+          })()
         : defaultLandingFooterPlatformItems.map((item) => ({ ...item }))
 
     return {

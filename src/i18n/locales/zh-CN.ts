@@ -45,6 +45,46 @@ const zhCN = {
     workspace: '工作区',
     partnerPortal: '合作伙伴门户',
   },
+  publicSite: {
+    nav: {
+      home: '首页', features: '功能', workflow: '工作方式', programs: '补助与贷款', pricing: '价格', 'open-source': '开源', openSource: '开源', caseStudies: '案例研究', documents: '文档', aboutUs: '关于我们', openHomepageMenu: '打开首页菜单', 'sign-in': '登录 / 注册', dashboard: '进入仪表盘', 'grants-loans': '补助与贷款',
+    },
+    heroEyebrow: '为有 ambition 的企业提供融资基础设施',
+    content: {
+      headline: '将公司信息转化为可用于融资的文档。',
+      subheadline: '发现项目、整理申请，并在一个可配置的工作区中生成适合贷款方的商业计划。',
+      primaryCta: '探索实时工作区',
+      secondaryCta: '创建创始人账户',
+      featuresEyebrow: '一个互联的平台',
+      featuresHeading: '从“不知道从哪里开始”到可以提交的文件包。',
+      featuresBody: 'Bconomics 将项目发现、公司背景、财务准备和文档生成集中在一个可追踪的工作区中。',
+      workflowEyebrow: '从第一天开始引导',
+      workflowHeading: '无需分散文档或凭感觉推进融资工作。',
+      openSourceEyebrow: '开放核心，商业上可持续。',
+      openSourceHeading: '拥有平台、扩展工作流，并选择你的许可方式。',
+      openSourceBody: '运行 AGPL 社区版本，在 GitHub 上参与贡献，或购买商业许可用于私有部署和 OEM 分发。',
+      adminCta: '申请管理员权限',
+    },
+    preview: { workspace: '融资工作区', live: '实时', overview: '概览', fundingReadiness: '融资准备度', applications: '申请', quickBuild: '快速构建', readinessLabel: '融资准备度', readinessHeadline: '自信提交申请所需的一切。', almostReady: '即将准备好', thisMonth: '本月 +8' },
+    trust: { designedFor: '适用于', founders: '创始人', advisors: '顾问', economicDevelopment: '经济发展团队', consultants: '融资顾问' },
+    features: {
+      cta: '探索功能 →',
+      items: [
+        { label: '引导式信息采集', body: '把创始人的回答变成结构化融资资料，而不是空白页面和杂乱文档。' },
+        { label: '可复用模板', body: '支持补助、贷款和投资人叙事，不必每次重新搭建工作流。' },
+        { label: '适合开源协作', body: '清晰的 React + TypeScript 项目结构，方便扩展、审核和发布到 GitHub。' },
+      ],
+    },
+    proofItems: [{ value: '75+', label: '个融资项目跟踪中' }, { value: '96%', label: '文档准备度' }, { value: '30 秒', label: '生成第一版草稿' }],
+    workflow: [
+      { title: '建立公司资料', body: '一次性记录公司、市场、团队和财务背景。' },
+      { title: '匹配合适的机会', body: '按照资格、时间和战略匹配度，优先处理补助和贷款。' },
+      { title: '生成并持续改进', body: '创建符合审核标准、可编辑的计划、预测和叙事。' },
+    ],
+    pricing: { eyebrow: '灵活的价格方案', heading: '选择适合团队融资工作方式的配置。', body: '下面的方案在管理控制台中配置，也可以连接 Stripe 或 Waffo Pancake 商品用于正式结账。', oneTime: '一次性收费', annual: '按年计费', monthly: '按月计费', getStarted: '开始使用', topline: '价格', emptyTitle: '价格正在配置中', emptyBody: '请在管理控制台添加有效的产品或服务，以便在这里发布价格方案。', adminCta: '打开管理控制台' },
+    openSource: { communityEdition: '社区版本', license: 'AGPL-3.0', description: '完整源代码访问权，并遵守网络 copyleft 义务。', commercialLicense: '商业许可', metrics: [{ label: '活跃项目', value: '12' }, { label: '已生成文档', value: '148' }, { label: '审批率目标', value: '82%' }, { label: '顾问席位', value: '4' }] },
+    footer: { description: '为下一代企业提供开放的融资基础设施。', sitemap: '网站地图', platform: '平台', privacy: '隐私政策', terms: '服务条款', poweredBy: '由 OpenBcon 提供支持。' },
+  },
   onboarding: {
     ...enCA.onboarding,
     welcomeEyebrow: '你的第一条工作流程',
@@ -261,7 +301,7 @@ const zhCN = {
     },
     programs: {
       ...enCA.workspacePages.programs,
-      eyebrow: '项目目录', title: '融资项目', description: '浏览工作区目录中所有可用的补助和贷款项目。', available: '可用项目', catalogSummary: '来自有效融资数据源', programCount: '个项目', search: '搜索项目、提供方、地区或数据源', loading: '正在加载项目', readingDatabase: '正在从当前数据库读取所有项目。', loadError: '无法加载项目', active: '有效', archived: '已归档', providerNotListed: '未列出提供方', locationNotListed: '未列出地点', maximumFunding: '最高融资金额', viewDetails: '查看详情', noMatch: '没有匹配的项目', noMatchHint: '尝试其他搜索，或切换项目类型筛选。',
+      eyebrow: '补助与贷款项目', title: '融资项目', description: '浏览工作区目录中所有可用的补助和贷款项目。', available: '可用项目', catalogSummary: '来自有效融资数据源', programCount: '个项目', search: '搜索项目、提供方、地区或数据源', loading: '正在加载项目', readingDatabase: '正在从当前数据库读取所有项目。', loadError: '无法加载项目', active: '有效', archived: '已归档', providerNotListed: '未列出提供方', locationNotListed: '未列出地点', maximumFunding: '最高融资金额', viewDetails: '查看详情', noMatch: '没有匹配的项目', noMatchHint: '尝试其他搜索，或切换项目类型筛选。', filters: '筛选', refine: '细化项目', refineHint: '根据项目的公开字段筛选目录。', provider: '融资提供方', allProviders: '全部提供方', country: '国家/地区', allCountries: '全部国家/地区', location: '地区或地点', allLocations: '全部地点', dataSource: '数据源', allSources: '全部来源', sourceType: '来源类型', allSourceTypes: '全部来源类型', programStatus: '项目状态', allStatuses: '全部项目状态', currency: '货币', allCurrencies: '全部货币', fundingAmount: '融资金额', anyAmount: '不限金额', under50: '低于 5 万', amount50to100: '5 万至 9.9 万', amount100Plus: '10 万或以上', deadline: '截止日期', anyDeadline: '不限截止日期', openRolling: '开放或滚动', fixedDeadline: '固定截止日期', clearFilters: '全部清除', activeFilters: '个有效筛选',
     },
     templates: {
       ...enCA.workspacePages.templates,

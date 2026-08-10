@@ -45,6 +45,48 @@ const frCA = {
     workspace: 'Espace de travail',
     partnerPortal: 'Portail partenaire',
   },
+  publicSite: {
+    nav: {
+      home: 'Accueil', features: 'Fonctionnalités', workflow: 'Fonctionnement', programs: 'Subventions et prêts', pricing: 'Tarification', 'open-source': 'Open source', openSource: 'Open source', caseStudies: 'Études de cas', documents: 'Documents', aboutUs: 'À propos', openHomepageMenu: 'Ouvrir le menu Accueil', 'sign-in': 'Se connecter / S’inscrire', dashboard: 'Aller au tableau de bord', 'grants-loans': 'Subventions et prêts',
+    },
+    heroEyebrow: 'Infrastructure de financement pour les entreprises ambitieuses',
+    content: {
+      headline: 'Transformez les informations de votre entreprise en documents prêts pour le financement.',
+      subheadline: 'Découvrez des programmes, organisez vos demandes et générez des plans adaptés aux prêteurs dans un espace configurable.',
+      primaryCta: 'Explorer l’espace en direct',
+      secondaryCta: 'Créer un compte fondateur',
+      featuresEyebrow: 'Une plateforme connectée',
+      featuresHeading: 'De « par où commencer ? » à un dossier prêt à soumettre.',
+      featuresBody: 'Bconomics réunit la découverte des programmes, le contexte de l’entreprise, la préparation financière et la génération de documents dans un seul espace.',
+      workflowEyebrow: 'Guidé dès le premier jour',
+      workflowHeading: 'Un travail de financement sans documents fragmentés ni conjectures.',
+      openSourceEyebrow: 'Cœur ouvert. Durable commercialement.',
+      openSourceHeading: 'Possédez la plateforme, étendez le flux et choisissez votre licence.',
+      openSourceBody: 'Exécutez l’édition communautaire AGPL, contribuez sur GitHub ou achetez une licence commerciale pour les déploiements propriétaires et la distribution OEM.',
+      adminCta: 'Demander un accès administrateur',
+    },
+    preview: {
+      workspace: 'Espace de financement', live: 'En direct', overview: 'Aperçu', fundingReadiness: 'Préparation au financement', applications: 'Demandes', quickBuild: 'Création rapide', readinessLabel: 'PRÉPARATION AU FINANCEMENT', readinessHeadline: 'Tout ce qu’il faut pour présenter une demande en confiance.', almostReady: 'Presque prêt', thisMonth: '+8 ce mois-ci',
+    },
+    trust: { designedFor: 'Conçu pour', founders: 'Fondateurs', advisors: 'Conseillers', economicDevelopment: 'Équipes de développement économique', consultants: 'Consultants en financement' },
+    features: {
+      cta: 'Explorer la fonctionnalité →',
+      items: [
+        { label: 'Collecte guidée', body: 'Transformez les réponses du fondateur en données de financement structurées plutôt qu’en pages vierges.' },
+        { label: 'Modèles réutilisables', body: 'Soutenez les subventions, les prêts et les récits d’investisseurs sans refaire le flux chaque fois.' },
+        { label: 'Pensé pour l’open source', body: 'Une structure React + TypeScript claire, facile à étendre, réviser et publier sur GitHub.' },
+      ],
+    },
+    proofItems: [{ value: '75+', label: 'programmes suivis' }, { value: '96%', label: 'préparation des documents' }, { value: '30 s', label: 'première ébauche' }],
+    workflow: [
+      { title: 'Construisez le profil de l’entreprise', body: 'Saisissez une fois le contexte de l’entreprise, du marché, de l’équipe et des finances.' },
+      { title: 'Trouvez la bonne occasion', body: 'Priorisez les subventions et les prêts selon l’admissibilité, le moment et l’adéquation stratégique.' },
+      { title: 'Générez et améliorez', body: 'Créez des plans, prévisions et récits modifiables alignés sur les critères d’évaluation.' },
+    ],
+    pricing: { eyebrow: 'Tarification flexible', heading: 'Choisissez la configuration adaptée à votre façon de travailler.', body: 'Les offres ci-dessous sont configurées dans la console d’administration et peuvent être reliées aux produits Stripe ou Waffo Pancake.', oneTime: 'Paiement unique', annual: 'Facturé annuellement', monthly: 'Facturé mensuellement', getStarted: 'Commencer', topline: 'Tarification', emptyTitle: 'Tarification en cours de configuration', emptyBody: 'Ajoutez des produits ou services actifs dans la console d’administration pour publier les options ici.', adminCta: 'Ouvrir la console d’administration' },
+    openSource: { communityEdition: 'Édition communautaire', license: 'AGPL-3.0', description: 'Accès complet au code source avec obligations de copyleft réseau.', commercialLicense: 'Licence commerciale', metrics: [{ label: 'Projets actifs', value: '12' }, { label: 'Documents générés', value: '148' }, { label: 'Objectif d’approbation', value: '82%' }, { label: 'Places de consultant', value: '4' }] },
+    footer: { description: 'Une infrastructure de financement ouverte pour la prochaine génération d’entreprises.', sitemap: 'Plan du site', platform: 'Plateforme', privacy: 'Politique de confidentialité', terms: 'Conditions d’utilisation', poweredBy: 'Propulsé par OpenBcon.' },
+  },
   onboarding: {
     ...enCA.onboarding,
     welcomeEyebrow: 'VOTRE PREMIER FLUX',
@@ -331,7 +373,7 @@ const frCA = {
     },
     programs: {
       ...enCA.workspacePages.programs,
-      eyebrow: 'Répertoire des programmes', title: 'Programmes', description: 'Parcourez tous les programmes de subvention et de prêt du catalogue de votre espace.', available: 'Programmes disponibles', catalogSummary: 'Chargés depuis les sources actives', programCount: 'programmes', search: 'Rechercher des programmes, fournisseurs, régions ou sources', loading: 'Chargement des programmes', readingDatabase: 'Lecture de tous les programmes dans la base de données actuelle.', loadError: 'Impossible de charger les programmes', active: 'Actif', archived: 'Archivé', providerNotListed: 'Fournisseur non indiqué', locationNotListed: 'Lieu non indiqué', maximumFunding: 'Financement maximal', viewDetails: 'Voir les détails', noMatch: 'Aucun programme correspondant', noMatchHint: 'Essayez une autre recherche ou changez le filtre de type de programme.',
+      eyebrow: 'Programmes de subvention et de prêt', title: 'Programmes', description: 'Parcourez tous les programmes de subvention et de prêt du catalogue de votre espace.', available: 'Programmes disponibles', catalogSummary: 'Chargés depuis les sources actives', programCount: 'programmes', search: 'Rechercher des programmes, fournisseurs, régions ou sources', loading: 'Chargement des programmes', readingDatabase: 'Lecture de tous les programmes dans la base de données actuelle.', loadError: 'Impossible de charger les programmes', active: 'Actif', archived: 'Archivé', providerNotListed: 'Fournisseur non indiqué', locationNotListed: 'Lieu non indiqué', maximumFunding: 'Financement maximal', viewDetails: 'Voir les détails', noMatch: 'Aucun programme correspondant', noMatchHint: 'Essayez une autre recherche ou changez le filtre de type de programme.', filters: 'Filtres', refine: 'Affiner les programmes', refineHint: 'Filtrez le catalogue selon les champs publics de chaque programme.', provider: 'Fournisseur de financement', allProviders: 'Tous les fournisseurs', country: 'Pays', allCountries: 'Tous les pays', location: 'Région ou lieu', allLocations: 'Tous les lieux', dataSource: 'Source de données', allSources: 'Toutes les sources', sourceType: 'Type de source', allSourceTypes: 'Tous les types de source', programStatus: 'Statut du programme', allStatuses: 'Tous les statuts', currency: 'Devise', allCurrencies: 'Toutes les devises', fundingAmount: 'Montant du financement', anyAmount: 'Tout montant', under50: 'Moins de 50 k', amount50to100: 'De 50 k à 99 k', amount100Plus: '100 k ou plus', deadline: 'Échéance', anyDeadline: 'Toute échéance', openRolling: 'Ouvert ou continu', fixedDeadline: 'Échéance fixe', clearFilters: 'Tout effacer', activeFilters: 'filtres actifs',
     },
     templates: {
       ...enCA.workspacePages.templates,

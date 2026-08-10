@@ -26,9 +26,11 @@ import {
   authUserUpdatedEvent,
   getCurrentAuthUser,
   getUserInitials,
+  hasActiveSession,
   updateCurrentAuthUserProfile,
 } from '../auth/session'
 import { OpenBconAttribution } from '../components/OpenBconAttribution'
+import { PublicSiteFooter, PublicSiteHeader } from '../components/PublicSiteChrome'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import {
   languageOptions,
@@ -150,7 +152,6 @@ const navigationItemTranslationKeys: Record<string, string> = {
   'funding-shortlist': 'navigation.items.savedPrograms',
   'my-applications': 'navigation.items.myApplications',
   'grants-loans': 'navigation.items.grantsLoans',
-  programs: 'navigation.items.programs',
   templates: 'navigation.items.templates',
   'social-resources': 'navigation.items.socialResources',
   tools: 'navigation.items.tools',
@@ -3415,16 +3416,123 @@ function createEmptyManualFundingProgram(): ManualFundingProgramDraft {
   }
 }
 
-function ProgramsPage() {
+function FundingProgramDetailsDialog({
+  program,
+  onClose,
+  isRegisteredUser,
+}: {
+  program: FundingProgramRecord | null
+  onClose: () => void
+  isRegisteredUser: boolean
+}) {
+  if (!program) return null
+
+  return (
+    <div
+      className="clone-record-dialog-backdrop"
+      role="presentation"
+      onMouseDown={onClose}
+    >
+      <section
+        className="clone-record-dialog funding-program-detail"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="public-funding-program-detail-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="clone-dialog-close"
+          aria-label="Close program details"
+          onClick={onClose}
+        >
+          <Glyph type="close" />
+        </button>
+        <div className="funding-program-detail-header">
+          <div className="funding-program-detail-heading">
+            <span className="clone-record-status">{program.type}</span>
+            <h2 id="public-funding-program-detail-title">{program.name}</h2>
+          </div>
+          <div className="funding-program-identifiers" aria-label="Program identifiers">
+            <div>
+              <span>PID</span>
+              <strong>{program.pid || 'Not available'}</strong>
+            </div>
+            <div>
+              <span>Data source</span>
+              <strong>{program.sourceName || 'Not specified'}</strong>
+            </div>
+          </div>
+        </div>
+        <dl>
+          <div className="funding-program-detail-field-wide"><dt>Funding provider</dt><dd>{program.provider || 'Not specified'}</dd></div>
+          <div className="funding-program-detail-field-wide"><dt>Description</dt><dd>{program.description || 'Not provided'}</dd></div>
+          <div className="funding-program-detail-field-wide"><dt>Eligibility</dt><dd>{program.eligibility || 'Not provided'}</dd></div>
+          <div className="funding-program-how-to-start funding-program-detail-field-wide">
+            <dt>How to start</dt>
+            <dd>
+              {isRegisteredUser ? (
+                program.process || 'Not provided'
+              ) : (
+                <Link to="/login">Sign in or sign up to view</Link>
+              )}
+            </dd>
+          </div>
+          <div><dt>Maximum funding</dt><dd>${program.amount.toLocaleString('en-CA')}</dd></div>
+          <div>
+            <dt>Status</dt>
+            <dd>
+              <span className={`funding-program-status-indicator ${program.status === 'active' ? 'is-active' : 'is-archived'}`}>
+                <i aria-hidden="true" />
+                {program.status === 'active' ? 'Active' : 'Archived'}
+              </span>
+            </dd>
+          </div>
+          <div><dt>Location</dt><dd>{program.location || 'Not specified'}</dd></div>
+          <div><dt>Country</dt><dd>{program.country || 'Not specified'}</dd></div>
+          <div className="funding-program-url">
+            <dt>Official program site</dt>
+            <dd>
+              {isRegisteredUser ? (
+                program.url || 'Not provided'
+              ) : (
+                <Link to="/login">Sign in or sign up to view</Link>
+              )}
+            </dd>
+          </div>
+          <div className="funding-program-detail-field-wide"><dt>Eligible uses</dt><dd>{program.eligibleUses || 'Not provided'}</dd></div>
+          <div className="funding-program-detail-field-wide"><dt>Target company types</dt><dd>{program.targetCompanyTypes || 'Not provided'}</dd></div>
+          <div className="funding-program-detail-field-wide"><dt>Required evidence</dt><dd>{program.requiredEvidence || 'Not provided'}</dd></div>
+        </dl>
+      </section>
+    </div>
+  )
+}
+
+export function ProgramsPage() {
   const { t } = useTranslation()
   const { locale } = useLocale()
   const { config } = usePlatformConfig()
   const platformName = getPlatformDisplayName(config)
   const [query, setQuery] = useState('')
   const [type, setType] = useState<'All' | 'Grant' | 'Loan'>('All')
+  const [filtersOpen, setFiltersOpen] = useState<boolean>(true)
+  const [provider, setProvider] = useState('All')
+  const [country, setCountry] = useState('All')
+  const [location, setLocation] = useState('All')
+  const [sourceName, setSourceName] = useState('All')
+  const [sourceType, setSourceType] = useState('All')
+  const [programStatus, setProgramStatus] = useState('All')
+  const [currency, setCurrency] = useState('All')
+  const [amountRange, setAmountRange] = useState<
+    'All' | 'under-50' | '50-100' | '100-plus'
+  >('All')
+  const [deadlineType, setDeadlineType] = useState<'All' | 'Open' | 'Fixed'>('All')
   const [programs, setPrograms] = useState<FundingProgramRecord[]>([])
   const [programsLoading, setProgramsLoading] = useState(true)
   const [programsError, setProgramsError] = useState('')
+  const [selectedProgram, setSelectedProgram] = useState<FundingProgramRecord | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
   const seedDemoCatalogEnabled = config.dataSources.some(
     (source) => source.id === 'seed-demo-catalog' && source.enabled,
   )
@@ -3461,45 +3569,164 @@ function ProgramsPage() {
     }
   }, [locale, seedDemoCatalogEnabled])
 
+  useEffect(() => {
+    if (programsLoading) return
+
+    const pid = searchParams.get('pid')
+    setSelectedProgram(
+      pid ? programs.find((program) => program.pid === pid) ?? null : null,
+    )
+  }, [programs, programsLoading, searchParams])
+
+  const providers = [...new Set(programs.map((program) => program.provider).filter(Boolean))].sort()
+  const countries = [...new Set(programs.map((program) => program.country).filter(Boolean))].sort()
+  const locations = [...new Set(programs.map((program) => program.location).filter(Boolean))].sort()
+  const sources = [
+    ...new Set(programs.map((program) => program.sourceName ?? `${platformName} catalog`)),
+  ].sort()
+  const sourceTypes = [...new Set(programs.map((program) => program.sourceType).filter(Boolean))].sort()
+  const programStatuses = [...new Set(programs.map((program) => program.programStatus).filter(Boolean))].sort()
+  const currencies = [...new Set(programs.map((program) => program.currency || 'CAD'))].sort()
   const visiblePrograms = programs.filter((program) => {
-    const searchText = `${program.name} ${program.provider} ${program.location} ${program.sourceName}`
+    const searchText = [
+      program.id,
+      program.pid,
+      program.name,
+      program.type,
+      program.provider,
+      program.amount,
+      program.currency,
+      program.deadline,
+      program.programStatus,
+      program.url,
+      program.location,
+      program.country,
+      program.description,
+      program.process,
+      program.eligibility,
+      program.eligibleUses,
+      program.targetCompanyTypes,
+      program.requiredEvidence,
+      program.sourceId,
+      program.sourceName,
+      program.sourceType,
+      program.sourceRecordId,
+      program.sourceVersion,
+      program.recordVersion,
+      program.status,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    const matchesQuery = searchText.includes(query.trim().toLowerCase())
+    const matchesType = type === 'All' || program.type === type
+    const matchesProvider = provider === 'All' || program.provider === provider
+    const matchesCountry = country === 'All' || program.country === country
+    const matchesLocation = location === 'All' || program.location === location
+    const matchesSource =
+      sourceName === 'All' ||
+      (program.sourceName ?? `${platformName} catalog`) === sourceName
+    const matchesSourceType = sourceType === 'All' || program.sourceType === sourceType
+    const matchesStatus =
+      programStatus === 'All' || program.programStatus === programStatus
+    const matchesCurrency = currency === 'All' || (program.currency || 'CAD') === currency
+    const matchesAmount =
+      amountRange === 'All' ||
+      (amountRange === 'under-50' && program.amount < 50000) ||
+      (amountRange === '50-100' && program.amount >= 50000 && program.amount < 100000) ||
+      (amountRange === '100-plus' && program.amount >= 100000)
+    const isOpenDeadline = /open|rolling/i.test(program.deadline)
+    const matchesDeadline =
+      deadlineType === 'All' ||
+      (deadlineType === 'Open' && isOpenDeadline) ||
+      (deadlineType === 'Fixed' && !isOpenDeadline)
+
     return (
-      (type === 'All' || program.type === type) &&
-      searchText.toLowerCase().includes(query.trim().toLowerCase())
+      matchesQuery &&
+      matchesType &&
+      matchesProvider &&
+      matchesCountry &&
+      matchesLocation &&
+      matchesSource &&
+      matchesSourceType &&
+      matchesStatus &&
+      matchesCurrency &&
+      matchesAmount &&
+      matchesDeadline
     )
   })
+  const activeFilterCount = [
+    type !== 'All',
+    provider !== 'All',
+    country !== 'All',
+    location !== 'All',
+    sourceName !== 'All',
+    sourceType !== 'All',
+    programStatus !== 'All',
+    currency !== 'All',
+    amountRange !== 'All',
+    deadlineType !== 'All',
+  ].filter(Boolean).length
+  function clearFilters() {
+    setType('All')
+    setProvider('All')
+    setCountry('All')
+    setLocation('All')
+    setSourceName('All')
+    setSourceType('All')
+    setProgramStatus('All')
+    setCurrency('All')
+    setAmountRange('All')
+    setDeadlineType('All')
+  }
+
+  function openProgramDetails(program: FundingProgramRecord) {
+    setSelectedProgram(program)
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.set('pid', program.pid ?? program.id)
+    setSearchParams(nextSearchParams, { replace: true })
+  }
+
+  function closeProgramDetails() {
+    setSelectedProgram(null)
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('pid')
+    setSearchParams(nextSearchParams, { replace: true })
+  }
   const grantCount = programs.filter((program) => program.type === 'Grant').length
   const loanCount = programs.filter((program) => program.type === 'Loan').length
 
   return (
-    <section className="funding-directory programs-directory">
-      <header className="funding-directory-header is-listing-topbar">
-        <div>
-          <p className="workspace-eyebrow">{t('workspacePages.programs.eyebrow')}</p>
-          <h1>{t('workspacePages.programs.title')}</h1>
-          <p>{t('workspacePages.programs.description')}</p>
-        </div>
-      </header>
+    <div className="landing-v2 public-programs-page">
+      <PublicSiteHeader />
+      <main className="public-programs-main">
+        <section className="funding-directory programs-directory">
+          <header className="funding-directory-header is-listing-topbar">
+            <div>
+              <h1>{t('workspacePages.grantsLoans.title')}</h1>
+              <p>{t('workspacePages.programs.description')}</p>
+            </div>
+          </header>
 
-      <div className="funding-directory-metrics">
-        <article>
-          <span>{t('workspacePages.programs.available')}</span>
-          <strong>{programs.length}</strong>
-          <small>{t('workspacePages.programs.catalogSummary')}</small>
-        </article>
-        <article>
-          <span>{t('workspacePages.grantsLoans.grants')}</span>
-          <strong>{grantCount}</strong>
-          <small>{t('workspacePages.programs.programCount')}</small>
-        </article>
-        <article>
-          <span>{t('workspacePages.grantsLoans.loans')}</span>
-          <strong>{loanCount}</strong>
-          <small>{t('workspacePages.programs.programCount')}</small>
-        </article>
-      </div>
+          <div className="funding-directory-metrics">
+            <article>
+              <span>{t('workspacePages.programs.available')}</span>
+              <strong>{programs.length}</strong>
+              <small>{t('workspacePages.programs.catalogSummary')}</small>
+            </article>
+            <article>
+              <span>{t('workspacePages.grantsLoans.grants')}</span>
+              <strong>{grantCount}</strong>
+              <small>{t('workspacePages.programs.programCount')}</small>
+            </article>
+            <article>
+              <span>{t('workspacePages.grantsLoans.loans')}</span>
+              <strong>{loanCount}</strong>
+              <small>{t('workspacePages.programs.programCount')}</small>
+            </article>
+          </div>
 
-      <section className="funding-directory-results">
+          <section className="funding-directory-results">
         <div className="funding-directory-toolbar">
           <label>
             <Glyph type="search" />
@@ -3527,12 +3754,128 @@ function ProgramsPage() {
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            className={`funding-filter-toggle ${filtersOpen || activeFilterCount > 0 ? 'is-active' : ''}`}
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <Glyph type="settings" />
+            {t('workspacePages.programs.filters')}
+            {activeFilterCount > 0 ? <b>{activeFilterCount}</b> : null}
+          </button>
           <span>
             {programsLoading
               ? t('workspacePages.programs.loading')
               : `${visiblePrograms.length} ${t('workspacePages.common.records')}`}
           </span>
         </div>
+
+        {filtersOpen ? (
+          <div className="funding-directory-filter-panel">
+            <div className="funding-filter-heading">
+              <div>
+                <strong>{t('workspacePages.programs.refine')}</strong>
+                <span>{t('workspacePages.programs.refineHint')}</span>
+              </div>
+              {activeFilterCount > 0 ? (
+                <button type="button" onClick={clearFilters}>
+                  {t('workspacePages.programs.clearFilters')}
+                </button>
+              ) : null}
+            </div>
+            <div className="funding-filter-fields programs-filter-fields">
+              <label>
+                <span>{t('workspacePages.programs.provider')}</span>
+                <select value={provider} onChange={(event) => setProvider(event.target.value)}>
+                  <option value="All">{t('workspacePages.programs.allProviders')}</option>
+                  {providers.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t('workspacePages.programs.country')}</span>
+                <select value={country} onChange={(event) => setCountry(event.target.value)}>
+                  <option value="All">{t('workspacePages.programs.allCountries')}</option>
+                  {countries.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t('workspacePages.programs.location')}</span>
+                <select value={location} onChange={(event) => setLocation(event.target.value)}>
+                  <option value="All">{t('workspacePages.programs.allLocations')}</option>
+                  {locations.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t('workspacePages.programs.dataSource')}</span>
+                <select value={sourceName} onChange={(event) => setSourceName(event.target.value)}>
+                  <option value="All">{t('workspacePages.programs.allSources')}</option>
+                  {sources.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t('workspacePages.programs.sourceType')}</span>
+                <select value={sourceType} onChange={(event) => setSourceType(event.target.value)}>
+                  <option value="All">{t('workspacePages.programs.allSourceTypes')}</option>
+                  {sourceTypes.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t('workspacePages.programs.programStatus')}</span>
+                <select value={programStatus} onChange={(event) => setProgramStatus(event.target.value)}>
+                  <option value="All">{t('workspacePages.programs.allStatuses')}</option>
+                  {programStatuses.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t('workspacePages.programs.currency')}</span>
+                <select value={currency} onChange={(event) => setCurrency(event.target.value)}>
+                  <option value="All">{t('workspacePages.programs.allCurrencies')}</option>
+                  {currencies.map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t('workspacePages.programs.fundingAmount')}</span>
+                <select
+                  value={amountRange}
+                  onChange={(event) => setAmountRange(event.target.value as typeof amountRange)}
+                >
+                  <option value="All">{t('workspacePages.programs.anyAmount')}</option>
+                  <option value="under-50">{t('workspacePages.programs.under50')}</option>
+                  <option value="50-100">{t('workspacePages.programs.amount50to100')}</option>
+                  <option value="100-plus">{t('workspacePages.programs.amount100Plus')}</option>
+                </select>
+              </label>
+              <label>
+                <span>{t('workspacePages.programs.deadline')}</span>
+                <select
+                  value={deadlineType}
+                  onChange={(event) => setDeadlineType(event.target.value as typeof deadlineType)}
+                >
+                  <option value="All">{t('workspacePages.programs.anyDeadline')}</option>
+                  <option value="Open">{t('workspacePages.programs.openRolling')}</option>
+                  <option value="Fixed">{t('workspacePages.programs.fixedDeadline')}</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        ) : null}
+
+        {activeFilterCount > 0 ? (
+          <div className="funding-active-filters" aria-label={t('workspacePages.programs.activeFilters')}>
+            <span>{activeFilterCount} {t('workspacePages.programs.activeFilters')}</span>
+            {type !== 'All' ? <button type="button" onClick={() => setType('All')}>{type} <b>×</b></button> : null}
+            {provider !== 'All' ? <button type="button" onClick={() => setProvider('All')}>{provider} <b>×</b></button> : null}
+            {country !== 'All' ? <button type="button" onClick={() => setCountry('All')}>{country} <b>×</b></button> : null}
+            {location !== 'All' ? <button type="button" onClick={() => setLocation('All')}>{location} <b>×</b></button> : null}
+            {sourceName !== 'All' ? <button type="button" onClick={() => setSourceName('All')}>{sourceName} <b>×</b></button> : null}
+            {sourceType !== 'All' ? <button type="button" onClick={() => setSourceType('All')}>{sourceType} <b>×</b></button> : null}
+            {programStatus !== 'All' ? <button type="button" onClick={() => setProgramStatus('All')}>{programStatus} <b>×</b></button> : null}
+            {currency !== 'All' ? <button type="button" onClick={() => setCurrency('All')}>{currency} <b>×</b></button> : null}
+            {amountRange !== 'All' ? <button type="button" onClick={() => setAmountRange('All')}>{amountRange} <b>×</b></button> : null}
+            {deadlineType !== 'All' ? <button type="button" onClick={() => setDeadlineType('All')}>{deadlineType} <b>×</b></button> : null}
+          </div>
+        ) : null}
 
         <div className="funding-directory-grid">
           {programsLoading ? (
@@ -3587,11 +3930,9 @@ function ProgramsPage() {
                       <i className={program.sourceId ? 'is-external' : ''} />
                       {program.sourceName ?? `${platformName} catalog`}
                     </span>
-                    <Link
-                      to={`/grants-loans?pid=${encodeURIComponent(program.pid ?? program.id)}`}
-                    >
+                    <button type="button" onClick={() => openProgramDetails(program)}>
                       {t('workspacePages.programs.viewDetails')}
-                    </Link>
+                    </button>
                   </footer>
                 </article>
               ))
@@ -3605,8 +3946,16 @@ function ProgramsPage() {
             <p>{t('workspacePages.programs.noMatchHint')}</p>
           </div>
         ) : null}
-      </section>
-    </section>
+          </section>
+        </section>
+        <FundingProgramDetailsDialog
+          program={selectedProgram}
+          onClose={closeProgramDetails}
+          isRegisteredUser={hasActiveSession()}
+        />
+      </main>
+      <PublicSiteFooter />
+    </div>
   )
 }
 
@@ -11630,7 +11979,6 @@ export function DashboardPage() {
   const isSavedPrograms = currentItem?.id === 'funding-shortlist'
   const isMyApplications = currentItem?.id === 'my-applications'
   const isTemplates = currentItem?.id === 'templates'
-  const isPrograms = currentItem?.id === 'programs'
   const isSocialResources = currentItem?.id === 'social-resources'
   const isTools = currentItem?.id === 'tools'
   const isSettings = currentItem?.id === 'settings'
@@ -12107,8 +12455,6 @@ export function DashboardPage() {
             <MyApplicationsPage />
           ) : isGrantsLoans ? (
             <GrantsLoansPage />
-          ) : isPrograms ? (
-            <ProgramsPage />
           ) : isTemplates ? (
             <TemplatesPage />
           ) : isSocialResources ? (

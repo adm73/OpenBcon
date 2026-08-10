@@ -8,6 +8,7 @@ export type FundingProgramRecord = {
   type: 'Grant' | 'Loan'
   provider: string
   amount: number
+  currency?: string
   deadline: string
   programStatus?: string
   match: number
