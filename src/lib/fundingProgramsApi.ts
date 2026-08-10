@@ -32,6 +32,113 @@ export type JsonFundingProgramImportInput = {
   language?: FundingProgramLanguage
   records: Array<Record<string, unknown>>
   fieldMapping?: FundingProgramFieldMapping
+  syncComplete?: boolean
+  syncRecordIds?: string[]
+}
+
+function jsonFieldText(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map((item) => jsonFieldText(item)).filter(Boolean).join('\n')
+  }
+  if (value && typeof value === 'object') return JSON.stringify(value)
+  return value === null || value === undefined ? '' : String(value).trim()
+}
+
+function mappedJsonField(
+  record: Record<string, unknown>,
+  fieldMapping: FundingProgramFieldMapping,
+  targetField: keyof FundingProgramFieldMapping,
+  fallbackKeys: string[],
+) {
+  const mappedKey = fieldMapping[targetField]?.trim()
+  if (mappedKey && jsonFieldText(record[mappedKey])) return record[mappedKey]
+  for (const key of fallbackKeys) {
+    if (jsonFieldText(record[key])) return record[key]
+  }
+  return undefined
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(value),
+  )
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Mirrors the server's stable JSON identity so a multi-request sync can
+ * archive records that disappeared from the source only after the final chunk.
+ */
+export async function getJsonFundingSyncMetadata(
+  category: 'Grant' | 'Loan',
+  records: Array<Record<string, unknown>>,
+  fieldMapping: FundingProgramFieldMapping = {},
+  sourceContent?: string,
+) {
+  const duplicateCounts = new Map<string, number>()
+  const sourceRecordIds: string[] = []
+
+  for (const record of records) {
+    const name = jsonFieldText(
+      mappedJsonField(record, fieldMapping, 'name', ['program_name', 'name', 'title']),
+    )
+    if (!name) continue
+
+    // This identity intentionally matches the server's duplicate counter.
+    const duplicateIdentity = [
+      category,
+      jsonFieldText(record.program_name),
+      jsonFieldText(record.provider),
+      jsonFieldText(record.official_program_site),
+    ].join('|').toLowerCase()
+    const duplicateNumber = (duplicateCounts.get(duplicateIdentity) ?? 0) + 1
+    duplicateCounts.set(duplicateIdentity, duplicateNumber)
+
+    const identity = [
+      category,
+      name,
+      jsonFieldText(mappedJsonField(record, fieldMapping, 'provider', ['provider'])),
+      jsonFieldText(mappedJsonField(record, fieldMapping, 'url', ['official_program_site'])),
+    ].join('|').toLowerCase()
+    const suffix = duplicateNumber > 1 ? `|duplicate-${duplicateNumber}` : ''
+    const recordHash = await sha256Hex(identity + suffix)
+    sourceRecordIds.push(`json-${recordHash.slice(0, 32)}`)
+  }
+
+  return {
+    sourceRecordIds,
+    sourceVersion: sourceContent ? await sha256Hex(sourceContent) : '',
+  }
+}
+
+export function chunkJsonFundingRecords(
+  input: JsonFundingProgramImportInput,
+  maxBytes = 6 * 1024 * 1024,
+) {
+  const encoder = new TextEncoder()
+  const chunks: Array<Record<string, unknown>[]> = []
+  let current: Array<Record<string, unknown>> = []
+
+  for (const record of input.records) {
+    const candidate = [...current, record]
+    const candidateSize = encoder.encode(JSON.stringify({ ...input, records: candidate })).byteLength
+    if (candidateSize > maxBytes && current.length > 0) {
+      chunks.push(current)
+      current = [record]
+      const singleRecordSize = encoder.encode(JSON.stringify({ ...input, records: current })).byteLength
+      if (singleRecordSize > maxBytes) {
+        throw new Error('A funding program record is too large to sync safely.')
+      }
+    } else if (candidateSize > maxBytes) {
+      throw new Error('A funding program record is too large to sync safely.')
+    } else {
+      current = candidate
+    }
+  }
+
+  if (current.length > 0) chunks.push(current)
+  return chunks
 }
 
 async function readError(response: Response, fallback: string) {

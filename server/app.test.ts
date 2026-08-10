@@ -305,6 +305,46 @@ describe('persistence API', () => {
     expect(client.release).toHaveBeenCalled()
   })
 
+  it('does not archive a JSON source before the final sync chunk', async () => {
+    const clientQueries: string[] = []
+    const client = {
+      query: vi.fn(async (query: string) => {
+        clientQueries.push(query)
+        if (query.includes('RETURNING (xmax = 0)')) {
+          return { rows: [{ inserted: true }], rowCount: 1 }
+        }
+        if (query.includes('FROM funding_programs')) {
+          return { rows: [], rowCount: 0 }
+        }
+        return { rows: [], rowCount: 0 }
+      }),
+      release: vi.fn(),
+    }
+    const database = {
+      query: vi.fn(async () => ({ rows: [], rowCount: 0 })),
+      connect: vi.fn(async () => client),
+    } as unknown as Pool
+
+    const response = await request(createApp(database))
+      .post('/api/funding-programs/import')
+      .send({
+        sourceId: 'json-grants',
+        sourceName: 'Grant programs JSON',
+        category: 'Grant',
+        syncComplete: false,
+        syncRecordIds: ['json-record-1', 'json-record-2'],
+        records: [{
+          program_name: 'Community Grant',
+          provider: 'Regional Fund',
+          official_program_site: 'https://example.ca/grant',
+        }],
+      })
+
+    expect(response.status).toBe(200)
+    expect(response.body.archived).toBe(0)
+    expect(clientQueries.some((query) => query.includes('WITH archived'))).toBe(false)
+  })
+
   it('returns the latest OpenBcon commit for the admin update check', async () => {
     const latestCommit = 'd'.repeat(40)
     const fetcher = vi.fn(async () => new Response(JSON.stringify({
@@ -325,6 +365,7 @@ describe('persistence API', () => {
       expect(response.status).toBe(200)
       expect(response.body.latestShortCommit).toBe(latestCommit.slice(0, 12))
       expect(response.body.updateAvailable).toBe(true)
+      expect(response.body).toHaveProperty('automaticUpdatesConfigured')
     } finally {
       vi.unstubAllGlobals()
     }

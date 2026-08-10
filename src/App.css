@@ -8592,6 +8592,46 @@
   text-decoration: underline;
 }
 
+.admin-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.admin-update-install-status {
+  display: grid;
+  gap: 3px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #eef3ff;
+  color: #536078;
+}
+
+.admin-update-install-status strong {
+  color: #2c3b86;
+  text-transform: capitalize;
+}
+
+.admin-update-install-status.is-failed {
+  background: #fff0ef;
+  color: #9a3e3c;
+}
+
+.admin-update-install-status.is-failed strong {
+  color: #b34845;
+}
+
+.admin-update-install-status.is-succeeded {
+  background: #edf8f1;
+  color: #2f7650;
+}
+
+.admin-update-install-status.is-succeeded strong {
+  color: #277047;
+}
+
 .admin-fields input,
 .admin-fields textarea {
   width: 100%;

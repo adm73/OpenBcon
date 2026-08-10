@@ -18,6 +18,8 @@ dist-ssr
 deploy/.env.production.backup-*
 deploy/.setup-complete
 deploy/.setup-status.json
+deploy/.update-status.json
+deploy/.update-status.json.tmp
 deploy/docker-compose.proxy.yml
 coverage
 __pycache__/

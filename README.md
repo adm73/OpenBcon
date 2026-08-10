@@ -20,6 +20,28 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 2.5
+
+Version 2.5 improves production operations and large catalog synchronization:
+
+- Admin Console can check for and install fast-forward updates through a private,
+  administrator-only update agent.
+- JSON funding catalogs sync in bounded batches, so large U.S. Grants and similar
+  sources do not exceed the API request limit; old records are archived only after
+  the final batch completes successfully.
+- Deployment health checks now report actionable service and HTTPS failures, while
+  the bootstrap wizard shows generated database credentials and next steps.
+
+After updating a deployment, rebuild the API service so the new synchronization
+logic is active:
+
+```bash
+docker compose \
+  --env-file deploy/.env.production \
+  -f deploy/docker-compose.production.yml \
+  up -d --build api
+```
+
 ## Version 2.0.0
 
 OpenBcon 2.0.0 adds a guided deployment experience for arbitrary customer
@@ -60,7 +82,7 @@ duplicates before enforcing the global `(source_id, source_record_id)` unique
 index. Existing application and package references are retargeted to the
 canonical program record during the migration.
 
-The final local check passed with 14 test files and 75 tests, followed by a
+The final local check passed with 14 test files and 76 tests, followed by a
 successful TypeScript and Vite production build. Lint reports only the existing
 React Fast Refresh and hook-dependency warnings.
 
@@ -388,9 +410,10 @@ The repository includes a Docker deployment with these services:
 
 - `api`: the built React application and Express API on the private Docker network
 - `python`: the FastAPI/LangGraph generation service on the private Docker network
-- `ollama`: private local LLM runtime, with `smollm2:135m` pulled into a persistent volume
+- `ollama`: optional private local LLM runtime, enabled only with `ENABLE_OLLAMA=true`
 - `postgres` and `mongodb`: persistent application data services
 - `caddy`: same-origin routing for `/api` and `/ai-api`
+- `updater`: private, token-protected update agent used by Admin Console
 
 The default Compose file lets Caddy own public ports 80 and 443. If a VPS
 already uses Hostinger Traefik on those ports, Caddy can instead listen on
@@ -422,13 +445,16 @@ running. Execute:
 When `deploy/.env.production` is missing, the script starts a one-time
 Bootstrap Setup page on the VPS temporary port `8090` and waits for the form to
 be saved. Open the one-time public URL printed by the script, enter the domain,
-certificate email, proxy plan, and initial mode, then save. The setup URL is
+admin email, admin password, proxy plan, and initial mode, then save. The admin
+email becomes the first OpenBcon administrator account, and the setup page
+requires a 12-character minimum password. The setup URL is
 protected by a one-time token and expires after 24 hours. If the VPS firewall
 blocks it, temporarily allow inbound TCP `8090` while configuring, then close
 that port after setup completes. The script sets the database administrator
 usernames to `admin`, generates the passwords and encryption key on the VPS,
 and displays the database credentials
-once so they can be stored securely, writes `deploy/.env.production`, and
+once so they can be stored securely, writes `deploy/.env.production`, creates
+the initial administrator account in both isolated Test and Live databases, and
 continues with the normal database migration and Docker startup. To reconfigure an existing
 deployment, run `./deploy/deploy.sh --setup`; the previous environment file is
 backed up before it is replaced. The domain must have an A record pointing to
@@ -480,25 +506,27 @@ openssl rand -hex 32
 ```
 
 The first deployment runs PostgreSQL migrations and does not seed demo data.
-After the first setup, register the first account, then promote it to a
-platform administrator before changing platform settings:
+Sign in with the admin email and password created by Bootstrap Setup. The
+bootstrap administrator is created as an independent account in both Test and
+Live Mode so the operator can switch modes without losing administrative
+access; regular users remain isolated to the mode in which they were created.
+
+### Optional Local Ollama model
+
+Both Compose files include Ollama behind an optional `ollama` profile. The
+default deployment does not start or download Ollama. Enable it only when a
+local model is required:
 
 ```bash
-docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
-  exec postgres psql -U admin -d dbob1234567890 \
-  -c "UPDATE app_users SET role = 'admin' WHERE lower(email) = lower('admin@example.com');"
+docker compose --profile ollama up -d ollama ollama-model
 ```
 
-### Local Ollama model
+For production, set `ENABLE_OLLAMA=true` in `deploy/.env.production` and run
+the deployment command again. Leave it as `false` when using OpenAI,
+OpenRouter, Anthropic, Google, or another external provider.
 
-Both Compose files include Ollama and a one-time model pull service. The
-default local model is `smollm2:135m`; model data survives container restarts
-in the `bconomics-ollama-data` volume. Start it locally with:
-
-```bash
-docker compose up -d ollama
-docker compose run --rm ollama-model
-```
+The default local model is `smollm2:135m`; model data survives container
+restarts in the `bconomics-ollama-data` volume.
 
 In Admin Console, add or import the Ollama preset at
 `public/ai-model-presets/ollama.json`, then select `Ollama` and
@@ -583,25 +611,36 @@ git pull --ff-only
 ```
 
 `deploy/deploy.sh` stamps the frontend image with the current Git commit. In
-Admin Console, open **Updates** and select **Check updates** to compare that
-build with the latest public OpenBcon commit. The check reports availability
-only; it never installs code automatically.
+Admin Console, open **Updates**, select **Check updates**, review the latest
+commit, and select **Install update** when one is available. The update agent
+fast-forwards only a clean `main` checkout to the latest `origin/main`, then
+runs the normal deployment script. Database volumes are preserved.
 
-### Update checks
-
-The Admin Console update check is intentionally read-only:
+### Update checks and installation
 
 - the authenticated Node API queries the fixed OpenBcon GitHub `main` commit
 - the frontend compares that commit with the build's `VITE_APP_COMMIT` value
 - `deploy/deploy.sh` sets `VITE_APP_COMMIT` automatically from `git rev-parse`
 - local builds without a commit stamp show the latest commit but cannot report
   whether the current build is behind
+- production deployments include a private update agent on the Docker network;
+  the agent is enabled automatically by `deploy/deploy.sh` and receives a
+  random token stored in the ignored `deploy/.env.production`
+- **Install update** refuses dirty tracked files, non-`main` checkouts, and
+  divergent histories; it never deletes database volumes
+- the API may briefly restart while the update is installed; Admin Console
+  waits for the status endpoint to return and reports the final result
 - GitHub failures and timeouts are shown as a check error; they do not affect
   the running application
 
 The endpoint is `GET /api/updates?currentCommit=<commit>` and requires an
-authenticated session. It does not accept a user-provided upstream URL and it
-does not pull, install, or restart application code.
+authenticated administrator session. Installation uses
+`POST /api/updates/apply` and status is read from `GET /api/updates/status`.
+Neither endpoint accepts a user-provided upstream URL or shell command. If
+**Install update** is unavailable, run `./deploy/deploy.sh` once on the VPS to
+create the private updater service and token. The updater requires access to
+the Docker socket; keep it on the private Compose network and never expose
+port `8788` publicly.
 
 Always supply `--env-file deploy/.env.production` when running Compose commands
 directly, including `logs` and `ps`. Never run `docker compose down --volumes`

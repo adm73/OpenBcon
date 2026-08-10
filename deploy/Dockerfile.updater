@@ -1,0 +1,14 @@
+FROM node:22-alpine
+
+RUN apk add --no-cache bash docker-cli docker-cli-compose git
+
+WORKDIR /app
+COPY deploy/update-agent.mjs ./update-agent.mjs
+
+ENV UPDATE_AGENT_BIND_ADDRESS=0.0.0.0
+ENV UPDATE_AGENT_PORT=8788
+ENV OPENBCON_CHECKOUT_ROOT=/workspace
+
+EXPOSE 8788
+
+CMD ["node", "update-agent.mjs"]

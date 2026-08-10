@@ -262,6 +262,13 @@ http://YOUR_VPS_IPV4:8090/setup?token=...
 Do not leave port `8090` open after setup. It is not an application port and is
 only used for the temporary bootstrap wizard.
 
+The setup form uses the admin email as the first OpenBcon administrator login
+and asks for a minimum 12-character admin password. After the API is healthy,
+the deployment script creates separate administrator rows and an owner
+workspace in both the Test and Live PostgreSQL databases. PostgreSQL stores
+only the password hash, and the one-time bootstrap password is removed from
+`deploy/.env.production` after successful initialization.
+
 ## Rotate database credentials
 
 The setup page shows the generated PostgreSQL and MongoDB credentials once.
@@ -372,6 +379,16 @@ docker compose \
 The API runs migrations automatically when `AUTO_MIGRATE=true`. Do not run
 `docker compose down --volumes` during a normal update. That command deletes
 the PostgreSQL and MongoDB data volumes.
+
+After the deployment has included the private `updater` service, future
+updates can be started from Admin Console: open **Updates**, run **Check
+updates**, review the GitHub commit, then choose **Install update**. The agent
+only fast-forwards a clean `main` checkout and runs `deploy/deploy.sh`; it
+does not accept arbitrary Git URLs or shell commands. It may restart the API
+briefly, and the Admin Console waits for it to return. If the button says the
+service is unavailable, run `./deploy/deploy.sh` once manually to create the
+updater and its token. Port `8788` must remain private; do not add a public
+firewall rule for it.
 
 Before production upgrades, back up PostgreSQL and MongoDB and review the
 migrations in `server/db/migrations/`.

@@ -42,6 +42,11 @@ import {
   verifyStripeWebhookEvent,
 } from './payments'
 import { checkForOpenBconUpdates } from './updateCheck'
+import {
+  isOpenBconUpdateAgentConfigured,
+  readOpenBconUpdateStatus,
+  requestOpenBconUpdate,
+} from './updateAgent'
 import { sendPasswordResetEmail, sendVerificationEmail } from './email'
 import { getRuntimeAuthConfig } from './runtimeAuthConfig'
 import {
@@ -278,6 +283,8 @@ const jsonFundingProgramImportSchema = z.object({
     .min(1)
     .max(2000),
   fieldMapping: z.record(z.string(), z.string().trim().max(240)).default({}),
+  syncComplete: z.boolean().default(true),
+  syncRecordIds: z.array(z.string().trim().min(1).max(240)).max(2000).default([]),
 })
 const companySaveSchema = z.object({
   name: z.string().trim().min(1).max(160),
@@ -1412,21 +1419,26 @@ export function createApp(
           else updated += 1
         }
 
-        const archivedResult = await client.query<{ count: string }>(
-          `
-            WITH archived AS (
-              UPDATE funding_programs
-              SET status = 'archived', updated_at = now(), updated_by = $1
-              WHERE source_id = $2
-                AND source_type = 'json-file'
-                AND source_record_id IS NOT NULL
-                AND NOT (source_record_id = ANY($3::text[]))
-              RETURNING id
+        const syncRecordIds = parsed.data.syncRecordIds.length > 0
+          ? parsed.data.syncRecordIds
+          : sourceRecordIds
+        const archivedResult = parsed.data.syncComplete
+          ? await client.query<{ count: string }>(
+              `
+                WITH archived AS (
+                  UPDATE funding_programs
+                  SET status = 'archived', updated_at = now(), updated_by = $1
+                  WHERE source_id = $2
+                    AND source_type = 'json-file'
+                    AND source_record_id IS NOT NULL
+                    AND NOT (source_record_id = ANY($3::text[]))
+                  RETURNING id
+                )
+                SELECT count(*)::text AS count FROM archived
+              `,
+              [context.userId, parsed.data.sourceId, syncRecordIds],
             )
-            SELECT count(*)::text AS count FROM archived
-          `,
-          [context.userId, parsed.data.sourceId, sourceRecordIds],
-        )
+          : { rows: [{ count: '0' }] }
 
         const programsResult = await client.query<FundingProgramApiRow>(
           `
@@ -2660,7 +2672,7 @@ export function createApp(
 
   app.get('/api/updates', async (request, response) => {
     try {
-      const context = await requireRequestContext(database, request, response)
+      const context = await requireAdminContext(database, request, response)
       if (!context) return
 
       const currentCommit =
@@ -2675,7 +2687,10 @@ export function createApp(
         return
       }
 
-      response.json(await checkForOpenBconUpdates(currentCommit))
+      response.json({
+        ...(await checkForOpenBconUpdates(currentCommit)),
+        automaticUpdatesConfigured: isOpenBconUpdateAgentConfigured(),
+      })
     } catch (error) {
       response.status(502).json({
         error: 'update_check_failed',
@@ -2684,6 +2699,55 @@ export function createApp(
             ? error.message
             : 'The update service could not be reached.',
       })
+    }
+  })
+
+  app.post('/api/updates/apply', async (request, response, next) => {
+    const parsed = z
+      .object({
+        targetCommit: z
+          .string()
+          .trim()
+          .regex(/^[0-9a-f]{7,40}$/iu)
+          .optional(),
+      })
+      .safeParse(request.body ?? {})
+    if (!parsed.success) {
+      sendValidationError(response, parsed.error)
+      return
+    }
+
+    try {
+      const context = await requireAdminContext(database, request, response)
+      if (!context) return
+      const status = await requestOpenBconUpdate(parsed.data.targetCommit)
+      response.status(202).json(status)
+    } catch (error) {
+      if (error instanceof Error && /not configured/iu.test(error.message)) {
+        response.status(503).json({
+          error: 'update_service_unavailable',
+          message: error.message,
+        })
+        return
+      }
+      next(error)
+    }
+  })
+
+  app.get('/api/updates/status', async (request, response, next) => {
+    try {
+      const context = await requireAdminContext(database, request, response)
+      if (!context) return
+      response.json(await readOpenBconUpdateStatus())
+    } catch (error) {
+      if (error instanceof Error && /not configured/iu.test(error.message)) {
+        response.status(503).json({
+          error: 'update_service_unavailable',
+          message: error.message,
+        })
+        return
+      }
+      next(error)
     }
   })
 
@@ -2996,6 +3060,19 @@ export function createApp(
       response.status(403).json({
         error: 'forbidden',
         message: error.message,
+      })
+      return
+    }
+
+    if (
+      error
+      && typeof error === 'object'
+      && 'type' in error
+      && error.type === 'entity.too.large'
+    ) {
+      response.status(413).json({
+        error: 'payload_too_large',
+        message: 'The data source payload is too large. Sync the catalog in smaller batches.',
       })
       return
     }

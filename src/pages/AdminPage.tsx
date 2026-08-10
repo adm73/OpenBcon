@@ -51,6 +51,8 @@ import {
 } from '../data/fundingSources'
 import {
   archiveJsonFundingProgramsViaApi,
+  chunkJsonFundingRecords,
+  getJsonFundingSyncMetadata,
   importJsonFundingProgramsViaApi,
 } from '../lib/fundingProgramsApi'
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
@@ -219,6 +221,10 @@ type PaymentDescriptionEditorProps = {
 
 type UpdateCheckState = {
   status: 'idle' | 'checking' | 'current' | 'available' | 'unknown' | 'error'
+  automaticUpdatesConfigured: boolean
+  installStatus: 'idle' | 'starting' | 'running' | 'succeeded' | 'failed'
+  installPhase: string
+  installMessage: string
   currentCommit: string
   latestShortCommit: string
   latestMessage: string
@@ -333,6 +339,10 @@ function createAdminUserDraft(): AdminUserDraft {
 
 const initialUpdateCheckState: UpdateCheckState = {
   status: 'idle',
+  automaticUpdatesConfigured: false,
+  installStatus: 'idle',
+  installPhase: '',
+  installMessage: '',
   currentCommit: String(import.meta.env.VITE_APP_COMMIT ?? '').trim() || 'unknown',
   latestShortCommit: '',
   latestMessage: '',
@@ -1744,16 +1754,37 @@ export function AdminPage() {
             throw new Error('Select the JSON file again before syncing this source.')
           }
           const catalog = parseJsonFundingCatalog(JSON.parse(content))
-          const result = await importJsonFundingProgramsViaApi({
+          const fieldMapping = getFundingProgramFieldMapping(source)
+          const syncMetadata = await getJsonFundingSyncMetadata(
+            catalog.category,
+            catalog.records,
+            fieldMapping,
+            content,
+          )
+          const importInput = {
             sourceId: source.id,
             sourceName: source.name,
-            sourceVersion: source.jsonSourceVersion,
+            sourceVersion: syncMetadata.sourceVersion,
             sourceUrl: catalog.sourceUrl,
             category: catalog.category,
             language: source.language ?? catalog.language ?? 'en-CA',
             records: catalog.records,
-            fieldMapping: getFundingProgramFieldMapping(source),
-          })
+            fieldMapping,
+          }
+          const recordChunks = chunkJsonFundingRecords(importInput)
+          let result: Awaited<ReturnType<typeof importJsonFundingProgramsViaApi>> | undefined
+          for (const [index, records] of recordChunks.entries()) {
+            result = await importJsonFundingProgramsViaApi({
+              ...importInput,
+              records,
+              syncComplete: index === recordChunks.length - 1,
+              syncRecordIds:
+                index === recordChunks.length - 1
+                  ? syncMetadata.sourceRecordIds
+                  : undefined,
+            })
+          }
+          if (!result) throw new Error('The JSON catalog did not contain any records to sync.')
           saveSyncedFundingPrograms(source.id, result.programs)
           recordCount = result.programs.length
           setDraft((current) => ({
@@ -2108,6 +2139,10 @@ export function AdminPage() {
             : payload.updateAvailable === false
               ? 'current'
               : 'unknown',
+        automaticUpdatesConfigured: payload.automaticUpdatesConfigured === true,
+        installStatus: 'idle',
+        installPhase: '',
+        installMessage: '',
         currentCommit: payload.currentCommit || updateCheck.currentCommit,
         latestShortCommit: payload.latestShortCommit || '',
         latestMessage: payload.latestMessage || '',
@@ -2120,6 +2155,87 @@ export function AdminPage() {
         ...current,
         status: 'error',
         error: error instanceof Error ? error.message : 'The update check failed.',
+      }))
+    }
+  }
+
+  async function installUpdate() {
+    if (
+      updateCheck.status !== 'available' ||
+      !updateCheck.automaticUpdatesConfigured ||
+      updateCheck.installStatus === 'running' ||
+      updateCheck.installStatus === 'starting'
+    ) return
+
+    setUpdateCheck((current) => ({
+      ...current,
+      installStatus: 'starting',
+      installPhase: 'queued',
+      installMessage: 'Starting the secure update service...',
+    }))
+
+    try {
+      const response = await fetch('/api/updates/apply', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetCommit: updateCheck.latestShortCommit }),
+      })
+      const payload = (await response.json()) as {
+        message?: string
+        phase?: string
+        status?: 'idle' | 'running' | 'succeeded' | 'failed'
+      }
+      if (!response.ok) throw new Error(payload.message || 'The update could not be started.')
+
+      setUpdateCheck((current) => ({
+        ...current,
+        installStatus: payload.status === 'succeeded' ? 'succeeded' : 'running',
+        installPhase: payload.phase || 'queued',
+        installMessage: payload.message || 'The update is running. The application may briefly reconnect.',
+      }))
+
+      let unavailableAttempts = 0
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 3000))
+        try {
+          const statusResponse = await fetch('/api/updates/status', { credentials: 'include' })
+          const statusPayload = (await statusResponse.json()) as {
+            phase?: string
+            message?: string
+            status?: 'idle' | 'running' | 'succeeded' | 'failed'
+          }
+          if (!statusResponse.ok) throw new Error(statusPayload.message || 'The update status could not be read.')
+          unavailableAttempts = 0
+          setUpdateCheck((current) => ({
+            ...current,
+            installStatus:
+              statusPayload.status === 'failed'
+                ? 'failed'
+                : statusPayload.status === 'succeeded'
+                  ? 'succeeded'
+                  : 'running',
+            installPhase: statusPayload.phase || current.installPhase,
+            installMessage: statusPayload.message || current.installMessage,
+          }))
+          if (statusPayload.status === 'succeeded' || statusPayload.status === 'failed') break
+        } catch (error) {
+          unavailableAttempts += 1
+          if (unavailableAttempts >= 10) throw error
+          setUpdateCheck((current) => ({
+            ...current,
+            installStatus: 'running',
+            installPhase: 'restarting',
+            installMessage: 'OpenBcon is restarting after the update. Waiting for the API to return...',
+          }))
+        }
+      }
+    } catch (error) {
+      setUpdateCheck((current) => ({
+        ...current,
+        installStatus: 'failed',
+        installPhase: 'failed',
+        installMessage: error instanceof Error ? error.message : 'The update could not be installed.',
       }))
     }
   }
@@ -5176,7 +5292,8 @@ export function AdminPage() {
               <h2>Updates</h2>
               <p>
                 Check the OpenBcon repository for a newer application build.
-                This check does not install updates automatically.
+                Administrators can install a fast-forward update after reviewing
+                the latest commit. Data volumes are preserved.
               </p>
             </div>
             <div className="admin-update-panel">
@@ -5215,15 +5332,41 @@ export function AdminPage() {
                     Checked commit: {new Date(updateCheck.latestCommittedAt).toLocaleString()}
                   </time>
                 )}
+                {updateCheck.installMessage && (
+                  <p className={`admin-update-install-status is-${updateCheck.installStatus}`} role="status">
+                    <strong>{updateCheck.installPhase || 'Update'}</strong>
+                    {updateCheck.installMessage}
+                  </p>
+                )}
+                {updateCheck.status === 'available' && !updateCheck.automaticUpdatesConfigured && (
+                  <p className="admin-update-install-status is-failed" role="status">
+                    <strong>Install unavailable</strong>
+                    Run the deployment script once to enable secure admin-triggered updates.
+                  </p>
+                )}
               </div>
-              <button
-                type="button"
-                className="admin-button-secondary"
-                onClick={checkForUpdates}
-                disabled={updateCheck.status === 'checking'}
-              >
-                {updateCheck.status === 'checking' ? 'Checking...' : 'Check updates'}
-              </button>
+              <div className="admin-update-actions">
+                <button
+                  type="button"
+                  className="admin-button-secondary"
+                  onClick={checkForUpdates}
+                  disabled={updateCheck.status === 'checking' || updateCheck.installStatus === 'running' || updateCheck.installStatus === 'starting'}
+                >
+                  {updateCheck.status === 'checking' ? 'Checking...' : 'Check updates'}
+                </button>
+                <button
+                  type="button"
+                  className="admin-button-primary"
+                  onClick={installUpdate}
+                  disabled={updateCheck.status !== 'available' || !updateCheck.automaticUpdatesConfigured || updateCheck.installStatus === 'running' || updateCheck.installStatus === 'starting'}
+                >
+                  {updateCheck.installStatus === 'starting' || updateCheck.installStatus === 'running'
+                    ? 'Installing...'
+                    : updateCheck.installStatus === 'succeeded'
+                      ? 'Update installed'
+                      : 'Install update'}
+                </button>
+              </div>
             </div>
           </section>
 

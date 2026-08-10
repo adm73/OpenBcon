@@ -42,6 +42,10 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value.trim())
 }
 
+function isValidAdminPassword(value) {
+  return typeof value === 'string' && value.length >= 12 && value.length <= 256 && !/[\r\n]/u.test(value)
+}
+
 function randomSecret(bytes = 24) {
   return randomBytes(bytes).toString('base64url')
 }
@@ -90,7 +94,12 @@ function buildEnvironment(input) {
   let text = readBaseEnv()
   text = text.replaceAll('your-domain.example', domain)
   text = setEnvValue(text, 'DOMAIN', domain)
-  text = setEnvValue(text, 'ACME_EMAIL', input.certificateEmail.trim())
+  text = setEnvValue(text, 'ACME_EMAIL', input.adminEmail.trim())
+  text = setEnvValue(text, 'OPENBCON_INITIAL_ADMIN_EMAIL', input.adminEmail.trim().toLowerCase())
+  // Keep the bootstrap password base64 encoded in the env file so common
+  // password characters cannot break dotenv parsing. deploy.sh clears this
+  // one-time value after creating the database account.
+  text = setEnvValue(text, 'OPENBCON_INITIAL_ADMIN_PASSWORD_B64', Buffer.from(input.adminPassword, 'utf8').toString('base64'))
   text = setEnvValue(text, 'PUBLIC_APP_URL', publicUrl)
   text = setEnvValue(text, 'OPENBCON_ENVIRONMENT_MODE', input.environmentMode)
 
@@ -292,6 +301,7 @@ function page() {
     .next-step { padding: 16px; border-radius: 12px; background: #eef3ff; color: #3340a5; }
     .next-step strong { display: block; font-size: 13px; }
     .next-step p { margin: 5px 0 0; color: #59658c; font-size: 13px; }
+    .welcome-button { display: inline-flex; align-items: center; justify-content: center; margin-top: 14px; min-height: 42px; padding: 0 16px; border-radius: 10px; background: #5760d9; color: white; font-size: 13px; font-weight: 800; text-decoration: none; }
     .credentials { display: grid; gap: 10px; padding: 16px; border: 1px solid #dfe5f0; border-radius: 12px; background: #fbfcff; }
     .credentials h2 { margin: 0; font-size: 16px; }
     .credentials p { margin: 0; font-size: 13px; }
@@ -322,8 +332,10 @@ function page() {
     <form id="setup-form">
       <div class="grid">
         <label>Public domain<input name="domain" placeholder="client.example.com" required spellcheck="false"><small>Point an A record for this domain to <strong>${escapeHtml(serverAddress)}</strong> first.</small></label>
-        <label>Certificate email<input name="certificateEmail" type="email" placeholder="admin@client.com" required><small>Used for Let&apos;s Encrypt renewal notices.</small></label>
+        <label>Admin email<input name="adminEmail" type="email" placeholder="admin@client.com" autocomplete="email" required><small>This becomes the first OpenBcon administrator account and receives HTTPS renewal notices.</small></label>
+        <label>Admin password<input name="adminPassword" type="password" minlength="12" autocomplete="new-password" required><small>Use at least 12 characters. This password is hashed before it is stored.</small></label>
       </div>
+      <label>Confirm admin password<input name="adminPasswordConfirmation" type="password" minlength="12" autocomplete="new-password" required><small>Confirm the password for the initial administrator account.</small></label>
       <div class="grid">
         <label class="choice"><input type="radio" name="proxy" value="caddy" checked><strong>Caddy direct</strong><small>OpenBcon owns ports 80 and 443 and issues HTTPS automatically.</small></label>
         <label class="choice"><input type="radio" name="proxy" value="traefik"><strong>Existing Traefik</strong><small>Keep Traefik on 80/443. The setup creates a local Caddy route on 127.0.0.1:8080.</small></label>
@@ -344,6 +356,7 @@ function page() {
       '<div class="status-head"><div><strong id="status-title">Deployment in progress.</strong><p id="status-message">Checking the deployment status...</p></div><span id="overall-badge" class="status-badge">Checking</span></div>' +
       '<div class="status-list">' +
         '<div class="status-row" id="config-row"><span class="status-dot"></span><div><strong>Configuration written</strong><small>Waiting for the VPS to save the environment file.</small></div><span class="status-state">Waiting</span></div>' +
+        '<div class="status-row" id="admin-row"><span class="status-dot"></span><div><strong>Administrator account</strong><small>Waiting for the API and database migrations.</small></div><span class="status-state">Waiting</span></div>' +
         '<div class="status-row" id="dns-row"><span class="status-dot"></span><div><strong>Domain connection</strong><small>Checking DNS resolution.</small></div><span class="status-state">Checking</span></div>' +
         '<div class="status-row" id="services-row"><span class="status-dot"></span><div><strong>OpenBcon services</strong><small>Waiting for the deployment to start.</small></div><span class="status-state">Waiting</span></div>' +
         '<div class="status-row" id="health-row"><span class="status-dot"></span><div><strong>HTTPS and API health</strong><small>Waiting for the public URL.</small></div><span class="status-state">Waiting</span></div>' +
@@ -359,7 +372,7 @@ function page() {
         '</div>' +
         '<div class="credential-warning"><strong>Change these passwords soon.</strong><p>After OpenBcon is healthy, rotate both database passwords. Update the database accounts and every matching value in <code>deploy/.env.production</code> together, then recreate the application containers. Never change the env file alone. See the <a href="https://github.com/adm73/OpenBcon/blob/main/docs/deployment/hostinger-vps.md#rotate-database-credentials" target="_blank" rel="noreferrer">password rotation instructions</a>.</p></div>' +
       '</div>' +
-      '<div class="next-step" id="next-step"><strong>Next step</strong><p>Keep this page open while the VPS starts OpenBcon.</p></div>' +
+      '<div class="next-step" id="next-step"><strong>Next step</strong><p>Keep this page open while the VPS starts OpenBcon.</p><a id="welcome-button" class="welcome-button" href="#" hidden>Welcome to OpenBcon</a></div>' +
     '</section>';
 
     function statusLabel(status) {
@@ -405,7 +418,9 @@ function page() {
         if (!response.ok) throw new Error('The setup status page is no longer available.');
         const payload = await response.json();
         const failed = payload.phase === 'failed';
-        const completed = payload.phase === 'completed' && payload.application.status === 'ready';
+        const servicesReady = ['admin_ready', 'services_ready', 'verifying', 'completed'].includes(payload.phase);
+        const healthReady = payload.application.status === 'ready';
+        const completed = payload.phase === 'completed' && servicesReady && healthReady;
         const deploymentStatus = failed ? 'failed' : completed ? 'ready' : 'pending';
         const badge = document.querySelector('#overall-badge');
         badge.className = 'status-badge ' + deploymentStatus;
@@ -414,14 +429,19 @@ function page() {
         document.querySelector('#status-message').textContent = payload.message || 'Checking the deployment status...';
         const configStatus = payload.configurationSaved ? 'ready' : failed ? 'failed' : 'pending';
         updateRow('config-row', configStatus, payload.configurationSaved ? 'Written to deploy/.env.production on the VPS.' : failed ? 'The environment file was not written.' : 'Waiting for the VPS to save the environment file.');
+        const adminReady = ['admin_ready', 'services_ready', 'verifying', 'completed'].includes(payload.phase);
+        const adminStatus = failed ? 'failed' : adminReady ? 'ready' : 'pending';
+        updateRow('admin-row', adminStatus, failed ? payload.message : adminReady ? 'Created in both Test and Live databases. Sign in with the admin email and password you entered.' : 'Waiting for the API and database migrations.');
         updateRow('dns-row', payload.dns.status, payload.dns.message);
-        const servicesReady = ['services_ready', 'verifying', 'completed'].includes(payload.phase);
         const servicesStatus = failed ? 'failed' : servicesReady ? 'ready' : 'pending';
-        updateRow('services-row', servicesStatus, failed ? payload.message : servicesReady ? 'PostgreSQL, MongoDB, Ollama, API, Python, and Caddy are healthy.' : payload.message || 'The VPS is starting the services.');
+        updateRow('services-row', servicesStatus, failed ? payload.message : servicesReady ? 'Core OpenBcon services are healthy.' : payload.message || 'The VPS is starting the services.');
         updateRow('health-row', failed ? 'failed' : payload.application.status, payload.application.message);
         const nextStep = document.querySelector('#next-step p');
+        const welcomeButton = document.querySelector('#welcome-button');
+        welcomeButton.hidden = !completed;
+        if (completed) welcomeButton.href = payload.publicUrl;
         if (failed) nextStep.textContent = 'Review the deploy.sh terminal output, fix the reported issue, then run ./deploy/deploy.sh --setup again.';
-        else if (completed) nextStep.textContent = 'Open ' + payload.publicUrl + '. Then close inbound TCP port 8090 in the VPS firewall.';
+        else if (completed) nextStep.textContent = 'Save the database credentials above. Then select Welcome to OpenBcon to open ' + payload.publicUrl + ' and close inbound TCP port 8090 in the VPS firewall.';
         else if (payload.dns.status !== 'ready') nextStep.textContent = 'Point an A record for your domain to ' + serverAddress + '. DNS changes may take a few minutes.';
         else if (payload.application.status === 'warning') nextStep.textContent = 'Review the HTTPS message above, then inspect the Caddy or Traefik logs before retrying setup.';
         else nextStep.textContent = 'Keep this page open. The VPS is starting OpenBcon and will test HTTPS and /api/health automatically.';
@@ -500,7 +520,9 @@ const server = http.createServer(async (request, response) => {
     try {
       const input = JSON.parse(await readBody(request))
       if (!isValidDomain(input.domain || '')) throw new Error('Enter a valid public domain.')
-      if (!isValidEmail(input.certificateEmail || '')) throw new Error('Enter a valid certificate email.')
+      if (!isValidEmail(input.adminEmail || '')) throw new Error('Enter a valid admin email.')
+      if (!isValidAdminPassword(input.adminPassword || '')) throw new Error('Admin password must be 12 to 256 characters and cannot contain line breaks.')
+      if (input.adminPassword !== input.adminPasswordConfirmation) throw new Error('Admin password and confirmation do not match.')
       if (!['caddy', 'traefik'].includes(input.proxy)) throw new Error('Choose a supported proxy.')
       if (!['test', 'live'].includes(input.environmentMode)) throw new Error('Choose Test or Live Mode.')
       const credentials = writeEnvironment(input)

@@ -95,6 +95,35 @@ fi
 
 cd "$ROOT_DIR"
 
+# The updater needs to know the host checkout path for its bind mount. Keep the
+# generated token and path in the ignored production env file so direct Compose
+# commands use the same values as this script.
+set_env_value() {
+  local key="$1"
+  local value="$2"
+  if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+  else
+    printf '%s=%s\n' "$key" "$value" >> "$ENV_FILE"
+  fi
+}
+
+if [ ! -f "$ENV_FILE" ]; then
+  printf 'Missing %s. Run ./deploy/deploy.sh --setup first.\n' "$ENV_FILE" >&2
+  exit 1
+fi
+# The update agent runs this script from its /workspace bind mount. In that
+# context, keep the host path already stored in the env file. Compose must use
+# that host path when the Docker daemon recreates the services.
+if [ "${OPENBCON_SKIP_UPDATE_AGENT:-0}" != "1" ]; then
+  set_env_value OPENBCON_ROOT "$ROOT_DIR"
+fi
+update_agent_token="$(sed -n 's/^OPENBCON_UPDATE_TOKEN=//p' "$ENV_FILE" | head -n 1)"
+if [ -z "$update_agent_token" ] || [[ "$update_agent_token" == replace_* ]]; then
+  update_agent_token="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+  set_env_value OPENBCON_UPDATE_TOKEN "$update_agent_token"
+fi
+
 # Stamp the frontend with the source commit so Admin Console can compare the
 # running build with the latest commit on GitHub.
 if [ -z "${VITE_APP_COMMIT:-}" ]; then
@@ -103,18 +132,34 @@ if [ -z "${VITE_APP_COMMIT:-}" ]; then
 fi
 
 compose=(docker compose --project-name openbcon --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
+enable_ollama="$(sed -n 's/^ENABLE_OLLAMA=//p' "$ENV_FILE" | head -n 1 | tr '[:upper:]' '[:lower:]')"
+enable_ollama="${enable_ollama:-false}"
+if [ "$enable_ollama" = "true" ] || [ "$enable_ollama" = "1" ] || [ "$enable_ollama" = "yes" ]; then
+  compose+=( --profile ollama )
+  enable_ollama=1
+else
+  enable_ollama=0
+fi
 if [ -f "$PROXY_OVERRIDE_FILE" ]; then
   compose+=( -f "$PROXY_OVERRIDE_FILE" )
 fi
 if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
-  write_setup_status "starting_services" "Starting PostgreSQL, MongoDB, and Ollama."
+  if [ "$enable_ollama" -eq 1 ]; then
+    write_setup_status "starting_services" "Starting PostgreSQL, MongoDB, and Ollama."
+  else
+    write_setup_status "starting_services" "Starting PostgreSQL and MongoDB. Ollama is disabled."
+  fi
 fi
 if ! compose_config_error="$("${compose[@]}" config 2>&1)"; then
   write_setup_status "failed" "Docker Compose configuration is invalid: $(printf '%s' "$compose_config_error" | tr '\n' ' ' | cut -c1-240)"
   printf '%s\n' "$compose_config_error" >&2
   exit 1
 fi
-"${compose[@]}" up -d --build postgres mongodb ollama ollama-model
+if [ "$enable_ollama" -eq 1 ]; then
+  "${compose[@]}" up -d --build postgres mongodb ollama ollama-model
+else
+  "${compose[@]}" up -d --build postgres mongodb
+fi
 
 # The primary Postgres database is the shared platform catalog. Create the
 # tenant databases before the API starts its per-database migrations. This is
@@ -155,7 +200,11 @@ if ! caddy_config_error="$("${compose[@]}" run --rm --no-deps caddy caddy valida
   printf '%s\n' "$caddy_config_error" >&2
   exit 1
 fi
-"${compose[@]}" up -d --build api python caddy
+application_services=(api python caddy)
+if [ "${OPENBCON_SKIP_UPDATE_AGENT:-0}" != "1" ]; then
+  application_services+=(updater)
+fi
+"${compose[@]}" up -d --build "${application_services[@]}"
 if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
   write_setup_status "starting_application" "Waiting for API, AI service, and Caddy health checks."
 fi
@@ -219,11 +268,102 @@ wait_for_public_health() {
   return 1
 }
 
+bootstrap_admin_account() {
+  local admin_email
+  local admin_password_b64
+  local admin_password
+  local admin_database
+  local admin_sql_file
+  local admin_email_sql
+  local admin_password_sql
+  admin_email="$(sed -n 's/^OPENBCON_INITIAL_ADMIN_EMAIL=//p' "$ENV_FILE" | head -n 1)"
+  admin_password_b64="$(sed -n 's/^OPENBCON_INITIAL_ADMIN_PASSWORD_B64=//p' "$ENV_FILE" | head -n 1)"
+  if [ -z "$admin_email" ] && [ -z "$admin_password_b64" ]; then
+    return 0
+  fi
+  if [ -z "$admin_email" ] || [ -z "$admin_password_b64" ]; then
+    write_setup_status "failed" "The initial administrator credentials are incomplete. Run ./deploy/deploy.sh --setup again."
+    return 1
+  fi
+  if ! admin_password="$(printf '%s' "$admin_password_b64" | base64 -d 2>/dev/null)" || [ -z "$admin_password" ]; then
+    write_setup_status "failed" "The initial administrator password could not be decoded. Run ./deploy/deploy.sh --setup again."
+    return 1
+  fi
+
+  sql_literal() {
+    local value="$1"
+    value="${value//\\/\\\\}"
+    value="${value//\'/\'\'}"
+    printf '%s' "$value"
+  }
+  admin_email_sql="$(sql_literal "$admin_email")"
+  admin_password_sql="$(sql_literal "$admin_password")"
+  admin_sql_file="$(mktemp "$ROOT_DIR/deploy/.bootstrap-admin.XXXXXX.sql")"
+  chmod 600 "$admin_sql_file"
+  cat > "$admin_sql_file" <<SQL
+\\set admin_email '$admin_email_sql'
+\\set admin_password '$admin_password_sql'
+BEGIN;
+WITH admin_user AS (
+  INSERT INTO app_users (email, display_name, role, status, password_hash, email_verified_at)
+  VALUES (lower(:'admin_email'), 'OpenBcon Administrator', 'admin', 'active', crypt(:'admin_password', gen_salt('bf')), now())
+  ON CONFLICT (email) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    role = 'admin',
+    status = 'active',
+    password_hash = EXCLUDED.password_hash,
+    email_verified_at = COALESCE(app_users.email_verified_at, now())
+  RETURNING id
+)
+INSERT INTO workspaces (name, slug, kind, status, created_by)
+SELECT 'OpenBcon workspace', 'openbcon-admin-workspace', 'founder', 'active', id
+FROM admin_user
+ON CONFLICT (slug) DO UPDATE SET
+  status = 'active',
+  created_by = EXCLUDED.created_by;
+
+INSERT INTO workspace_members (workspace_id, user_id, role)
+SELECT workspaces.id, app_users.id, 'owner'
+FROM workspaces
+JOIN app_users ON lower(app_users.email) = lower(:'admin_email')
+WHERE workspaces.slug = 'openbcon-admin-workspace'
+ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = 'owner';
+COMMIT;
+SQL
+
+  # Create separate rows in both runtime databases so the operator can switch
+  # modes and still sign in. Normal users remain isolated to their active DB.
+  for admin_database in \
+    "$(database_name_from_url "${database_url_test:-postgresql://localhost/${database_prefix}_test}")" \
+    "$(database_name_from_url "${database_url_live:-postgresql://localhost/${database_prefix}_live}")"; do
+    if "${compose[@]}" exec -T postgres psql -U "$postgres_user" -d "$admin_database" -v ON_ERROR_STOP=1 < "$admin_sql_file"; then
+      :
+    else
+      rm -f "$admin_sql_file"
+      write_setup_status "failed" "The initial administrator account could not be created in database ${admin_database}. Inspect the API and PostgreSQL logs, then run ./deploy/deploy.sh --setup again."
+      return 1
+    fi
+  done
+  rm -f "$admin_sql_file"
+
+  # This value is only needed during first bootstrap. Never leave the admin
+  # password, even encoded, in the deployment environment after success.
+  sed -i \
+    -e 's/^OPENBCON_INITIAL_ADMIN_EMAIL=.*/OPENBCON_INITIAL_ADMIN_EMAIL=/' \
+    -e 's/^OPENBCON_INITIAL_ADMIN_PASSWORD_B64=.*/OPENBCON_INITIAL_ADMIN_PASSWORD_B64=/' \
+    "$ENV_FILE"
+}
+
 if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
-  for service in api python caddy; do
+  for service in api python caddy updater; do
     wait_for_healthy_service "$service" || exit 1
   done
-  write_setup_status "services_ready" "PostgreSQL, MongoDB, Ollama, API, Python, and Caddy are healthy. Verifying public HTTPS."
+  bootstrap_admin_account || exit 1
+  if [ "$enable_ollama" -eq 1 ]; then
+    write_setup_status "services_ready" "PostgreSQL, MongoDB, Ollama, API, Python, and Caddy are healthy. The initial administrator account was created in Test and Live databases. Verifying public HTTPS."
+  else
+    write_setup_status "services_ready" "PostgreSQL, MongoDB, API, Python, and Caddy are healthy. Ollama is disabled. The initial administrator account was created in Test and Live databases. Verifying public HTTPS."
+  fi
   write_setup_status "verifying" "Services are healthy. Waiting for ${domain:-the public domain} HTTPS and /api/health."
   wait_for_public_health || exit 1
   write_setup_status "completed" "OpenBcon is deployed and the public HTTPS health check passed."
