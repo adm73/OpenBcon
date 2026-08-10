@@ -4,16 +4,57 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT_DIR/deploy/docker-compose.production.yml"
 ENV_FILE="$ROOT_DIR/deploy/.env.production"
+SETUP_COMPLETE_FILE="$ROOT_DIR/deploy/.setup-complete"
+PROXY_OVERRIDE_FILE="$ROOT_DIR/deploy/docker-compose.proxy.yml"
+SETUP_CONTAINER="openbcon-bootstrap-setup"
+SETUP_MODE=0
+
+if [ "${1:-}" = "--setup" ]; then
+  SETUP_MODE=1
+elif [ -n "${1:-}" ]; then
+  printf 'Usage: ./deploy/deploy.sh [--setup]\n' >&2
+  exit 1
+fi
 
 if ! command -v docker >/dev/null 2>&1; then
   printf 'Docker is required. Install Docker Engine and Docker Compose first.\n' >&2
   exit 1
 fi
 
-if [ ! -f "$ENV_FILE" ]; then
-  printf 'Missing %s\n' "$ENV_FILE" >&2
-  printf 'Run: cp deploy/.env.production.example deploy/.env.production\n' >&2
-  exit 1
+if [ "$SETUP_MODE" -eq 1 ] || [ ! -f "$ENV_FILE" ]; then
+  rm -f "$SETUP_COMPLETE_FILE"
+  setup_token="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')"
+  server_address="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  server_address="${server_address:-$(hostname 2>/dev/null || printf 'your-server-ip')}"
+
+  docker rm -f "$SETUP_CONTAINER" >/dev/null 2>&1 || true
+  docker run -d --rm \
+    --name "$SETUP_CONTAINER" \
+    --network host \
+    --user "$(id -u):$(id -g)" \
+    --env "SETUP_TOKEN=$setup_token" \
+    --env "SERVER_ADDRESS=$server_address" \
+    --volume "$ROOT_DIR/deploy:/setup:rw" \
+    node:22-alpine \
+    node /setup/setup-server.mjs >/dev/null
+
+  cleanup_setup() {
+    docker rm -f "$SETUP_CONTAINER" >/dev/null 2>&1 || true
+  }
+  trap cleanup_setup EXIT INT TERM
+
+  printf '\nOpenBcon Bootstrap Setup is ready.\n'
+  printf 'The setup server is bound to 127.0.0.1:8090 only.\n'
+  printf 'From your computer, create an SSH tunnel:\n'
+  printf '  ssh -L 8090:127.0.0.1:8090 <ssh-user>@%s\n' "$server_address"
+  printf 'Then open:\n  http://127.0.0.1:8090/setup?token=%s\n' "$setup_token"
+  printf 'This terminal will continue automatically after you save the form.\n\n'
+
+  while [ ! -f "$SETUP_COMPLETE_FILE" ]; do
+    sleep 1
+  done
+  cleanup_setup
+  trap - EXIT INT TERM
 fi
 
 cd "$ROOT_DIR"
@@ -26,6 +67,9 @@ if [ -z "${VITE_APP_COMMIT:-}" ]; then
 fi
 
 compose=(docker compose --project-name openbcon --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
+if [ -f "$PROXY_OVERRIDE_FILE" ]; then
+  compose+=( -f "$PROXY_OVERRIDE_FILE" )
+fi
 "${compose[@]}" config >/dev/null
 "${compose[@]}" up -d --build postgres mongodb ollama ollama-model
 

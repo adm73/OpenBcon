@@ -57,7 +57,7 @@ openssl rand -hex 32
 Edit `deploy/.env.production` and set at least:
 
 ```dotenv
-DOMAIN=open.example.com
+DOMAIN=your-domain.example
 POSTGRES_PASSWORD=use_a_long_random_alphanumeric_value
 MONGODB_ROOT_PASSWORD=use_a_different_long_random_value
 APP_STATE_ENCRYPTION_KEY=the_64_character_hex_value_from_openssl
@@ -69,13 +69,13 @@ For email verification, keep the SMTP settings in the production example or
 replace them with your provider's values:
 
 ```dotenv
-PUBLIC_APP_URL=https://open.bconomics.ai
+PUBLIC_APP_URL=https://your-domain.example
 EMAIL_PROVIDER=smtp
-EMAIL_FROM=OpenBcon <no-reply@open.bconomics.ai>
+EMAIL_FROM=OpenBcon <no-reply@your-domain.example>
 SMTP_HOST=smtp.hostinger.com
 SMTP_PORT=465
 SMTP_SECURE=true
-SMTP_USER=no-reply@open.bconomics.ai
+SMTP_USER=no-reply@your-domain.example
 SMTP_PASSWORD=your_mailbox_password
 ```
 
@@ -83,7 +83,7 @@ To enable Google registration, create a Google OAuth web client and add this
 authorized redirect URI:
 
 ```text
-https://open.bconomics.ai/api/auth/google/callback
+https://your-domain.example/api/auth/google/callback
 ```
 
 Then set `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and

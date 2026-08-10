@@ -15,6 +15,9 @@ dist-ssr
 .env.*
 !.env.example
 !deploy/.env.production.example
+deploy/.env.production.backup-*
+deploy/.setup-complete
+deploy/docker-compose.proxy.yml
 coverage
 __pycache__/
 *.py[cod]

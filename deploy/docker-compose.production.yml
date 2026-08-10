@@ -130,7 +130,7 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
-      DOMAIN: ${DOMAIN:?Set DOMAIN=open.bconomics.ai in deploy/.env.production}
+      DOMAIN: ${DOMAIN:?Set DOMAIN=your-domain.example in deploy/.env.production}
     ports:
       - "80:80"
       - "443:443"

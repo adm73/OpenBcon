@@ -20,13 +20,19 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
-## Version 1.0.0
+## Version 2.0.0
 
-OpenBcon 1.0.0 is the first release candidate for a complete funding-workspace
-workflow. It includes account registration, login, password reset, multilingual
-workspace support, real funding-program discovery, company records, Quick Build,
-and configurable Strategic Report generation with business, technology, and
-financial sections.
+OpenBcon 2.0.0 adds a guided deployment experience for arbitrary customer
+domains. It includes the Admin Console Deployment Setup wizard and the secure
+Bootstrap Setup flow that runs before the application is configured. Operators
+can choose the public domain, HTTPS/proxy plan, and initial Test or Live Mode;
+the VPS generates database credentials and the application encryption key, then
+continues into the normal Docker deployment.
+
+The release also includes account registration, login, password reset,
+multilingual workspace support, real funding-program discovery, company
+records, Quick Build, and configurable Strategic Report generation with
+business, technology, and financial sections.
 
 The release has been verified locally with an end-to-end Test Mode walkthrough:
 register a user, sign in, reset the password, select a real funding program,
@@ -54,7 +60,7 @@ duplicates before enforcing the global `(source_id, source_record_id)` unique
 index. Existing application and package references are retargeted to the
 canonical program record during the migration.
 
-The final local check passed with 14 test files and 74 tests, followed by a
+The final local check passed with 14 test files and 75 tests, followed by a
 successful TypeScript and Vite production build. Lint reports only the existing
 React Fast Refresh and hook-dependency warnings.
 
@@ -394,6 +400,38 @@ troubleshooting steps are documented here:
 - [Hostinger VPS deployment](./docs/deployment/hostinger-vps.md)
 - [Deployment troubleshooting FAQ](./docs/troubleshooting/deployment-faq.md)
 
+### Deployment Setup Wizard
+
+Admin Console includes a `Deployment Setup` wizard for deployments that use a
+custom domain. It validates the hostname, lets you choose whether Caddy or an
+existing Traefik instance owns HTTPS ports 80/443, selects the initial Test or
+Live Mode, and generates a server-side environment template plus deployment
+commands. The wizard keeps only non-secret draft values in the current browser;
+database passwords, API keys, and OAuth secrets must still be entered in
+`deploy/.env.production` on the VPS. The wizard prepares the configuration but
+does not remotely execute Docker commands.
+
+For a fresh VPS, the same setup is also available before the application is
+running. Execute:
+
+```bash
+./deploy/deploy.sh
+```
+
+When `deploy/.env.production` is missing, the script starts a one-time
+Bootstrap Setup page on `127.0.0.1:8090` and waits for the form to be saved.
+Create an SSH tunnel from your computer using the command printed by the
+script, open the one-time URL it prints, enter the domain, certificate email,
+proxy plan, and initial mode, then save. The script generates the database
+passwords and encryption key on the VPS, writes `deploy/.env.production`, and
+continues with the normal database migration and Docker startup. To
+reconfigure an existing deployment, run `./deploy/deploy.sh --setup`; the
+previous environment file is backed up before it is replaced. The domain must
+have an A record pointing to the VPS first. If an external Traefik owns ports
+80/443, it must route the selected domain to `127.0.0.1:8080`; the bootstrap
+step creates the OpenBcon Caddy override but cannot modify a separately managed
+Traefik installation.
+
 The AGPL community build keeps the Commercial licensing section visible and
 read-only in Admin Console. A paid commercial deployment can hide that section
 by setting the build-time variable `VITE_COMMERCIAL_LICENSED=true` and
@@ -491,7 +529,7 @@ mode switch.
 Verify the active mode after deployment with:
 
 ```bash
-curl -sS https://open.bconomics.ai/api/runtime/environment
+curl -sS https://your-domain.example/api/runtime/environment
 ```
 
 The response reports `activeEnvironmentMode`, the requested mode saved by
