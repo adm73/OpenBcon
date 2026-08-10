@@ -20,6 +20,21 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 2.5.5
+
+Version 2.5.5 completes first-admin provisioning during VPS bootstrap:
+
+- Setup Wizard validates and stores the initial admin email and password for
+  one-time server-side provisioning.
+- The deployment creates the administrator with the `admin` role in the
+  Shared, Test, and Live PostgreSQL databases, so the same credentials work
+  after switching between Test Mode and Live Mode.
+- The initial password is stored only as a bcrypt hash in each database and
+  the one-time bootstrap values are removed from `deploy/.env.production`
+  after successful provisioning.
+- Setup status explicitly reports administrator creation and continues to the
+  public HTTPS and API health checks.
+
 ## Version 2.5.4
 
 Version 2.5.4 fixes funding data-source synchronization in the workspace:
@@ -515,7 +530,7 @@ that port after setup completes. The script sets the database administrator
 usernames to `admin`, generates the passwords and encryption key on the VPS,
 and displays the database credentials
 once so they can be stored securely, writes `deploy/.env.production`, creates
-the initial administrator account in both isolated Test and Live databases, and
+the initial administrator account in Shared, Test, and Live databases, and
 continues with the normal database migration and Docker startup. To reconfigure an existing
 deployment, run `./deploy/deploy.sh --setup`; the previous environment file is
 backed up before it is replaced. The domain must have an A record pointing to
@@ -568,9 +583,9 @@ openssl rand -hex 32
 
 The first deployment runs PostgreSQL migrations and does not seed demo data.
 Sign in with the admin email and password created by Bootstrap Setup. The
-bootstrap administrator is created as an independent account in both Test and
-Live Mode so the operator can switch modes without losing administrative
-access; regular users remain isolated to the mode in which they were created.
+bootstrap administrator is created in Shared, Test, and Live databases so the
+operator can switch modes without losing administrative access; regular users
+remain isolated to the mode in which they were created.
 
 ### Optional Local Ollama model
 

@@ -34,6 +34,11 @@ const environmentSchema = z.object({
   MONGODB_DATABASE_LIVE: z.string().min(1).optional(),
   API_PORT: z.coerce.number().int().positive().default(8787),
   API_HOST: z.string().default('0.0.0.0'),
+  // The API is the source of truth for the build that is actually running.
+  // These values are stamped by deploy.sh and passed into the runtime
+  // container, so an old browser bundle cannot report a stale build.
+  OPENBCON_BUILD_COMMIT: z.string().trim().default('unknown'),
+  OPENBCON_BUILD_VERSION: z.string().trim().default('unreleased'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   STATE_BODY_LIMIT: z.string().default('12mb'),
   APP_STATE_ENCRYPTION_KEY: z.string().min(32).optional(),

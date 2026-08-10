@@ -182,6 +182,7 @@ database_name_from_url() {
 
 database_url_test="$(sed -n 's/^DATABASE_URL_TEST=//p' "$ENV_FILE" | head -n 1)"
 database_url_live="$(sed -n 's/^DATABASE_URL_LIVE=//p' "$ENV_FILE" | head -n 1)"
+database_url_shared="$(sed -n 's/^DATABASE_URL_SHARED=//p' "$ENV_FILE" | head -n 1)"
 database_prefix="$(sed -n 's/^DBOB_DATABASE_PREFIX=//p' "$ENV_FILE" | head -n 1)"
 database_prefix="${database_prefix:-dbob1234567890}"
 tenant_databases=(
@@ -340,9 +341,11 @@ ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = 'owner';
 COMMIT;
 SQL
 
-  # Create separate rows in both runtime databases so the operator can switch
-  # modes and still sign in. Normal users remain isolated to their active DB.
+  # Create the administrator in the shared catalog database first, then in
+  # both runtime databases. Shared catalog rows use the first shared user as
+  # their created_by/updated_by actor; runtime users remain mode-isolated.
   for admin_database in \
+    "$(database_name_from_url "${database_url_shared:-postgresql://localhost/${database_prefix}}")" \
     "$(database_name_from_url "${database_url_test:-postgresql://localhost/${database_prefix}_test}")" \
     "$(database_name_from_url "${database_url_live:-postgresql://localhost/${database_prefix}_live}")"; do
     if "${compose[@]}" exec -T postgres psql -U "$postgres_user" -d "$admin_database" -v ON_ERROR_STOP=1 < "$admin_sql_file"; then
@@ -369,9 +372,9 @@ if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
   done
   bootstrap_admin_account || exit 1
   if [ "$enable_ollama" -eq 1 ]; then
-    write_setup_status "services_ready" "PostgreSQL, MongoDB, Ollama, API, Python, and Caddy are healthy. The initial administrator account was created in Test and Live databases. Verifying public HTTPS."
+    write_setup_status "services_ready" "PostgreSQL, MongoDB, Ollama, API, Python, and Caddy are healthy. The initial administrator account was created in Shared, Test, and Live databases. Verifying public HTTPS."
   else
-    write_setup_status "services_ready" "PostgreSQL, MongoDB, API, Python, and Caddy are healthy. Ollama is disabled. The initial administrator account was created in Test and Live databases. Verifying public HTTPS."
+    write_setup_status "services_ready" "PostgreSQL, MongoDB, API, Python, and Caddy are healthy. Ollama is disabled. The initial administrator account was created in Shared, Test, and Live databases. Verifying public HTTPS."
   fi
   write_setup_status "verifying" "Services are healthy. Waiting for ${domain:-the public domain} HTTPS and /api/health."
   wait_for_public_health || exit 1

@@ -77,6 +77,8 @@ services:
       CORS_ORIGIN: https://${DOMAIN}
       AUTO_MIGRATE: "true"
       SEED_DEMO_DATA: "false"
+      OPENBCON_BUILD_COMMIT: ${VITE_APP_COMMIT:-unknown}
+      OPENBCON_BUILD_VERSION: ${VITE_APP_VERSION:-unreleased}
       OPENBCON_UPDATE_AGENT_URL: http://updater:8788
       OPENBCON_UPDATE_TOKEN: ${OPENBCON_UPDATE_TOKEN:?Set OPENBCON_UPDATE_TOKEN in deploy/.env.production}
     depends_on:

@@ -411,6 +411,12 @@ export async function seedDatabase(
       userIds.set(user.email, userId)
     }
     const userId = userIds.get('alex@northstarfoods.ca') ?? environment.DEMO_USER_ID
+    // Shared catalog rows must reference the first user in the shared
+    // database, not a mode-local user with the same numeric-looking ID.
+    const catalogActorResult = await catalogClient.query<{ id: string }>(
+      `SELECT id::text FROM app_users ORDER BY id ASC LIMIT 1`,
+    )
+    const catalogActorId = catalogActorResult.rows[0]?.id ?? null
     await client.query(
       `
         SELECT setval(
@@ -593,7 +599,7 @@ export async function seedDatabase(
             'Small and medium-sized businesses with a clear operating plan and measurable next steps.',
             'Business profile, ownership details, financial information, project budget, and measurable milestones.',
             program.sourceRecordId,
-            userId,
+            catalogActorId,
           ],
         )
         programId = programResult.rows[0]?.id

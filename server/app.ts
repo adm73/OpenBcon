@@ -8,7 +8,7 @@ import express, {
   type Response,
 } from 'express'
 import helmet from 'helmet'
-import type { Pool } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 import { z } from 'zod'
 import {
   clearSessionCookie,
@@ -807,6 +807,16 @@ export function createApp(
       return typeof value === 'function' ? value.bind(sharedDatabase) : value
     },
   }) as Pool
+
+  // Shared catalog rows must reference a user in the shared database. The
+  // first user is the bootstrap administrator in a fresh deployment and is
+  // valid regardless of whether the request came from Test or Live mode.
+  async function getFirstCatalogUserId(executor: Pool | PoolClient = catalogDatabase) {
+    const result = await executor.query<{ id: string }>(
+      `SELECT id::text FROM app_users ORDER BY id ASC LIMIT 1`,
+    )
+    return result.rows[0]?.id ?? null
+  }
   const failedLoginAttempts = new Map<string, { count: number; resetAt: number }>()
   const authRequestAttempts = new Map<string, { count: number; resetAt: number }>()
   const authRateLimitWindowMs = 15 * 60 * 1000
@@ -1213,6 +1223,7 @@ export function createApp(
 
       const sourceRecordId = `manual-${randomUUID()}`
       const recordVersion = `manual-${new Date().toISOString()}`
+      const catalogActorId = await getFirstCatalogUserId()
       const result = await catalogDatabase.query<FundingProgramApiRow>(
         `
           INSERT INTO funding_programs (
@@ -1291,7 +1302,7 @@ export function createApp(
           parsed.data.matchScore,
           sourceRecordId,
           recordVersion,
-          context.userId,
+          catalogActorId,
         ],
       )
 
@@ -1361,6 +1372,7 @@ export function createApp(
       let imported = 0
       let updated = 0
       const sourceRecordIds = normalizedRecords.map((record) => record.sourceRecordId)
+      const catalogActorId = await getFirstCatalogUserId(client)
 
       try {
         await client.query('BEGIN')
@@ -1457,7 +1469,7 @@ export function createApp(
                 sourceName: parsed.data.sourceName,
                 sourceUrl: parsed.data.sourceUrl || record.metadata.sourceUrl,
               }),
-              context.userId,
+              catalogActorId,
             ],
           )
           if (result.rows[0]?.inserted) imported += 1
@@ -1481,7 +1493,7 @@ export function createApp(
                 )
                 SELECT count(*)::text AS count FROM archived
               `,
-              [context.userId, parsed.data.sourceId, syncRecordIds],
+              [catalogActorId, parsed.data.sourceId, syncRecordIds],
             )
           : { rows: [{ count: '0' }] }
 
@@ -1558,6 +1570,7 @@ export function createApp(
       const client = await catalogDatabase.connect()
       let imported = 0
       let updated = 0
+      const catalogActorId = await getFirstCatalogUserId(client)
 
       try {
         await client.query('BEGIN')
@@ -1598,7 +1611,7 @@ export function createApp(
               VALUES (
                 NULL, NULLIF($1, ''), $2, NULLIF($3, ''), $4, NULLIF($5, ''), $6,
                 NULLIF($7, ''), $8, NULLIF($9, ''), $10, $11, $12, $13, $14, $15,
-                $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28
+                $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $27
               )
               ON CONFLICT (source_id, source_record_id)
               WHERE source_id IS NOT NULL AND source_record_id IS NOT NULL
@@ -1663,8 +1676,7 @@ export function createApp(
                 sourceName: parsed.data.sourceName,
                 sourceUrl: parsed.data.sourceUrl,
               }),
-              context.userId,
-              context.userId,
+              catalogActorId,
             ],
           )
           if (result.rows[0]?.inserted) imported += 1
@@ -1688,7 +1700,7 @@ export function createApp(
                 )
                 SELECT count(*)::text AS count FROM archived
               `,
-              [context.userId, parsed.data.sourceId, parsed.data.sourceType, syncRecordIds],
+              [catalogActorId, parsed.data.sourceId, parsed.data.sourceType, syncRecordIds],
             )
           : { rows: [{ count: '0' }] }
 
@@ -1776,7 +1788,7 @@ export function createApp(
           )
           SELECT count(*)::text AS count FROM archived
         `,
-        [context.userId, sourceId],
+        [await getFirstCatalogUserId(), sourceId],
       )
 
       response.json({ archived: Number(result.rows[0]?.count ?? 0) })
@@ -2704,6 +2716,7 @@ export function createApp(
       )
       let programId = existingProgramResult.rows[0]?.id
       if (!programId) {
+        const catalogActorId = await getFirstCatalogUserId()
         const programResult = await catalogDatabase.query<{ id: string }>(
           `
             INSERT INTO funding_programs (
@@ -2763,7 +2776,7 @@ export function createApp(
             parsed.data.sourceRecordId,
             parsed.data.sourceVersion,
             parsed.data.recordVersion,
-            context.userId,
+            catalogActorId,
           ],
         )
         programId = programResult.rows[0]?.id
@@ -2929,11 +2942,11 @@ export function createApp(
       const context = await requireAdminContext(database, request, response)
       if (!context) return
 
-      const currentCommit =
+      const requestedCommit =
         typeof request.query.currentCommit === 'string'
           ? request.query.currentCommit
           : undefined
-      if (currentCommit && !/^(unknown|[0-9a-f]{7,40})$/iu.test(currentCommit.trim())) {
+      if (requestedCommit && !/^(unknown|[0-9a-f]{7,40})$/iu.test(requestedCommit.trim())) {
         response.status(400).json({
           error: 'invalid_request',
           message: 'The current commit identifier is invalid.',
@@ -2941,8 +2954,24 @@ export function createApp(
         return
       }
 
+      // Prefer metadata from the running API. The query value comes from the
+      // browser and can belong to an older cached frontend bundle.
+      const runtimeCommit = environment.OPENBCON_BUILD_COMMIT.trim()
+      const currentCommit =
+        runtimeCommit && runtimeCommit !== 'unknown'
+          ? runtimeCommit
+          : requestedCommit
+      const updateResult = await checkForOpenBconUpdates(currentCommit)
+      const runtimeVersion = environment.OPENBCON_BUILD_VERSION.trim()
+
       response.json({
-        ...(await checkForOpenBconUpdates(currentCommit)),
+        ...updateResult,
+        currentCommit: runtimeCommit && runtimeCommit !== 'unknown'
+          ? runtimeCommit
+          : updateResult.currentCommit,
+        currentTag: runtimeVersion && runtimeVersion !== 'unreleased'
+          ? runtimeVersion
+          : updateResult.currentTag,
         automaticUpdatesConfigured: isOpenBconUpdateAgentConfigured(),
       })
     } catch (error) {

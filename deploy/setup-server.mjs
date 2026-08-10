@@ -431,7 +431,7 @@ function page() {
         updateRow('config-row', configStatus, payload.configurationSaved ? 'Written to deploy/.env.production on the VPS.' : failed ? 'The environment file was not written.' : 'Waiting for the VPS to save the environment file.');
         const adminReady = ['admin_ready', 'services_ready', 'verifying', 'completed'].includes(payload.phase);
         const adminStatus = failed ? 'failed' : adminReady ? 'ready' : 'pending';
-        updateRow('admin-row', adminStatus, failed ? payload.message : adminReady ? 'Created in both Test and Live databases. Sign in with the admin email and password you entered.' : 'Waiting for the API and database migrations.');
+        updateRow('admin-row', adminStatus, failed ? payload.message : adminReady ? 'Created in Shared, Test, and Live databases. Sign in with the admin email and password you entered.' : 'Waiting for the API and database migrations.');
         updateRow('dns-row', payload.dns.status, payload.dns.message);
         const servicesStatus = failed ? 'failed' : servicesReady ? 'ready' : 'pending';
         updateRow('services-row', servicesStatus, failed ? payload.message : servicesReady ? 'Core OpenBcon services are healthy.' : payload.message || 'The VPS is starting the services.');
