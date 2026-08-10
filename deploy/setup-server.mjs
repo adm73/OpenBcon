@@ -46,10 +46,19 @@ function randomSecret(bytes = 24) {
   return randomBytes(bytes).toString('base64url')
 }
 
+function randomDatabaseUsername(prefix) {
+  return `${prefix}_${randomBytes(6).toString('hex')}`
+}
+
 function setEnvValue(text, key, value) {
   const line = `${key}=${value}`
   const pattern = new RegExp(`^${key}=.*$`, 'mu')
   return pattern.test(text) ? text.replace(pattern, line) : `${text.trimEnd()}\n${line}\n`
+}
+
+function getEnvValue(text, key, fallback = '') {
+  const pattern = new RegExp(`^${key}=(.*)$`, 'mu')
+  return text.match(pattern)?.[1] ?? fallback
 }
 
 function readBaseEnv() {
@@ -81,8 +90,14 @@ function buildEnvironment(input) {
   text = setEnvValue(text, 'OPENBCON_ENVIRONMENT_MODE', input.environmentMode)
 
   // Generate server-side secrets so the setup form never transports them.
+  if (!/^POSTGRES_USER=(?!replace_with_)/mu.test(text)) {
+    text = setEnvValue(text, 'POSTGRES_USER', randomDatabaseUsername('obc_pg'))
+  }
   if (!/^POSTGRES_PASSWORD=(?!replace_with_)/mu.test(text)) {
     text = setEnvValue(text, 'POSTGRES_PASSWORD', randomSecret())
+  }
+  if (!/^MONGODB_ROOT_USERNAME=(?!replace_with_)/mu.test(text)) {
+    text = setEnvValue(text, 'MONGODB_ROOT_USERNAME', randomDatabaseUsername('obc_mongo'))
   }
   if (!/^MONGODB_ROOT_PASSWORD=(?!replace_with_)/mu.test(text)) {
     text = setEnvValue(text, 'MONGODB_ROOT_PASSWORD', randomSecret())
@@ -91,7 +106,50 @@ function buildEnvironment(input) {
     text = setEnvValue(text, 'APP_STATE_ENCRYPTION_KEY', randomBytes(32).toString('hex'))
   }
 
+  // Keep every service on the same credentials and on the required
+  // shared/test/live database names. This prevents a generated password from
+  // drifting away from the connection URLs in the production example.
+  const postgresUser = getEnvValue(text, 'POSTGRES_USER', 'bconomics')
+  const postgresPassword = getEnvValue(text, 'POSTGRES_PASSWORD')
+  const postgresUrl = (database) =>
+    `postgresql://${encodeURIComponent(postgresUser)}:${encodeURIComponent(postgresPassword)}@postgres:5432/${database}`
+  const syncLocalPostgresUrl = (key, database) => {
+    const current = getEnvValue(text, key)
+    if (!current || current.includes('@postgres:5432/')) {
+      text = setEnvValue(text, key, postgresUrl(database))
+    }
+  }
+  syncLocalPostgresUrl('DATABASE_URL_SHARED', 'bconomics')
+  syncLocalPostgresUrl('DATABASE_URL_TEST', 'bconomics_test')
+  syncLocalPostgresUrl('DATABASE_URL_LIVE', 'bconomics_live')
+  syncLocalPostgresUrl('OPENBCON_DB_DSN_SHARED', 'bconomics')
+  syncLocalPostgresUrl('OPENBCON_DB_DSN_TEST', 'bconomics_test')
+  syncLocalPostgresUrl('OPENBCON_DB_DSN_LIVE', 'bconomics_live')
+
+  const sharedMongo = getEnvValue(text, 'MONGODB_DATABASE_SHARED', 'bconomics')
+  const testMongo = getEnvValue(text, 'MONGODB_DATABASE_TEST', 'bconomics_test')
+  const liveMongo = getEnvValue(text, 'MONGODB_DATABASE_LIVE', 'bconomics_live')
+  text = setEnvValue(text, 'MONGODB_DATABASE_SHARED', sharedMongo)
+  text = setEnvValue(text, 'MONGODB_DATABASE_TEST', testMongo)
+  text = setEnvValue(text, 'MONGODB_DATABASE_LIVE', liveMongo)
+  text = setEnvValue(text, 'OPENBCON_MONGODB_DATABASE_SHARED', sharedMongo)
+  text = setEnvValue(text, 'OPENBCON_MONGODB_DATABASE_TEST', testMongo)
+  text = setEnvValue(text, 'OPENBCON_MONGODB_DATABASE_LIVE', liveMongo)
+
   return text.endsWith('\n') ? text : `${text}\n`
+}
+
+function databaseCredentials(text) {
+  return {
+    postgres: {
+      username: getEnvValue(text, 'POSTGRES_USER'),
+      password: getEnvValue(text, 'POSTGRES_PASSWORD'),
+    },
+    mongodb: {
+      username: getEnvValue(text, 'MONGODB_ROOT_USERNAME'),
+      password: getEnvValue(text, 'MONGODB_ROOT_PASSWORD'),
+    },
+  }
 }
 
 function writeEnvironment(input) {
@@ -107,6 +165,7 @@ function writeEnvironment(input) {
   writeStatus('configuration_saved', 'Configuration was written to deploy/.env.production.')
   setupInput = input
   setupCompleted = true
+  return databaseCredentials(nextEnv)
 }
 
 function writeStatus(phase, message) {
@@ -214,6 +273,19 @@ function page() {
     .next-step { padding: 16px; border-radius: 12px; background: #eef3ff; color: #3340a5; }
     .next-step strong { display: block; font-size: 13px; }
     .next-step p { margin: 5px 0 0; color: #59658c; font-size: 13px; }
+    .credentials { display: grid; gap: 10px; padding: 16px; border: 1px solid #dfe5f0; border-radius: 12px; background: #fbfcff; }
+    .credentials h2 { margin: 0; font-size: 16px; }
+    .credentials p { margin: 0; font-size: 13px; }
+    .credential-group { display: grid; gap: 8px; }
+    .credential-group strong { color: #30394e; font-size: 13px; }
+    .credential-row { display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: 8px; }
+    .credential-row span { color: #747d92; font-size: 12px; font-weight: 800; }
+    .credential-row code { min-width: 0; overflow-wrap: anywhere; }
+    .copy-button { min-height: 32px; padding: 0 10px; background: #eef0ff; color: #3340a5; font-size: 12px; }
+    .credential-warning { padding: 12px 13px; border-radius: 10px; background: #fff4e7; color: #7d5424; font-size: 13px; line-height: 1.55; }
+    .credential-warning strong { display: block; margin-bottom: 4px; }
+    .credential-warning p { margin: 0; color: #7d5424; font-size: 13px; }
+    .credential-warning a { color: #6c4b20; font-weight: 800; }
     .error { display: none; padding: 12px 14px; border-radius: 10px; background: #fff1f1; color: #a64040; font-size: 13px; }
     button { min-height: 46px; padding: 0 18px; border: 0; border-radius: 10px; background: #5760d9; color: white; font: inherit; font-weight: 800; cursor: pointer; }
     button:disabled { opacity: .6; cursor: wait; }
@@ -238,7 +310,7 @@ function page() {
         <label class="choice"><input type="radio" name="proxy" value="traefik"><strong>Existing Traefik</strong><small>Keep Traefik on 80/443. The setup creates a local Caddy route on 127.0.0.1:8080.</small></label>
       </div>
       <label>Initial runtime mode<select name="environmentMode"><option value="test">Test Mode - recommended</option><option value="live">Live Mode</option></select><small>Test Mode is safer for first launch. You can change the server environment later.</small></label>
-      <div class="notice"><strong>Security:</strong> database passwords and the application encryption key are generated inside the VPS. This page uses a one-time token, expires after 24 hours, and shuts down after saving. Port 8090 is only needed during setup and should be closed in the VPS firewall afterward.</div>
+      <div class="notice"><strong>Security:</strong> database accounts, passwords, and the application encryption key are generated inside the VPS. This page uses a one-time token, expires after 24 hours, and shuts down after saving. Port 8090 is only needed during setup and should be closed in the VPS firewall afterward.</div>
       <div class="error" id="error" role="alert"></div>
       <div class="footer"><button id="submit" type="submit">Save and start OpenBcon</button></div>
     </form>
@@ -257,6 +329,17 @@ function page() {
         '<div class="status-row" id="services-row"><span class="status-dot"></span><div><strong>OpenBcon services</strong><small>Waiting for the deployment to start.</small></div><span class="status-state">Waiting</span></div>' +
         '<div class="status-row" id="health-row"><span class="status-dot"></span><div><strong>HTTPS and API health</strong><small>Waiting for the public URL.</small></div><span class="status-state">Waiting</span></div>' +
       '</div>' +
+      '<div class="credentials"><h2>Database credentials</h2><p>Save these credentials in a secure password manager. They are generated on the VPS and are not shown again after this setup session.</p>' +
+        '<div class="credential-group"><strong>PostgreSQL</strong>' +
+          '<div class="credential-row"><span>Username</span><code data-credential="postgres.username">Generating...</code><button class="copy-button" type="button" data-copy="postgres.username">Copy</button></div>' +
+          '<div class="credential-row"><span>Password</span><code data-credential="postgres.password">Generating...</code><button class="copy-button" type="button" data-copy="postgres.password">Copy</button></div>' +
+        '</div>' +
+        '<div class="credential-group"><strong>MongoDB</strong>' +
+          '<div class="credential-row"><span>Username</span><code data-credential="mongodb.username">Generating...</code><button class="copy-button" type="button" data-copy="mongodb.username">Copy</button></div>' +
+          '<div class="credential-row"><span>Password</span><code data-credential="mongodb.password">Generating...</code><button class="copy-button" type="button" data-copy="mongodb.password">Copy</button></div>' +
+        '</div>' +
+        '<div class="credential-warning"><strong>Change these passwords soon.</strong><p>After OpenBcon is healthy, rotate both database passwords. Update the database accounts and every matching value in <code>deploy/.env.production</code> together, then recreate the application containers. Never change the env file alone. See the <a href="https://github.com/adm73/OpenBcon/blob/main/docs/deployment/hostinger-vps.md#rotate-database-credentials" target="_blank" rel="noreferrer">password rotation instructions</a>.</p></div>' +
+      '</div>' +
       '<div class="next-step" id="next-step"><strong>Next step</strong><p>Keep this page open while the VPS starts OpenBcon.</p></div>' +
     '</section>';
 
@@ -272,6 +355,29 @@ function page() {
       state.className = 'status-state ' + status;
       state.textContent = statusLabel(status);
       row.querySelector('small').textContent = message;
+    }
+
+    function renderCredentials(credentials) {
+      if (!credentials) return;
+      for (const [engine, values] of Object.entries(credentials)) {
+        for (const [field, value] of Object.entries(values)) {
+          const selector = '[data-credential="' + engine + '.' + field + '"]';
+          const element = document.querySelector(selector);
+          if (element) element.textContent = value;
+        }
+      }
+      document.querySelectorAll('[data-copy]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const value = document.querySelector('[data-credential="' + button.dataset.copy + '"]')?.textContent || '';
+          try {
+            await navigator.clipboard.writeText(value);
+            button.textContent = 'Copied';
+            window.setTimeout(() => { button.textContent = 'Copy'; }, 1500);
+          } catch {
+            button.textContent = 'Copy manually';
+          }
+        });
+      });
     }
 
     async function refreshStatus() {
@@ -315,6 +421,7 @@ function page() {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.message || 'Setup could not be saved.');
         form.innerHTML = statusPanelMarkup;
+        renderCredentials(payload.databaseCredentials);
         refreshStatus();
       } catch (requestError) {
         error.textContent = requestError.message || 'Setup could not be saved.';
@@ -375,9 +482,9 @@ const server = http.createServer(async (request, response) => {
       if (!isValidEmail(input.certificateEmail || '')) throw new Error('Enter a valid certificate email.')
       if (!['caddy', 'traefik'].includes(input.proxy)) throw new Error('Choose a supported proxy.')
       if (!['test', 'live'].includes(input.environmentMode)) throw new Error('Choose Test or Live Mode.')
-      writeEnvironment(input)
+      const credentials = writeEnvironment(input)
       response.writeHead(200, { 'content-type': 'application/json' })
-      response.end(JSON.stringify({ ok: true }))
+      response.end(JSON.stringify({ ok: true, databaseCredentials: credentials }))
     } catch (error) {
       response.writeHead(400, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ message: error instanceof Error ? error.message : 'Setup failed.' }))

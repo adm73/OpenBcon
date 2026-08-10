@@ -65,18 +65,20 @@ OPENBCON_OPENAI_API_KEY=your_server_side_key
 SEED_DEMO_DATA=false
 ```
 
-For email verification, keep the SMTP settings in the production example or
-replace them with your provider's values:
+Test Mode can start without an SMTP server. It uses the console email provider
+and logs verification or password-reset previews in the API logs. Before
+switching to Live Mode, configure SMTP with your provider's values:
 
 ```dotenv
 PUBLIC_APP_URL=https://your-domain.example
-EMAIL_PROVIDER=smtp
+EMAIL_PROVIDER=console
 EMAIL_FROM=OpenBcon <no-reply@your-domain.example>
-SMTP_HOST=smtp.hostinger.com
-SMTP_PORT=465
-SMTP_SECURE=true
-SMTP_USER=no-reply@your-domain.example
-SMTP_PASSWORD=your_mailbox_password
+# Set EMAIL_PROVIDER=smtp and uncomment/configure these values before Live Mode.
+# SMTP_HOST=smtp.hostinger.com
+# SMTP_PORT=465
+# SMTP_SECURE=true
+# SMTP_USER=no-reply@your-domain.example
+# SMTP_PASSWORD=your_mailbox_password
 ```
 
 To enable Google registration, create a Google OAuth web client and add this
@@ -248,6 +250,59 @@ http://YOUR_VPS_IPV4:8090/setup?token=...
 
 Do not leave port `8090` open after setup. It is not an application port and is
 only used for the temporary bootstrap wizard.
+
+## Rotate database credentials
+
+The setup page shows the generated PostgreSQL and MongoDB credentials once.
+Save them in a password manager and rotate them as soon as the deployment is
+verified. Use alphanumeric passwords so they can safely be used in PostgreSQL
+URLs:
+
+```bash
+cd /opt/openbcon
+cp deploy/.env.production "deploy/.env.production.backup.$(date +%Y%m%d%H%M%S)"
+new_postgres_password="$(openssl rand -hex 32)"
+new_mongodb_password="$(openssl rand -hex 32)"
+```
+
+Change the PostgreSQL role while the database container is running. Replace
+`POSTGRES_USER` with the generated username from `deploy/.env.production`:
+
+```bash
+postgres_user="$(awk -F= '$1 == "POSTGRES_USER" { print $2; exit }' deploy/.env.production)"
+docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
+  exec -T postgres psql -U "$postgres_user" -d postgres \
+  --set=role_name="$postgres_user" --set=role_password="$new_postgres_password" \
+  -c "ALTER ROLE :\"role_name\" PASSWORD :'role_password';"
+```
+
+Change the MongoDB root password with the generated MongoDB username:
+
+```bash
+mongo_user="$(awk -F= '$1 == "MONGODB_ROOT_USERNAME" { print $2; exit }' deploy/.env.production)"
+mongo_password="$(awk -F= '$1 == "MONGODB_ROOT_PASSWORD" { print $2; exit }' deploy/.env.production)"
+docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
+  exec -T mongodb mongosh --username "$mongo_user" --password "$mongo_password" \
+  --authenticationDatabase admin \
+  --eval "db.changeUserPassword('$mongo_user', '$new_mongodb_password')"
+```
+
+Edit `deploy/.env.production` and update `POSTGRES_PASSWORD`, the password in
+all six PostgreSQL URLs/DSNs, and `MONGODB_ROOT_PASSWORD`. Do not change only
+the env file: the database accounts must already have the new passwords. Then
+validate and recreate the application containers without touching data volumes:
+
+```bash
+docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml config >/dev/null
+docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
+  up -d --force-recreate api python caddy
+docker compose --env-file deploy/.env.production -f deploy/docker-compose.production.yml \
+  ps
+```
+
+If a command fails, restore the backup env file and use the old password to
+recover before retrying. Never run `docker compose down -v` during credential
+rotation.
 
 Check the services:
 

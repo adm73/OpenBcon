@@ -102,11 +102,11 @@ export const environment = environmentSchema
         }
       }
     }
-    if (values.EMAIL_PROVIDER === 'console') {
+    if (values.OPENBCON_ENVIRONMENT_MODE === 'live' && values.EMAIL_PROVIDER !== 'smtp') {
       context.addIssue({
         code: 'custom',
         path: ['EMAIL_PROVIDER'],
-        message: 'Production email delivery cannot use the console provider.',
+        message: 'Live Mode requires SMTP email delivery.',
       })
     }
     if (!values.DATABASE_URL_SHARED || !values.DATABASE_URL_TEST || !values.DATABASE_URL_LIVE) {

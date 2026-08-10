@@ -407,9 +407,10 @@ custom domain. It validates the hostname, lets you choose whether Caddy or an
 existing Traefik instance owns HTTPS ports 80/443, selects the initial Test or
 Live Mode, and generates a server-side environment template plus deployment
 commands. The wizard keeps only non-secret draft values in the current browser;
-database passwords, API keys, and OAuth secrets must still be entered in
-`deploy/.env.production` on the VPS. The wizard prepares the configuration but
-does not remotely execute Docker commands.
+database usernames and passwords are generated inside the VPS and shown once
+on the result page. API keys, SMTP credentials, and OAuth secrets must still be
+entered in `deploy/.env.production` on the VPS. The wizard prepares the
+configuration but does not remotely execute Docker commands.
 
 For a fresh VPS, the same setup is also available before the application is
 running. Execute:
@@ -424,9 +425,10 @@ be saved. Open the one-time public URL printed by the script, enter the domain,
 certificate email, proxy plan, and initial mode, then save. The setup URL is
 protected by a one-time token and expires after 24 hours. If the VPS firewall
 blocks it, temporarily allow inbound TCP `8090` while configuring, then close
-that port after setup completes. The script generates the database passwords and
-encryption key on the VPS, writes `deploy/.env.production`, and continues with
-the normal database migration and Docker startup. To reconfigure an existing
+that port after setup completes. The script generates the database usernames,
+passwords, and encryption key on the VPS, displays the database credentials
+once so they can be stored securely, writes `deploy/.env.production`, and
+continues with the normal database migration and Docker startup. To reconfigure an existing
 deployment, run `./deploy/deploy.sh --setup`; the previous environment file is
 backed up before it is replaced. The domain must have an A record pointing to
 the VPS first. If an external Traefik owns ports 80/443, it must route the
@@ -436,6 +438,24 @@ After saving, the setup page shows configuration-write status, DNS resolution,
 service startup, HTTPS, and `/api/health` checks. It also shows the final public
 URL or the next troubleshooting step. The temporary setup service is stopped
 automatically after deployment succeeds or fails.
+
+#### Rotate database credentials
+
+The Bootstrap Setup page displays the generated PostgreSQL and MongoDB
+credentials once. Store them in a secure password manager, then rotate them as
+soon as the deployment has been verified. A password rotation must update both
+the database account and the matching application configuration; changing only
+`.env.production` will break authentication.
+
+Use alphanumeric passwords generated with `openssl rand -hex 32`, update the
+database roles, and then update these PostgreSQL values with the same password:
+`POSTGRES_PASSWORD`, `DATABASE_URL_SHARED`, `DATABASE_URL_TEST`,
+`DATABASE_URL_LIVE`, `OPENBCON_DB_DSN_SHARED`, `OPENBCON_DB_DSN_TEST`, and
+`OPENBCON_DB_DSN_LIVE`. Update `MONGODB_ROOT_PASSWORD` after changing the
+MongoDB root password. Back up `deploy/.env.production` first, validate the
+Compose configuration, and recreate only `api`, `python`, and `caddy`; never
+delete the PostgreSQL or MongoDB volumes. The full command sequence is in the
+[Hostinger VPS deployment guide](./docs/deployment/hostinger-vps.md#rotate-database-credentials).
 
 The AGPL community build keeps the Commercial licensing section visible and
 read-only in Admin Console. A paid commercial deployment can hide that section
@@ -448,8 +468,8 @@ For a VPS where Caddy can use ports 80 and 443 directly:
 ```bash
 cp deploy/.env.production.example deploy/.env.production
 openssl rand -hex 32
-# Edit deploy/.env.production with the database passwords, generated encryption
-# key, public DOMAIN, and server-side OPENBCON_OPENAI_API_KEY.
+# Edit deploy/.env.production with the public DOMAIN and any server-side
+# API/SMTP/OAuth credentials. The setup wizard generates database credentials.
 ./deploy/deploy.sh
 ```
 
@@ -848,7 +868,9 @@ New password registrations create an account, establish a session immediately,
 and send a one-time verification link. Email verification can be completed
 later from the link or by requesting a resend. Development defaults to
 `EMAIL_PROVIDER=console`, which logs the preview link instead of sending an
-email. Production must use SMTP by setting `EMAIL_PROVIDER=smtp`, `SMTP_HOST`,
+email. This is also the default for a production deployment in Test Mode, so
+SMTP is optional while the platform is being evaluated. Before switching to
+Live Mode, configure SMTP by setting `EMAIL_PROVIDER=smtp`, `SMTP_HOST`,
 `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`, and
 `PUBLIC_APP_URL`. Existing users from before email verification was introduced
 are treated as verified by the database migration.
@@ -873,8 +895,9 @@ then both APIs require the login or registration API to establish a session and
 the Python service validates the session workspace before generation. The
 authentication endpoints also apply short-window rate limits to registration,
 password-reset requests, and verification-email resends. Production password
-reset and verification delivery require SMTP; the console email provider is
-rejected by production startup. Do not expose the Node API, Python AI API,
+reset and verification delivery require SMTP in Live Mode. Test Mode may use
+the console provider and logs email previews instead of sending messages. Do
+not expose the Node API, Python AI API,
 PostgreSQL, MongoDB, payment routes, or model endpoints publicly without TLS,
 secret management, and
 database network controls.
