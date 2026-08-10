@@ -419,18 +419,19 @@ running. Execute:
 ```
 
 When `deploy/.env.production` is missing, the script starts a one-time
-Bootstrap Setup page on `127.0.0.1:8090` and waits for the form to be saved.
-Create an SSH tunnel from your computer using the command printed by the
-script, open the one-time URL it prints, enter the domain, certificate email,
-proxy plan, and initial mode, then save. The script generates the database
-passwords and encryption key on the VPS, writes `deploy/.env.production`, and
-continues with the normal database migration and Docker startup. To
-reconfigure an existing deployment, run `./deploy/deploy.sh --setup`; the
-previous environment file is backed up before it is replaced. The domain must
-have an A record pointing to the VPS first. If an external Traefik owns ports
-80/443, it must route the selected domain to `127.0.0.1:8080`; the bootstrap
-step creates the OpenBcon Caddy override but cannot modify a separately managed
-Traefik installation.
+Bootstrap Setup page on the VPS temporary port `8090` and waits for the form to
+be saved. Open the one-time public URL printed by the script, enter the domain,
+certificate email, proxy plan, and initial mode, then save. The setup URL is
+protected by a one-time token and expires after 24 hours. If the VPS firewall
+blocks it, temporarily allow inbound TCP `8090` while configuring, then close
+that port after setup completes. The script generates the database passwords and
+encryption key on the VPS, writes `deploy/.env.production`, and continues with
+the normal database migration and Docker startup. To reconfigure an existing
+deployment, run `./deploy/deploy.sh --setup`; the previous environment file is
+backed up before it is replaced. The domain must have an A record pointing to
+the VPS first. If an external Traefik owns ports 80/443, it must route the
+selected domain to `127.0.0.1:8080`; the bootstrap step creates the OpenBcon
+Caddy override but cannot modify a separately managed Traefik installation.
 
 The AGPL community build keeps the Commercial licensing section visible and
 read-only in Admin Console. A paid commercial deployment can hide that section

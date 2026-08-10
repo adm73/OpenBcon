@@ -206,6 +206,13 @@ docker compose logs -f --tail=100 traefik
 
 ## Start OpenBcon
 
+For the first deployment, the repository can run a temporary public setup page
+so no SSH tunnel is required. Allow inbound TCP port `8090` temporarily in the
+VPS firewall, run the setup command below, and open the URL printed in the VPS
+terminal. The URL contains a one-time token and expires after 24 hours. Close
+port `8090` again after the form is saved; the deployment script stops the setup
+container automatically.
+
 Run all Compose commands with the production env file. Compose does not
 automatically load `.env.production` for interpolation:
 
@@ -221,6 +228,21 @@ Or use the repository deployment script, which supplies the env file for you:
 ```bash
 ./deploy/deploy.sh
 ```
+
+To re-run the setup wizard for an existing deployment:
+
+```bash
+./deploy/deploy.sh --setup
+```
+
+Open the printed address in a browser, for example:
+
+```text
+http://YOUR_VPS_IPV4:8090/setup?token=...
+```
+
+Do not leave port `8090` open after setup. It is not an application port and is
+only used for the temporary bootstrap wizard.
 
 Check the services:
 

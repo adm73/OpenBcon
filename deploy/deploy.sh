@@ -34,6 +34,8 @@ if [ "$SETUP_MODE" -eq 1 ] || [ ! -f "$ENV_FILE" ]; then
     --user "$(id -u):$(id -g)" \
     --env "SETUP_TOKEN=$setup_token" \
     --env "SERVER_ADDRESS=$server_address" \
+    --env "SETUP_BIND_ADDRESS=0.0.0.0" \
+    --env "SETUP_TTL_SECONDS=86400" \
     --volume "$ROOT_DIR/deploy:/setup:rw" \
     node:22-alpine \
     node /setup/setup-server.mjs >/dev/null
@@ -44,10 +46,10 @@ if [ "$SETUP_MODE" -eq 1 ] || [ ! -f "$ENV_FILE" ]; then
   trap cleanup_setup EXIT INT TERM
 
   printf '\nOpenBcon Bootstrap Setup is ready.\n'
-  printf 'The setup server is bound to 127.0.0.1:8090 only.\n'
-  printf 'From your computer, create an SSH tunnel:\n'
-  printf '  ssh -L 8090:127.0.0.1:8090 <ssh-user>@%s\n' "$server_address"
-  printf 'Then open:\n  http://127.0.0.1:8090/setup?token=%s\n' "$setup_token"
+  printf 'The temporary setup server is available on %s:8090.\n' "$server_address"
+  printf 'Open this URL from your browser:\n  http://%s:8090/setup?token=%s\n' "$server_address" "$setup_token"
+  printf 'Port 8090 is temporary and the setup server expires after 24 hours.\n'
+  printf 'If the page is unreachable, temporarily allow inbound TCP 8090 in the VPS firewall.\n'
   printf 'This terminal will continue automatically after you save the form.\n\n'
 
   while [ ! -f "$SETUP_COMPLETE_FILE" ]; do

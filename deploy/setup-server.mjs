@@ -12,8 +12,13 @@ const exampleEnvFile = join(setupRoot, '.env.production.example')
 const overrideFile = join(setupRoot, 'docker-compose.proxy.yml')
 const completionFile = join(setupRoot, '.setup-complete')
 const port = Number(process.env.SETUP_PORT || 8090)
+const bindAddress = process.env.SETUP_BIND_ADDRESS || '0.0.0.0'
+const ttlSeconds = Number(process.env.SETUP_TTL_SECONDS || 86400)
 
 if (!token) throw new Error('SETUP_TOKEN is required.')
+if (!Number.isInteger(ttlSeconds) || ttlSeconds < 60) throw new Error('SETUP_TTL_SECONDS must be at least 60 seconds.')
+
+let setupCompleted = existsSync(completionFile)
 
 function escapeHtml(value) {
   return String(value)
@@ -96,6 +101,7 @@ function writeEnvironment(input) {
   renameSync(tempFile, envFile)
   saveProxyOverride(input.proxy)
   writeFileSync(completionFile, new Date().toISOString(), { mode: 0o600 })
+  setupCompleted = true
 }
 
 function page() {
@@ -138,7 +144,7 @@ function page() {
   <main>
     <span class="eyebrow">OpenBcon Bootstrap Setup</span>
     <h1>Connect your deployment.</h1>
-    <p>Set the domain and server routing before OpenBcon starts. This setup runs only once and writes the configuration on this VPS.</p>
+    <p>Set the domain and server routing before OpenBcon starts. This temporary setup page runs only once and writes the configuration on this VPS.</p>
     <div class="steps"><div class="step active">01 Domain</div><div class="step active">02 HTTPS</div><div class="step active">03 Start</div></div>
     <form id="setup-form">
       <div class="grid">
@@ -150,7 +156,7 @@ function page() {
         <label class="choice"><input type="radio" name="proxy" value="traefik"><strong>Existing Traefik</strong><small>Keep Traefik on 80/443. The setup creates a local Caddy route on 127.0.0.1:8080.</small></label>
       </div>
       <label>Initial runtime mode<select name="environmentMode"><option value="test">Test Mode - recommended</option><option value="live">Live Mode</option></select><small>Test Mode is safer for first launch. You can change the server environment later.</small></label>
-      <div class="notice"><strong>Security:</strong> database passwords and the application encryption key are generated inside the VPS. This page does not ask for or transmit API keys. Use an SSH tunnel to open it; do not expose port 8090 publicly.</div>
+      <div class="notice"><strong>Security:</strong> database passwords and the application encryption key are generated inside the VPS. This page uses a one-time token, expires after 24 hours, and shuts down after saving. Port 8090 is only needed during setup and should be closed in the VPS firewall afterward.</div>
       <div class="error" id="error" role="alert"></div>
       <div class="footer"><button id="submit" type="submit">Save and start OpenBcon</button></div>
     </form>
@@ -194,6 +200,7 @@ function readBody(request) {
 }
 
 function authorized(request, url) {
+  if (setupCompleted) return false
   return request.headers['x-openbcon-setup-token'] === token || url.searchParams.get('token') === token
 }
 
@@ -232,6 +239,14 @@ const server = http.createServer(async (request, response) => {
   response.end('Not found')
 })
 
-server.listen(port, '127.0.0.1', () => {
-  process.stdout.write(`OpenBcon setup server listening on http://127.0.0.1:${port}/setup?token=${token}\n`)
+const expiryTimer = setTimeout(() => {
+  if (!setupCompleted) {
+    process.stderr.write('OpenBcon setup expired without being completed.\n')
+    server.close(() => process.exit(2))
+  }
+}, ttlSeconds * 1000)
+expiryTimer.unref()
+
+server.listen(port, bindAddress, () => {
+  process.stdout.write(`OpenBcon setup server listening on http://${bindAddress}:${port}/setup?token=${token}\n`)
 })
