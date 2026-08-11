@@ -126,6 +126,24 @@ describe('persistence API', () => {
     ])
   })
 
+  it('returns the active public funding program count without authentication', async () => {
+    const database = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('SELECT count(*)::text AS count')) {
+          return { rows: [{ count: '624' }], rowCount: 1 }
+        }
+        return { rows: [], rowCount: 0 }
+      }),
+    } as unknown as Pool
+
+    const response = await request(createApp(database)).get(
+      '/api/funding-programs/count',
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.body).toEqual({ count: 624 })
+  })
+
   it('reports the server mode instead of trusting a client mode header', async () => {
     const response = await request(createApp(createDatabaseStub()))
       .get('/api/runtime/environment')

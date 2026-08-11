@@ -193,6 +193,26 @@ export async function loadFundingProgramsViaApi(
   return Array.isArray(body.programs) ? body.programs : []
 }
 
+export async function loadFundingProgramCountViaApi() {
+  const response = await fetch('/api/funding-programs/count', {
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      await readError(
+        response,
+        `Funding program count loading failed with status ${response.status}.`,
+      ),
+    )
+  }
+
+  const body = (await response.json()) as { count?: number }
+  return typeof body.count === 'number' && Number.isFinite(body.count)
+    ? body.count
+    : 0
+}
+
 export async function createManualFundingProgramViaApi(
   input: ManualFundingProgramInput,
 ) {

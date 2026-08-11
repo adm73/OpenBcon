@@ -427,7 +427,7 @@ Questions about these terms can be sent to **chenadm73@gmail.com**.`
 const defaultLandingProofItems: LandingProofItemConfig[] = [
   { value: '75+', label: 'funding programs tracked' },
   { value: '96%', label: 'document readiness' },
-  { value: '30 sec', label: 'first draft generation' },
+  { value: 'In 5 minutes', label: 'first draft generation' },
 ]
 
 const defaultLandingHeaderNavItems: LandingHeaderNavItemConfig[] = [

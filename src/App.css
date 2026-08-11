@@ -9927,21 +9927,24 @@
 .landing-v2-proof {
   display: flex;
   flex-wrap: wrap;
-  gap: 24px;
+  justify-content: center;
+  gap: 30px;
+  width: 100%;
   margin-top: 34px;
   padding-top: 22px;
   border-top: 1px solid #dddfdc;
+  text-align: center;
 }
 
 .landing-v2-proof span {
   color: #7e8492;
-  font-size: 0.67rem;
+  font-size: 0.76rem;
 }
 
 .landing-v2-proof b {
   display: block;
   color: #22293a;
-  font-size: 0.9rem;
+  font-size: 1.1rem;
 }
 
 .landing-v2-product {

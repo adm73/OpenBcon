@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PublicSiteFooter, PublicSiteHeader } from '../components/PublicSiteChrome'
 import { defaultPlatformConfig } from '../config/platform'
@@ -6,6 +6,7 @@ import { usePlatformConfig } from '../config/usePlatformConfig'
 import { dashboardMetrics, landingHighlights } from '../data/demo'
 import { useTranslation } from '../i18n'
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
+import { loadFundingProgramCountViaApi } from '../lib/fundingProgramsApi'
 import { renderFormattedContent } from '../lib/legalContent'
 
 function formatLandingPrice(amount: string, currency: 'CAD' | 'USD') {
@@ -27,6 +28,24 @@ export function LandingPage() {
   const { t } = useTranslation()
   const { content: configuredContent } = config.landingPage
   const defaultContent = defaultPlatformConfig.landingPage.content
+  const [trackedProgramCount, setTrackedProgramCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    let isCurrent = true
+
+    loadFundingProgramCountViaApi()
+      .then((count) => {
+        if (isCurrent) setTrackedProgramCount(count)
+      })
+      .catch(() => {
+        // Keep the configured proof value when the public catalog is unavailable.
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [])
+
   const content = {
     ...configuredContent,
     heroEyebrow:
@@ -89,8 +108,10 @@ export function LandingPage() {
       const defaultItem = defaultContent.proofItems[index]
       return {
         value:
-          defaultItem?.value === item.value
-            ? t(`publicSite.proofItems.${index}.value`, { defaultValue: item.value })
+          index === 0 && defaultItem?.value === item.value && trackedProgramCount !== null
+            ? `${new Intl.NumberFormat('en-CA').format(trackedProgramCount)}+`
+            : defaultItem?.value === item.value
+              ? t(`publicSite.proofItems.${index}.value`, { defaultValue: item.value })
             : item.value,
         label:
           defaultItem?.label === item.label

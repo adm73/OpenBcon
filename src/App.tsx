@@ -48,9 +48,7 @@ function DomainBoundary({ children }: { children: ReactNode }) {
   const currentPath = `${location.pathname}${location.search}${location.hash}`
   let target = ''
 
-  if (dashboardHost && location.pathname === '/') {
-    target = dashboardHref('/dashboard')
-  } else if (dashboardHost && location.pathname === '/programs') {
+  if (dashboardHost && location.pathname === '/programs') {
     target = publicSiteHref(currentPath)
   } else if (!dashboardHost && isWorkspacePath(location.pathname)) {
     target = dashboardHref(currentPath)
@@ -72,7 +70,16 @@ function App() {
           <PlatformConfigProvider>
             <DomainBoundary>
               <Routes>
-                <Route path="/" element={<LandingPage />} />
+                <Route
+                  path="/"
+                  element={
+                    isDashboardHost() ? (
+                      <RequireAuthRoute><DashboardPage /></RequireAuthRoute>
+                    ) : (
+                      <LandingPage />
+                    )
+                  }
+                />
                 <Route
                   path="/privacy-policy"
                   element={<LegalDocumentPage documentType="privacyPolicy" />}

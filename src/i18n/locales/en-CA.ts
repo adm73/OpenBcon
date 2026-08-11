@@ -104,7 +104,7 @@ const enCA = {
     proofItems: [
       { value: '75+', label: 'funding programs tracked' },
       { value: '96%', label: 'document readiness' },
-      { value: '30 sec', label: 'first draft generation' },
+      { value: 'In 5 minutes', label: 'first draft generation' },
     ],
     workflow: [
       { title: 'Build your business profile', body: 'Capture the company, market, team, and financial context once.' },

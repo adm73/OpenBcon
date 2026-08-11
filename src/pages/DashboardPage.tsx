@@ -186,6 +186,7 @@ import {
   type ToolRecord,
   type ToolType,
 } from '../data/tools'
+import { dashboardHref, publicSiteHref } from '../lib/domainRouting'
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
 import {
   generateFinancialForecastViaApi,
@@ -275,7 +276,7 @@ function Glyph({ type }: { type: DashboardGlyph }) {
 }
 
 function itemPath(itemId: string) {
-  return itemId === 'dashboard' ? '/dashboard' : `/${itemId}`
+  return itemId === 'dashboard' ? dashboardHref('/') : `/${itemId}`
 }
 
 const onboardingStorageKey = 'bconomics-onboarding-v1'
@@ -12239,7 +12240,7 @@ export function DashboardPage() {
   return (
     <div className="dashboard-clone">
       <header className="clone-mobile-header">
-        <Link className="clone-brand" to="/">
+        <a className="clone-brand" href={publicSiteHref('/')}>
           <span className="clone-brand-badge">
             {config.platformLogo ? (
               <img
@@ -12251,7 +12252,7 @@ export function DashboardPage() {
             )}
           </span>
           <span className="clone-brand-text">{getPlatformDisplayName(config)}</span>
-        </Link>
+        </a>
         <button
           type="button"
           aria-label={t('navigation.openNavigation')}
@@ -12279,7 +12280,7 @@ export function DashboardPage() {
         >
           <Glyph type="close" />
         </button>
-        <Link className="clone-brand" to="/">
+        <a className="clone-brand" href={publicSiteHref('/')}>
           <span className="clone-brand-badge">
             {config.platformLogo ? (
               <img
@@ -12291,7 +12292,7 @@ export function DashboardPage() {
             )}
           </span>
           <span className="clone-brand-text">{getPlatformDisplayName(config)}</span>
-        </Link>
+        </a>
 
         <div className="clone-sidebar-context">
           <div

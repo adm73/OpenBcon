@@ -77,7 +77,7 @@ const frCA = {
         { label: 'Pensé pour l’open source', body: 'Une structure React + TypeScript claire, facile à étendre, réviser et publier sur GitHub.' },
       ],
     },
-    proofItems: [{ value: '75+', label: 'programmes suivis' }, { value: '96%', label: 'préparation des documents' }, { value: '30 s', label: 'première ébauche' }],
+    proofItems: [{ value: '75+', label: 'programmes suivis' }, { value: '96%', label: 'préparation des documents' }, { value: 'En 5 minutes', label: 'première ébauche' }],
     workflow: [
       { title: 'Construisez le profil de l’entreprise', body: 'Saisissez une fois le contexte de l’entreprise, du marché, de l’équipe et des finances.' },
       { title: 'Trouvez la bonne occasion', body: 'Priorisez les subventions et les prêts selon l’admissibilité, le moment et l’adéquation stratégique.' },

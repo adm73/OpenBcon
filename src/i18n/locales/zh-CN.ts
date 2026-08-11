@@ -75,7 +75,7 @@ const zhCN = {
         { label: '适合开源协作', body: '清晰的 React + TypeScript 项目结构，方便扩展、审核和发布到 GitHub。' },
       ],
     },
-    proofItems: [{ value: '75+', label: '个融资项目跟踪中' }, { value: '96%', label: '文档准备度' }, { value: '30 秒', label: '生成第一版草稿' }],
+    proofItems: [{ value: '75+', label: '个融资项目跟踪中' }, { value: '96%', label: '文档准备度' }, { value: '5 分钟内', label: '生成第一版草稿' }],
     workflow: [
       { title: '建立公司资料', body: '一次性记录公司、市场、团队和财务背景。' },
       { title: '匹配合适的机会', body: '按照资格、时间和战略匹配度，优先处理补助和贷款。' },

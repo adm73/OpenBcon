@@ -1262,6 +1262,24 @@ export function createApp(
     }
   })
 
+  app.get('/api/funding-programs/count', async (_request, response, next) => {
+    try {
+      const result = await catalogDatabase.query<{ count: string }>(
+        `
+          SELECT count(*)::text AS count
+          FROM funding_programs
+          WHERE status = 'active'
+            AND language = 'en-CA'
+            AND source_type <> 'builtin'
+        `,
+      )
+
+      response.json({ count: Number(result.rows[0]?.count ?? 0) })
+    } catch (error) {
+      next(error)
+    }
+  })
+
   app.post('/api/funding-programs', async (request, response, next) => {
     const parsed = manualFundingProgramCreateSchema.safeParse(request.body)
     if (!parsed.success) {
