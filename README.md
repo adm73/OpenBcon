@@ -549,11 +549,11 @@ troubleshooting steps are documented here:
 
 ### Deployment Setup Wizard
 
-Admin Console includes a `Deployment Setup` wizard for deployments that use a
-custom domain. It validates the hostname, lets you choose whether Caddy or an
-existing Traefik instance owns HTTPS ports 80/443, selects the initial Test or
-Live Mode, and generates a server-side environment template plus deployment
-commands. The wizard keeps only non-secret draft values in the current browser;
+Admin Console includes a `Deployment Setup` wizard for deployments that use
+separate public and dashboard domains. It validates both hostnames, lets you
+choose whether Caddy or an existing Traefik instance owns HTTPS ports 80/443,
+selects the initial Test or Live Mode, and generates a server-side environment
+template plus deployment commands. The wizard keeps only non-secret draft values in the current browser;
 the database administrator username is fixed as `admin`; passwords are generated inside the VPS and shown once
 on the result page. API keys, SMTP credentials, and OAuth secrets must still be
 entered in `deploy/.env.production` on the VPS. The wizard prepares the
@@ -568,8 +568,9 @@ running. Execute:
 
 When `deploy/.env.production` is missing, the script starts a one-time
 Bootstrap Setup page on the VPS temporary port `8090` and waits for the form to
-be saved. Open the one-time public URL printed by the script, enter the domain,
-admin email, admin password, proxy plan, and initial mode, then save. The admin
+be saved. Open the one-time public URL printed by the script, enter the public
+domain, dashboard domain, admin email, admin password, proxy plan, and initial
+mode, then save. The admin
 email becomes the first OpenBcon administrator account, and the setup page
 requires a 12-character minimum password. The setup URL is
 protected by a one-time token and expires after 24 hours. If the VPS firewall
@@ -581,14 +582,16 @@ once so they can be stored securely, writes `deploy/.env.production`, creates
 the initial administrator account in Shared, Test, and Live databases, and
 continues with the normal database migration and Docker startup. To reconfigure an existing
 deployment, run `./deploy/deploy.sh --setup`; the previous environment file is
-backed up before it is replaced. The domain must have an A record pointing to
-the VPS first. If an external Traefik owns ports 80/443, it must route the
-selected domain to `127.0.0.1:8080`; the bootstrap step creates the OpenBcon
-Caddy override but cannot modify a separately managed Traefik installation.
-After saving, the setup page shows configuration-write status, DNS resolution,
-service startup, HTTPS, and `/api/health` checks. It also shows the final public
-URL or the next troubleshooting step. The temporary setup service is stopped
-automatically after deployment succeeds or fails. The deployment wizard creates
+backed up before it is replaced. Both domains must have A records pointing to
+the VPS first: the public domain serves the landing page and public program
+directory, while the dashboard domain serves sign-in, the workspace, and Admin
+Console. If an external Traefik owns ports 80/443, it must route both selected
+domains to `127.0.0.1:8080`; the bootstrap step creates the OpenBcon Caddy
+override but cannot modify a separately managed Traefik installation.
+After saving, the setup page shows configuration-write status, both DNS
+resolutions, service startup, HTTPS, and `/api/health` checks. It also shows the
+public and dashboard URLs or the next troubleshooting step. The temporary setup
+service is stopped automatically after deployment succeeds or fails. The deployment wizard creates
 one shared database prefix using the format `dbob` plus 10 random digits, for
 example `dbob4829137056`. PostgreSQL and MongoDB use that prefix for the
 shared catalog, then add `_test` and `_live` for the isolated runtime
@@ -1055,7 +1058,7 @@ email. This is also the default for a production deployment in Test Mode, so
 SMTP is optional while the platform is being evaluated. Before switching to
 Live Mode, configure SMTP by setting `EMAIL_PROVIDER=smtp`, `SMTP_HOST`,
 `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`, and
-`PUBLIC_APP_URL`. Existing users from before email verification was introduced
+`DASHBOARD_APP_URL` (`PUBLIC_APP_URL` remains a legacy alias). Existing users from before email verification was introduced
 are treated as verified by the database migration.
 
 Google registration and login are available when

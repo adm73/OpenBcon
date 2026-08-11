@@ -248,6 +248,8 @@ wait_for_healthy_service() {
 }
 
 wait_for_public_health() {
+  local public_domain
+  local dashboard_domain
   local domain
   local protocol
   local url
@@ -255,27 +257,37 @@ wait_for_public_health() {
   local response
   local body
   local http_status
-  local last_error="No response yet."
-  domain="$(sed -n 's/^DOMAIN=//p' "$ENV_FILE" | head -n 1)"
-  protocol="http"
-  [ "$domain" != "localhost" ] && protocol="https"
-  url="${protocol}://${domain}/api/health"
+  local last_error
+  public_domain="$(sed -n 's/^PUBLIC_DOMAIN=//p' "$ENV_FILE" | head -n 1)"
+  public_domain="${public_domain:-$(sed -n 's/^DOMAIN=//p' "$ENV_FILE" | head -n 1)}"
+  dashboard_domain="$(sed -n 's/^DASHBOARD_DOMAIN=//p' "$ENV_FILE" | head -n 1)"
+  dashboard_domain="${dashboard_domain:-dashboard.${public_domain}}"
   if ! command -v curl >/dev/null 2>&1; then
-    write_setup_status "failed" "Public health verification needs curl on the VPS. Install curl, then run ./deploy/deploy.sh --setup again."
+    write_setup_status "failed" "HTTPS health verification needs curl on the VPS. Install curl, then run ./deploy/deploy.sh --setup again."
     return 1
   fi
-  for attempt in $(seq 1 24); do
-    response="$(curl -sS --max-time 8 -w $'\n%{http_code}' "$url" 2>&1 || true)"
-    http_status="${response##*$'\n'}"
-    body="${response%$'\n'*}"
-    if [ "$http_status" = "200" ] && printf '%s' "$body" | grep -q '"status":"ok"'; then
-      return 0
+  for domain in "$public_domain" "$dashboard_domain"; do
+    [ -z "$domain" ] && continue
+    protocol="http"
+    [ "$domain" != "localhost" ] && protocol="https"
+    url="${protocol}://${domain}/api/health"
+    last_error="No response yet."
+    for attempt in $(seq 1 24); do
+      response="$(curl -sS --max-time 8 -w $'\n%{http_code}' "$url" 2>&1 || true)"
+      http_status="${response##*$'\n'}"
+      body="${response%$'\n'*}"
+      if [ "$http_status" = "200" ] && printf '%s' "$body" | grep -q '"status":"ok"'; then
+        last_error=""
+        break
+      fi
+      last_error="HTTP ${http_status}: $(printf '%s' "$body" | tr '\n' ' ' | cut -c1-160)"
+      sleep 5
+    done
+    if [ -n "$last_error" ]; then
+      write_setup_status "failed" "${protocol^^} health check failed for ${domain}. ${last_error} Check DNS, inbound TCP 80/443, and Caddy or Traefik logs."
+      return 1
     fi
-    last_error="HTTP ${http_status}: $(printf '%s' "$body" | tr '\n' ' ' | cut -c1-160)"
-    sleep 5
   done
-  write_setup_status "failed" "Public ${protocol^^} health check failed for ${domain}. ${last_error} Check DNS, inbound TCP 80/443, and Caddy or Traefik logs."
-  return 1
 }
 
 bootstrap_admin_account() {
@@ -376,10 +388,18 @@ if [ "$SETUP_STATUS_ENABLED" -eq 1 ]; then
   else
     write_setup_status "services_ready" "PostgreSQL, MongoDB, API, Python, and Caddy are healthy. Ollama is disabled. The initial administrator account was created in Shared, Test, and Live databases. Verifying public HTTPS."
   fi
-  write_setup_status "verifying" "Services are healthy. Waiting for ${domain:-the public domain} HTTPS and /api/health."
+  public_domain="$(sed -n 's/^PUBLIC_DOMAIN=//p' "$ENV_FILE" | head -n 1)"
+  public_domain="${public_domain:-$(sed -n 's/^DOMAIN=//p' "$ENV_FILE" | head -n 1)}"
+  dashboard_domain="$(sed -n 's/^DASHBOARD_DOMAIN=//p' "$ENV_FILE" | head -n 1)"
+  dashboard_domain="${dashboard_domain:-dashboard.${public_domain}}"
+  write_setup_status "verifying" "Services are healthy. Waiting for ${public_domain} and ${dashboard_domain} HTTPS and /api/health."
   wait_for_public_health || exit 1
   write_setup_status "completed" "OpenBcon is deployed and the public HTTPS health check passed."
 fi
 
 printf '\nDeployment started.\n'
-printf 'Open https://%s after DNS and the first certificate issuance complete.\n' "$(sed -n 's/^DOMAIN=//p' "$ENV_FILE" | head -n 1)"
+public_domain="$(sed -n 's/^PUBLIC_DOMAIN=//p' "$ENV_FILE" | head -n 1)"
+public_domain="${public_domain:-$(sed -n 's/^DOMAIN=//p' "$ENV_FILE" | head -n 1)}"
+dashboard_domain="$(sed -n 's/^DASHBOARD_DOMAIN=//p' "$ENV_FILE" | head -n 1)"
+dashboard_domain="${dashboard_domain:-dashboard.${public_domain}}"
+printf 'Open https://%s for the public site and https://%s for the dashboard after DNS and the first certificate issuance complete.\n' "$public_domain" "$dashboard_domain"

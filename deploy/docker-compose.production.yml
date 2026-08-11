@@ -63,6 +63,8 @@ services:
       dockerfile: deploy/Dockerfile.api
       args:
         VITE_BUSINESS_PLAN_API_URL: /ai-api
+        VITE_PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://localhost:5173}
+        VITE_DASHBOARD_APP_URL: ${DASHBOARD_APP_URL:-http://localhost:5173}
         VITE_COMMERCIAL_LICENSED: ${VITE_COMMERCIAL_LICENSED:-false}
         VITE_APP_COMMIT: ${VITE_APP_COMMIT:-unknown}
         VITE_APP_VERSION: ${VITE_APP_VERSION:-unreleased}
@@ -74,7 +76,7 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 8787
       NODE_ENV: production
-      CORS_ORIGIN: https://${DOMAIN}
+      CORS_ORIGIN: ${CORS_ORIGIN:?Set CORS_ORIGIN=... in deploy/.env.production}
       AUTO_MIGRATE: "true"
       SEED_DEMO_DATA: "false"
       OPENBCON_BUILD_COMMIT: ${VITE_APP_COMMIT:-unknown}
@@ -108,7 +110,7 @@ services:
       OPENBCON_DB_DSN: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dbob1234567890}
       OPENBCON_MONGODB_URL: mongodb://${MONGODB_ROOT_USERNAME:-admin}:${MONGODB_ROOT_PASSWORD}@mongodb:27017/?authSource=admin
       OPENBCON_MONGODB_DATABASE: ${MONGODB_DATABASE:-dbob1234567890}
-      OPENBCON_CORS_ORIGINS: https://${DOMAIN}
+      OPENBCON_CORS_ORIGINS: ${CORS_ORIGIN:?Set CORS_ORIGIN=... in deploy/.env.production}
       OPENBCON_API_HOST: 0.0.0.0
       OPENBCON_API_PORT: 8010
       OPENBCON_RUNTIME_ENV: production
@@ -135,7 +137,8 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
-      DOMAIN: ${DOMAIN:?Set DOMAIN=your-domain.example in deploy/.env.production}
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:?Set PUBLIC_DOMAIN=your-domain.example in deploy/.env.production}
+      DASHBOARD_DOMAIN: ${DASHBOARD_DOMAIN:?Set DASHBOARD_DOMAIN=dashboard.your-domain.example in deploy/.env.production}
     ports:
       - "80:80"
       - "443:443"

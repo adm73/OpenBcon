@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { hasActiveSession } from '../auth/session'
 import { usePlatformConfig } from '../config/usePlatformConfig'
 import { getPlatformDisplayName, getPlatformInitial } from '../lib/platformBrand'
+import { dashboardHref } from '../lib/domainRouting'
 import { defaultPlatformConfig } from '../config/platform'
 import {
   languageOptions,
@@ -172,7 +173,7 @@ export function PublicSiteHeader() {
             ))}
           </select>
         </label>
-        <Link to={isSignedIn ? '/dashboard' : '/login'}>
+        <a href={dashboardHref(isSignedIn ? '/dashboard' : '/login')}>
           {isSignedIn
             ? header.dashboardLabel === defaultPlatformConfig.landingPage.header.dashboardLabel
               ? t('publicSite.nav.dashboard')
@@ -180,7 +181,7 @@ export function PublicSiteHeader() {
             : header.signInLabel === defaultPlatformConfig.landingPage.header.signInLabel
               ? t('publicSite.nav.signIn')
               : header.signInLabel}
-        </Link>
+        </a>
       </div>
     </header>
   )

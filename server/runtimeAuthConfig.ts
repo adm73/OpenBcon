@@ -106,9 +106,9 @@ export async function getRuntimeAuthConfig(
         : environment.GOOGLE_OAUTH_CLIENT_SECRET ?? '',
       redirectUri: hasStoredGoogle
         ? getString(storedGoogle, 'redirectUri') ||
-          `${environment.PUBLIC_APP_URL}/api/auth/google/callback`
+          `${environment.DASHBOARD_APP_URL}/api/auth/google/callback`
         : environment.GOOGLE_OAUTH_REDIRECT_URI ??
-          `${environment.PUBLIC_APP_URL}/api/auth/google/callback`,
+          `${environment.DASHBOARD_APP_URL}/api/auth/google/callback`,
     },
     smtp: {
       enabled: hasStoredSMTP

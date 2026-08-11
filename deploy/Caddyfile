@@ -1,4 +1,4 @@
-{$DOMAIN} {
+(openbcon_proxy) {
     encode gzip
 
     # Strip /ai-api before forwarding to FastAPI, whose routes start at /api.
@@ -17,4 +17,12 @@
     handle {
         reverse_proxy api:8787
     }
+}
+
+{$PUBLIC_DOMAIN} {
+    import openbcon_proxy
+}
+
+{$DASHBOARD_DOMAIN} {
+    import openbcon_proxy
 }

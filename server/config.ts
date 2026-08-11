@@ -55,6 +55,8 @@ const environmentSchema = z.object({
     .default('00000000-0000-4000-8000-000000000002'),
   AUTH_SESSION_TTL_DAYS: z.coerce.number().int().positive().max(365).default(30),
   PUBLIC_APP_URL: z.string().url().default('http://localhost:5173'),
+  PUBLIC_SITE_URL: z.string().url().optional(),
+  DASHBOARD_APP_URL: z.string().url().optional(),
   EMAIL_PROVIDER: z.enum(['console', 'smtp']).default('console'),
   EMAIL_FROM: z.string().min(1).default('OpenBcon <no-reply@localhost>'),
   SMTP_HOST: z.string().min(1).optional(),
@@ -71,7 +73,7 @@ const environmentSchema = z.object({
   OPENBCON_UPDATE_TOKEN: z.string().min(32).optional(),
 })
 
-export const environment = environmentSchema
+const parsedEnvironment = environmentSchema
   .superRefine((values, context) => {
     if (values.NODE_ENV !== 'production') return
 
@@ -86,7 +88,7 @@ export const environment = environmentSchema
       context.addIssue({
         code: 'custom',
         path: ['CORS_ORIGIN'],
-        message: 'Production CORS_ORIGIN must use the public HTTPS origin.',
+        message: 'Production CORS_ORIGIN must use the public and dashboard HTTPS origins.',
       })
     }
     if (values.SEED_DEMO_DATA) {
@@ -176,5 +178,13 @@ export const environment = environmentSchema
     }
   })
   .parse(process.env)
+
+// Keep PUBLIC_APP_URL as the legacy single-origin setting, while allowing a
+// deployment to expose the public site and authenticated workspace separately.
+export const environment = {
+  ...parsedEnvironment,
+  PUBLIC_SITE_URL: parsedEnvironment.PUBLIC_SITE_URL ?? parsedEnvironment.PUBLIC_APP_URL,
+  DASHBOARD_APP_URL: parsedEnvironment.DASHBOARD_APP_URL ?? parsedEnvironment.PUBLIC_APP_URL,
+}
 
 export const platformOwnerId = 'platform'

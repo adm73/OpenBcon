@@ -25,7 +25,7 @@ function getEnvironmentGoogleConfig(): RuntimeGoogleOAuthConfig {
     clientSecret: environment.GOOGLE_OAUTH_CLIENT_SECRET ?? '',
     redirectUri:
       environment.GOOGLE_OAUTH_REDIRECT_URI ??
-      `${environment.PUBLIC_APP_URL}/api/auth/google/callback`,
+      `${environment.DASHBOARD_APP_URL}/api/auth/google/callback`,
   }
 }
 

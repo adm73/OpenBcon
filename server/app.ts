@@ -737,12 +737,12 @@ function safeNextPath(value: string | null | undefined) {
   return value
 }
 
-function publicUrl(path: string) {
-  return new URL(path, environment.PUBLIC_APP_URL).toString()
+function dashboardUrl(path: string) {
+  return new URL(path, environment.DASHBOARD_APP_URL).toString()
 }
 
 function authErrorRedirect(response: Response, code: string) {
-  response.redirect(302, publicUrl(`/login?auth_error=${encodeURIComponent(code)}`))
+  response.redirect(302, dashboardUrl(`/login?auth_error=${encodeURIComponent(code)}`))
 }
 
 function mapAdminUserRow(row: {
@@ -1131,7 +1131,7 @@ export function createApp(
       const sessionToken = await createSession(database, userId, workspaceId)
       setSessionCookie(response, sessionToken)
       clearGoogleFlowCookies(response)
-      response.redirect(302, publicUrl(nextPath))
+      response.redirect(302, dashboardUrl(nextPath))
     } catch (error) {
       next(error)
     }
@@ -1189,7 +1189,7 @@ export function createApp(
 
       const sessionToken = await createSession(database, record.user_id, record.workspace_id)
       setSessionCookie(response, sessionToken)
-      response.redirect(302, publicUrl('/dashboard?auth=verified'))
+      response.redirect(302, dashboardUrl('/dashboard?auth=verified'))
     } catch (error) {
       next(error)
     }
@@ -2034,7 +2034,7 @@ export function createApp(
         [user.id, hashToken(verificationToken)],
       )
 
-      const verificationUrl = publicUrl(
+      const verificationUrl = dashboardUrl(
         `/api/auth/verify-email?token=${encodeURIComponent(verificationToken)}`,
       )
 
@@ -2151,7 +2151,7 @@ export function createApp(
         [user.id, hashToken(resetToken)],
       )
 
-      const resetUrl = publicUrl(
+      const resetUrl = dashboardUrl(
         `/reset-password?token=${encodeURIComponent(resetToken)}`,
       )
       try {
@@ -2274,7 +2274,7 @@ export function createApp(
         `INSERT INTO email_verification_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, now() + interval '24 hours')`,
         [user.id, hashToken(verificationToken)],
       )
-      const verificationUrl = publicUrl(
+      const verificationUrl = dashboardUrl(
         `/api/auth/verify-email?token=${encodeURIComponent(verificationToken)}`,
       )
       const delivery = await sendVerificationEmail({

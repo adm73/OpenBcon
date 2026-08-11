@@ -1,6 +1,6 @@
 # Used only when an existing Traefik instance owns public HTTPS.
 # Traefik terminates TLS and forwards HTTP to this private Caddy listener.
-http://{$DOMAIN} {
+(openbcon_proxy) {
     encode gzip
 
     handle_path /ai-api/* {
@@ -18,4 +18,12 @@ http://{$DOMAIN} {
     handle {
         reverse_proxy api:8787
     }
+}
+
+http://{$PUBLIC_DOMAIN} {
+    import openbcon_proxy
+}
+
+http://{$DASHBOARD_DOMAIN} {
+    import openbcon_proxy
 }
