@@ -112,6 +112,54 @@ if [ ! -f "$ENV_FILE" ]; then
   printf 'Missing %s. Run ./deploy/deploy.sh --setup first.\n' "$ENV_FILE" >&2
   exit 1
 fi
+
+# Migrate older single-domain environment files before Compose interpolates
+# its required values. Existing deployments may only have DOMAIN and
+# PUBLIC_APP_URL; derive the new public/dashboard settings without changing
+# credentials or data-volume configuration.
+get_env_value() {
+  local key="$1"
+  sed -n "s/^${key}=//p" "$ENV_FILE" | head -n 1
+}
+
+public_domain="$(get_env_value PUBLIC_DOMAIN)"
+if [ -z "$public_domain" ]; then
+  public_domain="$(get_env_value DOMAIN)"
+  # Older deployments commonly used www.example.com as DOMAIN. The new
+  # public/dashboard split uses the base domain plus dashboard.base-domain.
+  public_domain="${public_domain#www.}"
+fi
+dashboard_domain="$(get_env_value DASHBOARD_DOMAIN)"
+dashboard_domain="${dashboard_domain:-dashboard.${public_domain}}"
+if [ -z "$public_domain" ] || [ -z "$dashboard_domain" ]; then
+  printf 'Missing PUBLIC_DOMAIN/DASHBOARD_DOMAIN. Set PUBLIC_DOMAIN (or legacy DOMAIN) in %s, then rerun.\n' "$ENV_FILE" >&2
+  exit 1
+fi
+if [ "$public_domain" = "localhost" ]; then
+  public_site_url="http://localhost:5173"
+else
+  public_site_url="https://${public_domain}"
+fi
+if [ "$dashboard_domain" = "localhost" ]; then
+  dashboard_app_url="http://localhost:5173"
+else
+  dashboard_app_url="https://${dashboard_domain}"
+fi
+set_env_value PUBLIC_DOMAIN "$public_domain"
+set_env_value DASHBOARD_DOMAIN "$dashboard_domain"
+if [ -z "$(get_env_value PUBLIC_SITE_URL)" ]; then
+  set_env_value PUBLIC_SITE_URL "$public_site_url"
+fi
+if [ -z "$(get_env_value DASHBOARD_APP_URL)" ]; then
+  set_env_value DASHBOARD_APP_URL "$dashboard_app_url"
+fi
+if [ -z "$(get_env_value PUBLIC_APP_URL)" ]; then
+  set_env_value PUBLIC_APP_URL "$dashboard_app_url"
+fi
+if [ -z "$(get_env_value CORS_ORIGIN)" ]; then
+  set_env_value CORS_ORIGIN "${public_site_url},${dashboard_app_url}"
+fi
+
 # The update agent runs this script from its /workspace bind mount. In that
 # context, keep the host path already stored in the env file. Compose must use
 # that host path when the Docker daemon recreates the services.
