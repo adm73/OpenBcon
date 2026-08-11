@@ -383,12 +383,19 @@ the PostgreSQL and MongoDB data volumes.
 After the deployment has included the private `updater` service, future
 updates can be started from Admin Console: open **Updates**, run **Check
 updates**, review the GitHub commit, then choose **Install update**. The agent
-only fast-forwards a clean `main` checkout and runs `deploy/deploy.sh`; it
+backs up `deploy/.env.production`, force-switches to `main`, resets the checkout
+to `origin/main`, cleans untracked checkout files, and runs `deploy/deploy.sh`; it
 does not accept arbitrary Git URLs or shell commands. It may restart the API
 briefly, and the Admin Console waits for it to return. If the button says the
 service is unavailable, run `./deploy/deploy.sh` once manually to create the
 updater and its token. Port `8788` must remain private; do not add a public
 firewall rule for it.
+
+After the update reports success, the Admin Console clears browser Cache
+Storage, service workers, `localStorage`, and `sessionStorage`, then reloads
+the current page with a cache-busting URL. A locally stored browser session is
+cleared too, so sign in again after the reload; database data and Docker
+volumes are not removed.
 
 Before production upgrades, back up PostgreSQL and MongoDB and review the
 migrations in `server/db/migrations/`.

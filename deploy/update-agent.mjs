@@ -115,13 +115,6 @@ async function runUpdate(requestedCommit) {
     if (!existsSync(join(root, '.git'))) throw new Error('The deployment checkout is not a Git repository.')
     if (!existsSync(join(root, 'deploy', 'deploy.sh'))) throw new Error('The deployment script is missing from the checkout.')
 
-    const clean = await run('git', ['status', '--porcelain', '--untracked-files=no'])
-    if (clean.code !== 0) throw new Error(`Git status failed: ${clean.output.trim()}`)
-    if (clean.output.trim()) throw new Error('The deployment checkout has local tracked changes. Review them on the VPS before updating.')
-
-    const branch = await run('git', ['symbolic-ref', '--short', 'HEAD'])
-    if (branch.code !== 0 || branch.output.trim() !== 'main') throw new Error('Automatic updates require the deployment checkout to be on the main branch.')
-
     updateStatus({ status: 'running', phase: 'fetching', message: 'Fetching the latest OpenBcon release from GitHub.', startedAt, finishedAt: null })
     const fetchResult = await run('git', ['fetch', '--tags', 'origin', 'main'])
     if (fetchResult.code !== 0) throw new Error(`Git fetch failed: ${fetchResult.output.trim()}`)
@@ -139,12 +132,33 @@ async function runUpdate(requestedCommit) {
       return updateStatus({ status: 'succeeded', phase: 'current', message: 'OpenBcon is already up to date.', currentCommit, targetCommit, startedAt, finishedAt: now() })
     }
 
-    const ancestry = await run('git', ['merge-base', '--is-ancestor', currentCommit, targetCommit])
-    if (ancestry.code !== 0) throw new Error('The deployment checkout has diverged from origin/main. Automatic updates stopped without changing code.')
+    updateStatus({
+      status: 'running',
+      phase: 'overwriting',
+      message: 'Backing up deployment settings and replacing local code with origin/main.',
+      currentCommit,
+      targetCommit,
+    })
 
-    updateStatus({ status: 'running', phase: 'fast_forwarding', message: 'Fast-forwarding the deployment checkout.', currentCommit, targetCommit })
-    const merge = await run('git', ['merge', '--ff-only', 'origin/main'])
-    if (merge.code !== 0) throw new Error(`Git fast-forward failed: ${merge.output.trim()}`)
+    // Keep the deployment secrets outside the checkout before removing local
+    // files. The production env file is normally ignored, but this makes the
+    // backup explicit and available to the server administrator.
+    const backup = await run('cp', ['deploy/.env.production', '/root/openbcon.env.production.backup'])
+    if (backup.code !== 0 && /cannot stat|No such file/iu.test(backup.output)) {
+      // A first-time or incomplete deployment may not have an env file yet.
+    } else if (backup.code !== 0) {
+      throw new Error(`Environment backup failed: ${backup.output.trim()}`)
+    }
+
+    const clean = await run('git', ['clean', '-fd', '-e', 'deploy/.env.production', '-e', 'deploy/.update-status.json'])
+    if (clean.code !== 0) throw new Error(`Git cleanup failed: ${clean.output.trim()}`)
+    const switchResult = await run('git', ['switch', '--force', 'main'])
+    if (switchResult.code !== 0) throw new Error(`Git switch failed: ${switchResult.output.trim()}`)
+    const reset = await run('git', ['reset', '--hard', 'origin/main'])
+    if (reset.code !== 0) throw new Error(`Git reset failed: ${reset.output.trim()}`)
+    const describe = await run('git', ['describe', '--tags', '--always'])
+    if (describe.code !== 0) throw new Error(`Git describe failed: ${describe.output.trim()}`)
+    const releaseLabel = describe.output.trim()
 
     if (process.env.OPENBCON_LOCAL_UPDATE_MODE === 'true') {
       updateStatus({ status: 'running', phase: 'installing', message: 'Installing local dependencies and rebuilding OpenBcon.', currentCommit, targetCommit })
@@ -153,12 +167,12 @@ async function runUpdate(requestedCommit) {
       const build = await run('npm', ['run', 'build'])
       if (build.code !== 0) throw new Error(`Local OpenBcon build failed: ${build.output.trim()}`)
     } else {
-      updateStatus({ status: 'running', phase: 'deploying', message: 'Building and restarting OpenBcon services. Database volumes are preserved.', currentCommit, targetCommit })
+      updateStatus({ status: 'running', phase: 'deploying', message: `Building and restarting OpenBcon services at ${releaseLabel}. Database volumes are preserved.`, currentCommit, targetCommit })
       const deploy = await run('bash', ['deploy/deploy.sh'])
       if (deploy.code !== 0) throw new Error(`OpenBcon deployment failed: ${deploy.output.trim()}`)
     }
 
-    return updateStatus({ status: 'succeeded', phase: 'completed', message: 'OpenBcon was updated successfully. Refresh the browser.', currentCommit: targetCommit, targetCommit, startedAt, finishedAt: now() })
+    return updateStatus({ status: 'succeeded', phase: 'completed', message: `OpenBcon was updated successfully to ${releaseLabel}. Refresh the browser.`, currentCommit: targetCommit, targetCommit, startedAt, finishedAt: now() })
   } catch (error) {
     return updateStatus({ status: 'failed', phase: 'failed', message: error instanceof Error ? error.message : 'The OpenBcon update failed.', startedAt, finishedAt: now() })
   } finally {

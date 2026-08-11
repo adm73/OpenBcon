@@ -356,6 +356,42 @@ const initialUpdateCheckState: UpdateCheckState = {
   error: '',
 }
 
+async function forceRefreshClientState() {
+  if (typeof window === 'undefined') return
+
+  // Cache Storage and service workers can keep an older frontend bundle alive
+  // after the server has rebuilt the application.
+  try {
+    if ('caches' in window) {
+      const cacheStorage = window.caches
+      const cacheKeys = await cacheStorage.keys()
+      await Promise.all(cacheKeys.map((cacheKey) => cacheStorage.delete(cacheKey)))
+    }
+  } catch {
+    // Continue with storage cleanup and a cache-busting navigation.
+  }
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations()
+      await Promise.all(registrations.map((registration) => registration.unregister()))
+    }
+  } catch {
+    // A failed service-worker cleanup must not prevent the reload.
+  }
+
+  try {
+    window.localStorage.clear()
+    window.sessionStorage.clear()
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+
+  const refreshedUrl = new URL(window.location.href)
+  refreshedUrl.searchParams.set('__openbcon_refresh', String(Date.now()))
+  window.location.replace(refreshedUrl.toString())
+}
+
 const descriptionEditorActions = [
   { id: 'bold', label: 'B', title: 'Bold', command: 'bold' },
   { id: 'italic', label: 'I', title: 'Italic', command: 'italic' },
@@ -2273,9 +2309,16 @@ export function AdminPage() {
             installMessage: statusPayload.message || current.installMessage,
           }))
           if (statusPayload.status === 'succeeded') {
-            // The current page is still running the pre-update bundle. Reload
-            // after the API is back so the build label comes from the new image.
-            window.setTimeout(() => window.location.reload(), 750)
+            // The current page is still running the pre-update bundle. Clear
+            // browser state and reload after the API is back so the build
+            // label and all persisted client data come from the new release.
+            setUpdateCheck((current) => ({
+              ...current,
+              installMessage: 'Update installed. Clearing browser caches and reloading...',
+            }))
+            window.setTimeout(() => {
+              void forceRefreshClientState()
+            }, 750)
             break
           }
           if (statusPayload.status === 'failed') break
@@ -5352,8 +5395,8 @@ export function AdminPage() {
               <h2>Updates</h2>
               <p>
                 Check the OpenBcon repository for a newer application build.
-                Administrators can install a fast-forward update after reviewing
-                the latest commit. Data volumes are preserved.
+                Install update replaces the VPS checkout with the selected
+                GitHub build. Database volumes are preserved.
               </p>
             </div>
             <div className="admin-update-panel">
@@ -5406,6 +5449,12 @@ export function AdminPage() {
                   <p className="admin-update-install-status is-failed" role="status">
                     <strong>Install unavailable</strong>
                     Run the deployment script once to enable secure admin-triggered updates.
+                  </p>
+                )}
+                {updateCheck.status === 'available' && updateCheck.automaticUpdatesConfigured && (
+                  <p className="admin-update-install-status is-failed" role="alert">
+                    <strong>Destructive update</strong>
+                    Install update backs up the production env file, then discards local checkout changes and local commits before rebuilding OpenBcon. Database volumes are not deleted.
                   </p>
                 )}
               </div>

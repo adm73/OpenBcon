@@ -20,6 +20,19 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 3.0.1
+
+Version 3.0.1 makes administrator-triggered updates deterministic and clears
+stale browser state after a successful installation:
+
+- Install update backs up the production environment file, force-replaces the
+  checkout with `origin/main`, and preserves database volumes.
+- Admin Console clears Cache Storage, service workers, `localStorage`, and
+  `sessionStorage` after the new services are healthy, then reloads with a
+  cache-busting URL.
+- The update status reports the installed release label and explains that a
+  locally stored browser session must sign in again after the refresh.
+
 ## Version 3.0
 
 Version 3.0 expands the funding catalog experience and makes the workspace
@@ -456,9 +469,9 @@ npm run db:seed
 services are available. `npm run dev` starts the API on port `8787`, Vite on
 port `5173`, and a local update agent bound only to `127.0.0.1:8788`. This makes
 the local checkout act like a deployment for testing Admin Console's
-**Check updates** and **Install update** flow. Local updates fast-forward the
-clean `main` checkout, run `npm install`, and rebuild the app; they do not run
-the VPS Docker deployment. Run `npm run dev:api` and `npm run dev:web` manually
+**Check updates** and **Install update** flow. Local updates replace the
+checkout with `origin/main`, run `npm install`, and rebuild the app; they do not
+run the VPS Docker deployment. Run `npm run dev:api` and `npm run dev:web` manually
 only when you do not need the local update flow.
 
 Run `npm run dev`, rather than only `npm run dev:web`, when using Admin Console
@@ -724,9 +737,11 @@ git pull --ff-only
 `deploy/deploy.sh` stamps the frontend image with the current Git commit and
 the exact Git release tag when the checkout is tagged. In Admin Console, open
 **Updates**, select **Check updates**, review the release tag, and select
-**Install update** when one is available. The update agent fast-forwards only a
-clean `main` checkout to the latest `origin/main`, then runs the normal
-deployment script. Database volumes are preserved. The deployment script keeps
+**Install update** when one is available. Install update first backs up
+`deploy/.env.production` to `/root/openbcon.env.production.backup`, then forces
+the checkout to `main` at the latest `origin/main` commit and runs the normal
+deployment script. Local tracked changes, local commits, and untracked checkout
+files are discarded; database volumes are preserved. The deployment script keeps
 the Caddy bind mount anchored to `OPENBCON_ROOT` (default `/opt/openbcon`) so
 updates launched by the containerized agent use the host checkout correctly.
 
@@ -744,10 +759,15 @@ updates launched by the containerized agent use the host checkout correctly.
 - production deployments include a private update agent on the Docker network;
   the agent is enabled automatically by `deploy/deploy.sh` and receives a
   random token stored in the ignored `deploy/.env.production`
-- **Install update** refuses dirty tracked files, non-`main` checkouts, and
-  divergent histories; it never deletes database volumes
+- **Install update** is a destructive code update: it force-switches to `main`,
+  resets to `origin/main`, and cleans untracked checkout files after backing up
+  the production env file; it never deletes database volumes
 - the API may briefly restart while the update is installed; Admin Console
   waits for the status endpoint to return and reports the final result
+- after a successful install, Admin Console clears the browser Cache Storage,
+  service workers, `localStorage`, and `sessionStorage`, then reloads with a
+  cache-busting URL so stale frontend data cannot survive the update; this also
+  signs the current browser out when its session is stored locally
 - GitHub failures and timeouts are shown as a check error; they do not affect
   the running application
 
