@@ -16,17 +16,14 @@ import {
   useParams,
   useSearchParams,
 } from 'react-router-dom'
-import {
-  hasAdminAccess,
-  grantAdminAccess,
-  revokeAdminAccess,
-} from '../auth/adminAccess'
+import { revokeAdminAccess } from '../auth/adminAccess'
 import {
   clearAuthSession,
   authUserUpdatedEvent,
   getCurrentAuthUser,
   getUserInitials,
   hasActiveSession,
+  isCurrentUserAdmin,
   refreshCurrentAuthUser,
   updateCurrentAuthUserProfile,
 } from '../auth/session'
@@ -5030,13 +5027,14 @@ function GrantsLoansPage() {
                 No active Grants &amp; Loans sources are configured.
               </div>
             ) : null}
-            <Link
-              to="/admin#data-sources"
-              className="funding-source-picker-admin-link"
-              onClick={() => grantAdminAccess()}
-            >
-              Manage sources in Admin Console
-            </Link>
+            {isCurrentUserAdmin() ? (
+              <Link
+                to="/admin#data-sources"
+                className="funding-source-picker-admin-link"
+              >
+                Manage sources in Admin Console
+              </Link>
+            ) : null}
           </section>
         </div>
       ) : null}
@@ -5135,14 +5133,15 @@ function TemplatesPage() {
             {t('workspacePages.templates.description')}
           </p>
         </div>
-        <Link
-          to="/admin#advisory-hub-document-types"
-          className="funding-directory-admin"
-          onClick={() => grantAdminAccess()}
-        >
-          <Glyph type="settings" />
-          {t('workspacePages.templates.manageDocumentTypes')}
-        </Link>
+        {isCurrentUserAdmin() ? (
+          <Link
+            to="/admin#advisory-hub-document-types"
+            className="funding-directory-admin"
+          >
+            <Glyph type="settings" />
+            {t('workspacePages.templates.manageDocumentTypes')}
+          </Link>
+        ) : null}
       </header>
 
       <div className="funding-directory-metrics template-directory-metrics">
@@ -5613,14 +5612,15 @@ function SocialResourcesPage() {
             {t('workspacePages.socialResources.description')}
           </p>
         </div>
-        <Link
-          to="/admin#data-sources"
-          className="funding-directory-admin"
-          onClick={() => grantAdminAccess()}
-        >
-          <Glyph type="settings" />
-          {t('workspacePages.common.manageDataSources')}
-        </Link>
+        {isCurrentUserAdmin() ? (
+          <Link
+            to="/admin#data-sources"
+            className="funding-directory-admin"
+          >
+            <Glyph type="settings" />
+            {t('workspacePages.common.manageDataSources')}
+          </Link>
+        ) : null}
       </header>
 
       {notice ? (
@@ -6094,14 +6094,15 @@ function ToolsPage() {
             {t('workspacePages.tools.description')}
           </p>
         </div>
-        <Link
-          to="/admin#data-sources"
-          className="funding-directory-admin"
-          onClick={() => grantAdminAccess()}
-        >
-          <Glyph type="settings" />
-          {t('workspacePages.common.manageDataSources')}
-        </Link>
+        {isCurrentUserAdmin() ? (
+          <Link
+            to="/admin#data-sources"
+            className="funding-directory-admin"
+          >
+            <Glyph type="settings" />
+            {t('workspacePages.common.manageDataSources')}
+          </Link>
+        ) : null}
       </header>
 
       {notice ? (
@@ -6606,7 +6607,7 @@ const defaultUserSettings: UserSettings = {
 }
 
 function settingsRoleFromAuthRole(role: string | undefined) {
-  return role === 'admin' || role === 'owner' || role === 'Admin'
+  return role === 'admin' || role === 'Admin'
     ? 'Admin'
     : 'Default'
 }
@@ -12165,7 +12166,7 @@ export function DashboardPage() {
   const showNotificationBar =
     notificationBar.enabled &&
     Boolean(notificationBar.message.trim()) &&
-    (notificationBar.audience === 'all' || hasAdminAccess()) &&
+    (notificationBar.audience === 'all' || isCurrentUserAdmin()) &&
     !notificationDismissed
 
   function signOut() {
@@ -12552,21 +12553,20 @@ export function DashboardPage() {
               <span>{translateNavigationLabel(t, item.id, item.label)}</span>
             </NavLink>
           ))}
-          <NavLink
-            to="/admin"
-            onClick={() => {
-              grantAdminAccess()
-              setSidebarOpen(false)
-            }}
-            className={({ isActive }) =>
-              `clone-footer-link ${isActive ? 'is-active' : ''}`
-          }
-          >
-            <span className="clone-nav-icon">
-              <Glyph type="shield" />
-            </span>
-            <span>{t('navigation.items.admin')}</span>
-          </NavLink>
+          {isCurrentUserAdmin() ? (
+            <NavLink
+              to="/admin"
+              onClick={() => setSidebarOpen(false)}
+              className={({ isActive }) =>
+                `clone-footer-link ${isActive ? 'is-active' : ''}`
+              }
+            >
+              <span className="clone-nav-icon">
+                <Glyph type="shield" />
+              </span>
+              <span>{t('navigation.items.admin')}</span>
+            </NavLink>
+          ) : null}
           <button
             type="button"
             className="clone-footer-link workspace-guide-link"

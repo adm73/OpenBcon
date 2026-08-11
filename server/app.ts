@@ -99,12 +99,12 @@ const authenticationSecretsSchema = z.object({
 
 type EnvironmentMode = 'test' | 'live'
 
-const adminUserRoleSchema = z.enum(['owner', 'admin', 'member'])
+const adminUserRoleSchema = z.enum(['admin', 'default'])
 const adminUserStatusSchema = z.enum(['active', 'invited', 'disabled'])
 const adminUserCreateSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   email: z.string().trim().email(),
-  role: adminUserRoleSchema.default('member'),
+  role: adminUserRoleSchema.default('default'),
   status: adminUserStatusSchema.default('active'),
   password: z.string().min(8).max(200),
   emailVerified: z.boolean().default(false),
@@ -138,7 +138,7 @@ async function requireAdminContext(
 ) {
   const context = await requireRequestContext(database, request, response)
   if (!context) return null
-  if (context.role !== 'admin' && context.role !== 'owner') {
+  if (context.role !== 'admin') {
     response.status(403).json({
       error: 'admin_required',
       message: 'Administrator access is required for this operation.',
@@ -1088,7 +1088,7 @@ export function createApp(
         const inserted = await database.query<{ id: string }>(
           `
             INSERT INTO app_users (email, display_name, role, password_hash, email_verified_at, google_subject)
-            VALUES (lower($1), $2, 'owner', NULL, now(), $3)
+            VALUES (lower($1), $2, 'default', NULL, now(), $3)
             RETURNING id
           `,
           [profile.email, profile.name?.trim() || profile.email.split('@')[0], profile.sub],
@@ -1108,7 +1108,7 @@ export function createApp(
         workspaceId = workspace.rows[0]?.id
         if (!workspaceId) throw new Error('The Google workspace could not be created.')
         await database.query(
-          `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'owner')`,
+          `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'admin')`,
           [workspaceId, userId],
         )
       }
@@ -1986,22 +1986,44 @@ export function createApp(
         email: string
         display_name: string
         workspace_id: string
+        company_name: string
         role: string
         created_at: Date
       }>(
         `
           WITH new_user AS (
             INSERT INTO app_users (email, display_name, role, password_hash)
-            VALUES (lower($1), $2, 'owner', crypt($3, gen_salt('bf')))
+            VALUES (lower($1), $2, 'default', crypt($3, gen_salt('bf')))
             RETURNING id, email, display_name, role, created_at
           ), new_workspace AS (
             INSERT INTO workspaces (name, slug, kind, created_by)
             SELECT $4, 'workspace-' || encode(digest(random()::text || $1, 'sha256'), 'hex'), 'founder', id
             FROM new_user
             RETURNING id, created_by
+          ), new_company AS (
+            INSERT INTO companies (
+              workspace_id,
+              owner_user_id,
+              created_by,
+              updated_by,
+              name,
+              founder_name,
+              business_summary
+            )
+            SELECT
+              new_workspace.id,
+              new_user.id,
+              new_user.id,
+              new_user.id,
+              $4,
+              $2,
+              ''
+            FROM new_workspace
+            JOIN new_user ON new_user.id = new_workspace.created_by
+            RETURNING workspace_id, name
           ), new_member AS (
             INSERT INTO workspace_members (workspace_id, user_id, role)
-            SELECT id, created_by, 'owner'
+            SELECT id, created_by, 'default'
             FROM new_workspace
           )
           SELECT
@@ -2010,9 +2032,11 @@ export function createApp(
             new_user.display_name,
             new_user.role,
             new_user.created_at,
-            new_workspace.id AS workspace_id
+            new_workspace.id AS workspace_id,
+            new_company.name AS company_name
           FROM new_user
           JOIN new_workspace ON new_workspace.created_by = new_user.id
+          JOIN new_company ON new_company.workspace_id = new_workspace.id
         `,
         [parsed.data.email, parsed.data.fullName, parsed.data.password, parsed.data.companyName],
       )
@@ -2072,7 +2096,7 @@ export function createApp(
           id: user.id,
           fullName: user.display_name,
           email: user.email,
-          companyName: parsed.data.companyName,
+          companyName: user.company_name,
           role: user.role,
           createdAt: user.created_at.toISOString(),
           emailVerified: false,

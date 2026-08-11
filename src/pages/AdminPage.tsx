@@ -332,7 +332,7 @@ type AdminUser = {
   id: string
   email: string
   fullName: string
-  role: 'owner' | 'admin' | 'member'
+  role: 'admin' | 'default'
   status: 'active' | 'invited' | 'disabled'
   emailVerified: boolean
   hasGoogleAccount: boolean
@@ -354,7 +354,7 @@ function createAdminUserDraft(): AdminUserDraft {
   return {
     fullName: '',
     email: '',
-    role: 'member',
+    role: 'default',
     status: 'active',
     password: '',
     emailVerified: false,
@@ -5223,9 +5223,8 @@ export function AdminPage() {
                         value={adminUserEditor.role}
                         onChange={(event) => updateAdminUserDraft('role', event.target.value as AdminUser['role'])}
                       >
-                        <option value="owner">Owner</option>
+                        <option value="default">Default</option>
                         <option value="admin">Admin</option>
-                        <option value="member">Member</option>
                       </select>
                     </label>
                     <label>

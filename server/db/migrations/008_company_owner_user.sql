@@ -18,7 +18,7 @@ SET owner_user_id = COALESCE(
     SELECT members.user_id
     FROM workspace_members AS members
     WHERE members.workspace_id = companies.workspace_id
-    ORDER BY CASE members.role WHEN 'owner' THEN 0 ELSE 1 END, members.created_at ASC
+    ORDER BY CASE members.role WHEN 'admin' THEN 0 ELSE 1 END, members.created_at ASC
     LIMIT 1
   )
 )

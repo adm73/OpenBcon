@@ -537,7 +537,7 @@ describe('persistence API', () => {
               id: '1',
               email: 'alex@northstarfoods.ca',
               display_name: 'Alex Morgan',
-              role: 'owner',
+              role: 'admin',
               created_at: new Date('2026-07-31T00:00:00.000Z'),
             }],
             rowCount: 1,
@@ -596,23 +596,25 @@ describe('persistence API', () => {
   })
 
   it('creates password accounts, signs them in, and sends verification email', async () => {
-    const database = {
-      query: vi.fn(async (query: string) => {
-        if (query.includes('WITH new_user')) {
-          return {
-            rows: [{
-              id: '7',
-              email: 'new@example.test',
-              display_name: 'New User',
-              role: 'owner',
-              created_at: new Date('2026-07-31T00:00:00.000Z'),
-              workspace_id: '00000000-0000-4000-8000-000000000003',
-            }],
-            rowCount: 1,
-          }
+    const query = vi.fn(async (query: string) => {
+      if (query.includes('WITH new_user')) {
+        return {
+          rows: [{
+            id: '7',
+            email: 'new@example.test',
+            display_name: 'New User',
+            role: 'default',
+            created_at: new Date('2026-07-31T00:00:00.000Z'),
+            workspace_id: '00000000-0000-4000-8000-000000000003',
+            company_name: 'New Company',
+          }],
+          rowCount: 1,
         }
-        return { rows: [], rowCount: 1 }
-      }),
+      }
+      return { rows: [], rowCount: 1 }
+    })
+    const database = {
+      query,
     } as unknown as Pool
 
     const response = await request(createApp(database))
@@ -628,6 +630,8 @@ describe('persistence API', () => {
     expect(response.body).toMatchObject({
       user: {
         email: 'new@example.test',
+        companyName: 'New Company',
+        role: 'default',
         emailVerified: false,
       },
       emailVerification: {
@@ -636,6 +640,13 @@ describe('persistence API', () => {
     })
     expect(response.body.emailVerification.previewVerificationUrl).toContain('/api/auth/verify-email?token=')
     expect(response.headers['set-cookie']).toBeDefined()
+    expect(
+      query.mock.calls.some(([query]) =>
+        typeof query === 'string' &&
+        query.includes("VALUES (lower($1), $2, 'default', crypt($3, gen_salt('bf')))") &&
+        query.includes('INSERT INTO companies'),
+      ),
+    ).toBe(true)
   })
 
   it('allows password login before email verification', async () => {
@@ -647,7 +658,7 @@ describe('persistence API', () => {
               id: '8',
               email: 'unverified@example.test',
               display_name: 'Unverified User',
-              role: 'owner',
+              role: 'default',
               created_at: new Date('2026-07-31T00:00:00.000Z'),
               email_verified_at: null,
               google_subject: null,

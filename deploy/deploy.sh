@@ -393,11 +393,11 @@ ON CONFLICT (slug) DO UPDATE SET
   created_by = EXCLUDED.created_by;
 
 INSERT INTO workspace_members (workspace_id, user_id, role)
-SELECT workspaces.id, app_users.id, 'owner'
+SELECT workspaces.id, app_users.id, 'admin'
 FROM workspaces
 JOIN app_users ON lower(app_users.email) = lower(:'admin_email')
 WHERE workspaces.slug = 'openbcon-admin-workspace'
-ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = 'owner';
+ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = 'admin';
 COMMIT;
 SQL
 

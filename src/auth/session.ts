@@ -1,4 +1,4 @@
-export type AuthRole = string
+export type AuthRole = 'admin' | 'default'
 
 export type AuthUser = {
   id: string
@@ -87,10 +87,23 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase()
 }
 
+function normalizeAuthRole(role: unknown): AuthRole {
+  return role === 'admin' || role === 'Admin' || role === 'owner' || role === 'Owner'
+    ? 'admin'
+    : 'default'
+}
+
 export function loadAuthUsers() {
   const storedUsers = loadStoredJson<AuthUser[]>(authUsersStorageKey, [])
   if (storedUsers.length > 0) {
-    return storedUsers
+    const normalizedUsers = storedUsers.map((user) => ({
+      ...user,
+      role: normalizeAuthRole(user.role),
+    }))
+    if (normalizedUsers.some((user, index) => user.role !== storedUsers[index]?.role)) {
+      saveAuthUsers(normalizedUsers)
+    }
+    return normalizedUsers
   }
 
   writeStoredJson(authUsersStorageKey, seededUsers)
@@ -122,6 +135,10 @@ export function getCurrentAuthUser() {
   return loadAuthUsers().find((user) => user.id === session.userId) ?? null
 }
 
+export function isCurrentUserAdmin() {
+  return getCurrentAuthUser()?.role === 'admin'
+}
+
 export async function refreshCurrentAuthUser() {
   try {
     const response = await fetch(`${authApiBaseUrl}/auth/me`, {
@@ -133,6 +150,7 @@ export async function refreshCurrentAuthUser() {
     const payload = (await response.json()) as DatabaseCurrentUserResponse
     const user: AuthUser = {
       ...payload.user,
+      role: normalizeAuthRole(payload.user.role),
       password: '',
     }
     const users = loadAuthUsers().filter((item) => item.id !== user.id)
@@ -166,7 +184,7 @@ export function updateCurrentAuthUserProfile(input: {
     ...currentUser,
     fullName: input.fullName.trim() || currentUser.fullName,
     email: normalizedEmail || currentUser.email,
-    role: input.role.trim() || currentUser.role,
+    role: normalizeAuthRole(input.role.trim() || currentUser.role),
   }
 
   saveAuthUsers(
@@ -228,7 +246,7 @@ function registerUserLocally(input: {
     email,
     password: input.password,
     companyName: input.companyName.trim(),
-    role: 'Founder',
+    role: 'default',
     createdAt: new Date().toISOString(),
   }
 

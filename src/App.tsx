@@ -1,11 +1,9 @@
 import type { ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import './App.css'
-import { hasAdminAccess } from './auth/adminAccess'
-import { hasActiveSession } from './auth/session'
+import { getCurrentAuthUser, hasActiveSession } from './auth/session'
 import { PlatformConfigProvider } from './config/PlatformConfigContext'
 import { LanguageProvider } from './i18n'
-import { AdminAccessPage } from './pages/AdminAccessPage'
 import { AdminPage } from './pages/AdminPage'
 import { DashboardPage, ProgramsPage } from './pages/DashboardPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
@@ -41,7 +39,7 @@ function AdminRoute() {
     return <Navigate to={`/login?next=${encodeURIComponent(next)}`} replace />
   }
 
-  return hasAdminAccess() ? <AdminPage /> : <AdminAccessPage />
+  return getCurrentAuthUser()?.role === 'admin' ? <AdminPage /> : <Navigate to="/dashboard" replace />
 }
 
 function DomainBoundary({ children }: { children: ReactNode }) {

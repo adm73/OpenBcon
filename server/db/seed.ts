@@ -11,25 +11,25 @@ const demoUsers = [
   {
     email: 'alex@northstarfoods.ca',
     displayName: 'Alex Morgan',
-    role: 'owner',
+    role: 'admin',
     password: environment.DEMO_USER_PASSWORD ?? '',
   },
   {
     email: 'ava@northstarfoods.ca',
     displayName: 'Ava Lin',
-    role: 'member',
+    role: 'default',
     password: '',
   },
   {
     email: 'morgan@greenlinehvac.ca',
     displayName: 'Morgan Chen',
-    role: 'member',
+    role: 'default',
     password: '',
   },
   {
     email: 'jordan@fieldnoteai.ca',
     displayName: 'Jordan Smith',
-    role: 'member',
+    role: 'default',
     password: '',
   },
 ] as const
@@ -439,7 +439,7 @@ export async function seedDatabase(
     await client.query(
       `
         INSERT INTO workspace_members (workspace_id, user_id, role)
-        VALUES ($1, $2, 'owner')
+        VALUES ($1, $2, 'admin')
         ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role
       `,
       [environment.DEMO_WORKSPACE_ID, userId],
@@ -454,7 +454,7 @@ export async function seedDatabase(
         [
           environment.DEMO_WORKSPACE_ID,
           memberId,
-          email === 'alex@northstarfoods.ca' ? 'owner' : 'member',
+          email === 'alex@northstarfoods.ca' ? 'admin' : 'default',
         ],
       )
     }

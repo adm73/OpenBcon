@@ -4,11 +4,11 @@ CREATE TABLE IF NOT EXISTS app_users (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   email text NOT NULL UNIQUE,
   display_name text NOT NULL,
-  role text NOT NULL DEFAULT 'member',
+  role text NOT NULL DEFAULT 'default',
   status text NOT NULL DEFAULT 'active',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CHECK (role IN ('owner', 'admin', 'member')),
+  CHECK (role IN ('admin', 'default')),
   CHECK (status IN ('active', 'invited', 'disabled'))
 );
 
@@ -28,10 +28,10 @@ CREATE TABLE IF NOT EXISTS workspaces (
 CREATE TABLE IF NOT EXISTS workspace_members (
   workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   user_id bigint NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
-  role text NOT NULL DEFAULT 'member',
+  role text NOT NULL DEFAULT 'default',
   created_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (workspace_id, user_id),
-  CHECK (role IN ('owner', 'admin', 'member', 'viewer'))
+  CHECK (role IN ('admin', 'default'))
 );
 
 CREATE TABLE IF NOT EXISTS app_state (
