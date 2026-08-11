@@ -220,6 +220,7 @@ OpenBcon is designed for teams that help businesses secure funding:
 - **Reusable report layouts**: configure cover-page and main-content CSS declarations in Admin Console with a live preview, then assign those layouts to Strategic Report sections
 - **Funding readiness workflows**: assess strengths, risks, and missing inputs before submission
 - **Discovery scouting reports**: compare each funding program against a selected company with fit scoring, positive signals, reviewer concerns, and a recommended next move
+- **Configurable program matching**: score opportunities with a shared weighting model for eligibility fit (50%), company profile completeness (20%), policy match (20%), and document readiness (10%)
 - **Client and company management**: organize founder profiles, business details, and working records
 - **Funding program database**: manage grants, loans, and opportunity sources in one directory
 - **Partner and admin workspace**: configure modules, branding, landing-page content, legal links, data sources, models, payment settings, and workspace behavior
@@ -350,6 +351,7 @@ The current repository snapshot includes the landing experience, dashboard works
 - Discovery presents one program-matching scouting report card at a time, with company switching, program profiles, match indicators, and non-circular Previous/Next navigation
 - Discovery displays the match score as a dynamic progress ring with the score rendered inside the circle
 - Discovery cards expose the company profile used for matching, including legal structure, sector, industry, stage, products or services, funding usage, seasonal periods, mission, vision, values, and team information
+- Discovery, Dashboard, and Funding Shortlist use the same unified matching calculator and the active company context
 - Dedicated Strategic Reports route (`/strategic-reports`) for reopening the latest generated package outside the form flow
 - Funding Shortlist route (`/funding-shortlist`) for reviewing shortlisted grants, loans, and other funding opportunities
 - Strategic Report generation driven by configurable sections, document types, agents, roles, prompts, and workflow ordering
@@ -358,6 +360,7 @@ The current repository snapshot includes the landing experience, dashboard works
 - My Applications and Quick Build use the unique external `app_id` in links and API requests
 - Google Sheets and Airtable funding data-source integrations
 - Admin data-source search, create, edit, delete, enable, and manual sync controls
+- Admin Console Matching settings for top-level score weights and eligibility/policy sub-weights, persisted with the shared platform configuration
 - Dynamic Grants & Loans directory with source attribution and Quick Build import
 - Grants & Loans catalog with all active data-source languages and 12-program pagination
 - PostgreSQL domain data plus MongoDB-backed dynamic configuration and workspace state

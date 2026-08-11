@@ -257,6 +257,26 @@ export type AuthenticationConfig = {
 
 export type EnvironmentMode = 'test' | 'live'
 
+export type MatchingConfig = {
+  weights: {
+    eligibilityFit: number
+    companyProfileCompleteness: number
+    policyMatch: number
+    documentReadiness: number
+  }
+  eligibilityWeights: {
+    geography: number
+    companyType: number
+    businessStage: number
+    fundingAmountAndType: number
+  }
+  policyWeights: {
+    industryAndSector: number
+    fundingUsage: number
+    policyObjectives: number
+  }
+}
+
 export type PlatformConfig = {
   platformName: string
   platformLogo: string
@@ -276,6 +296,7 @@ export type PlatformConfig = {
   payments: PaymentConfig
   ai: AIConfig
   advisoryHub: AdvisoryHubConfig
+  matching: MatchingConfig
   dataSources: FundingDataSource[]
   modules: Record<PlatformModuleId, boolean>
 }
@@ -296,8 +317,35 @@ export const defaultNotificationBar: NotificationBarConfig = {
   dismissible: true,
 }
 
+export const defaultMatchingConfig: MatchingConfig = {
+  weights: {
+    eligibilityFit: 50,
+    companyProfileCompleteness: 20,
+    policyMatch: 20,
+    documentReadiness: 10,
+  },
+  eligibilityWeights: {
+    geography: 15,
+    companyType: 15,
+    businessStage: 10,
+    fundingAmountAndType: 10,
+  },
+  policyWeights: {
+    industryAndSector: 8,
+    fundingUsage: 6,
+    policyObjectives: 6,
+  },
+}
+
 function normalizePlatformLanguage(value: unknown): SupportedLocale {
   return value === 'fr-CA' || value === 'zh-CN' ? value : 'en-CA'
+}
+
+function normalizeMatchingWeight(value: unknown, fallback: number) {
+  const numeric = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(numeric)
+    ? Math.max(0, Math.min(100, numeric))
+    : fallback
 }
 
 function isEnvironmentReference(value: string) {
@@ -1313,6 +1361,7 @@ export const defaultPlatformConfig: PlatformConfig = {
     layouts: defaultAdvisoryHubLayouts,
     sections: defaultAdvisoryHubSections,
   },
+  matching: defaultMatchingConfig,
   dataSources: defaultFundingDataSources,
   modules: {
     discovery: true,
@@ -1571,6 +1620,7 @@ export function loadPlatformConfig(): PlatformConfig {
       (parsedConfig.authentication ?? {}) as LegacyAuthenticationConfig
     const parsedAI = (parsedConfig.ai ?? {}) as LegacyAIConfig
     const parsedAdvisoryHub = (parsedConfig.advisoryHub ?? {}) as LegacyAdvisoryHubConfig
+    const parsedMatching = (parsedConfig.matching ?? {}) as Partial<MatchingConfig>
     const parsedAIProviders = normalizeAIProviders(parsedAI.providers)
     const parsedAIModels = normalizeAIModels(
       parsedAI.models,
@@ -1909,6 +1959,60 @@ export function loadPlatformConfig(): PlatformConfig {
           parsedAdvisoryHubAgents,
           parsedAdvisoryHubDocumentTypes,
         ),
+      },
+      matching: {
+        ...defaultMatchingConfig,
+        ...parsedMatching,
+        weights: {
+          eligibilityFit: normalizeMatchingWeight(
+            parsedMatching.weights?.eligibilityFit,
+            defaultMatchingConfig.weights.eligibilityFit,
+          ),
+          companyProfileCompleteness: normalizeMatchingWeight(
+            parsedMatching.weights?.companyProfileCompleteness,
+            defaultMatchingConfig.weights.companyProfileCompleteness,
+          ),
+          policyMatch: normalizeMatchingWeight(
+            parsedMatching.weights?.policyMatch,
+            defaultMatchingConfig.weights.policyMatch,
+          ),
+          documentReadiness: normalizeMatchingWeight(
+            parsedMatching.weights?.documentReadiness,
+            defaultMatchingConfig.weights.documentReadiness,
+          ),
+        },
+        eligibilityWeights: {
+          geography: normalizeMatchingWeight(
+            parsedMatching.eligibilityWeights?.geography,
+            defaultMatchingConfig.eligibilityWeights.geography,
+          ),
+          companyType: normalizeMatchingWeight(
+            parsedMatching.eligibilityWeights?.companyType,
+            defaultMatchingConfig.eligibilityWeights.companyType,
+          ),
+          businessStage: normalizeMatchingWeight(
+            parsedMatching.eligibilityWeights?.businessStage,
+            defaultMatchingConfig.eligibilityWeights.businessStage,
+          ),
+          fundingAmountAndType: normalizeMatchingWeight(
+            parsedMatching.eligibilityWeights?.fundingAmountAndType,
+            defaultMatchingConfig.eligibilityWeights.fundingAmountAndType,
+          ),
+        },
+        policyWeights: {
+          industryAndSector: normalizeMatchingWeight(
+            parsedMatching.policyWeights?.industryAndSector,
+            defaultMatchingConfig.policyWeights.industryAndSector,
+          ),
+          fundingUsage: normalizeMatchingWeight(
+            parsedMatching.policyWeights?.fundingUsage,
+            defaultMatchingConfig.policyWeights.fundingUsage,
+          ),
+          policyObjectives: normalizeMatchingWeight(
+            parsedMatching.policyWeights?.policyObjectives,
+            defaultMatchingConfig.policyWeights.policyObjectives,
+          ),
+        },
       },
       dataSources: [
         ...normalizeFundingDataSources(parsedConfig.dataSources),

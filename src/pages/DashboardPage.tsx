@@ -43,6 +43,7 @@ import {
   type AdvisoryHubLayoutConfig,
   type AdvisoryHubSectionLayout,
   type AdvisoryHubSectionConfig,
+  type MatchingConfig,
   sanitizePlatformConfigForPersistence,
   platformConfigStorageKey,
   type PaymentCatalogItem,
@@ -80,6 +81,7 @@ import {
 } from '../lib/fundingProgramsApi'
 import { renderFormattedContent } from '../lib/legalContent'
 import { cssDeclarationsToStyle } from '../lib/layoutStyles'
+import { calculateUnifiedMatch } from '../lib/programMatching'
 import {
   createApplicationViaApi,
   updateApplicationDocumentTypesViaApi,
@@ -1778,172 +1780,50 @@ function formatCompanyPeriods(periods: string[]) {
     .join(', ')
 }
 
-function calculateProgramCompanyMatch(program: FundingProgramRecord, company: CompanyRecord) {
-  const programText = [
-    program.eligibility,
-    program.eligibleUses,
-    program.targetCompanyTypes,
-    program.requiredEvidence,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-  const companyText = [
-    company.industry,
-    company.sector,
-    company.stage,
-    company.description,
-    company.productsOrServices,
-    company.mission,
-    company.vision,
-    company.values,
-    company.teamIntro,
-    company.fundingUsage.join(' '),
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-  const companyLocation = company.location.trim().toLowerCase()
-  const programLocation = program.location.trim().toLowerCase()
-  const locationScore =
-    programLocation === 'canada' ||
-    (programLocation.length > 0 && companyLocation.includes(programLocation))
-      ? 100
-      : 45
-  const incorporationScore = programText.includes('incorporated')
-    ? company.legalStructure.trim() ? 100 : 45
-    : 75
-  const stageScore =
-    (/(startup|early-stage|launch)/u.test(programText) && company.stage === 'Launch') ||
-    (/(revenue-generating|established|operating history|growth)/u.test(programText) &&
-      (company.stage === 'Growth' || company.stage === 'Maturity'))
-      ? 100
-      : 72
-  const digitalProgram = /(digital|technology|cybersecurity|software)/u.test(programText)
-  const digitalCompany = /(information|technology|software|ai|digital|engineering)/u.test(companyText)
-  const industrialProgram = /(equipment|production|manufactur|construction|expansion)/u.test(programText)
-  const industrialCompany = /(manufactur|construction|hvac|food|production|equipment)/u.test(companyText)
-  const industryScore = digitalProgram && digitalCompany
-    ? 100
-    : industrialProgram && industrialCompany
-      ? 100
-      : 72
-  const usageTerms: Record<string, RegExp> = {
-    equipment: /(equipment|capital|tools)/u,
-    inventory: /(inventory|working capital|stock)/u,
-    hiring: /(hiring|hire|staff|employee|talent)/u,
-    advertising: /(marketing|advertis|customer acquisition|market development)/u,
-    rent: /(rent|operating cost|working capital)/u,
-    payroll: /(payroll|salary|wage|working capital)/u,
-  }
-  const matchedUsageCount = company.fundingUsage.filter(
-    (usage) => usageTerms[usage]?.test(program.eligibleUses?.toLowerCase() ?? ''),
-  ).length
-  const usageScore = company.fundingUsage.length === 0
-    ? 45
-    : matchedUsageCount > 0
-      ? Math.min(100, 70 + matchedUsageCount * 15)
-      : 55
-  const evidenceFields = [
-    company.legalName,
-    company.corporationDate,
-    company.legalStructure,
-    company.industry,
-    company.description,
-    company.productsOrServices,
-    company.mission,
-    company.teamIntro,
-    company.teamMembers.length ? 'team' : '',
-  ]
-  const evidenceScore = Math.round(
-    (evidenceFields.filter((field) => field.trim()).length / evidenceFields.length) * 100,
-  )
-
-  return Math.round(
-    locationScore * 0.25 +
-      incorporationScore * 0.15 +
-      stageScore * 0.15 +
-      industryScore * 0.2 +
-      usageScore * 0.15 +
-      evidenceScore * 0.1,
-  )
+function calculateProgramCompanyMatch(
+  program: FundingProgramRecord,
+  company: CompanyRecord,
+  config: MatchingConfig,
+) {
+  return calculateUnifiedMatch(program, company, null, config).overall
 }
 
 function calculateScoutingScores(
   program: FundingProgramRecord,
   company: CompanyRecord,
   application: ApplicationRecord | null,
+  config: MatchingConfig,
 ) {
-  const programLocation = program.location.trim().toLowerCase()
-  const companyLocation = company.location.trim().toLowerCase()
-  const locationScore =
-    programLocation === 'canada' ||
-    (programLocation.length > 0 && companyLocation.includes(programLocation))
-      ? 100
-      : 55
-  const revenue = parseCompanyRevenue(company)
-  const financialScore = revenue > 0 ? Math.min(100, 60 + Math.round(revenue / 5000)) : 35
-  const companyProgramMatch = calculateProgramCompanyMatch(program, company)
-  const profileFields = [
-    company.description,
-    company.mission,
-    company.vision,
-    company.values,
-    company.legalStructure,
-    company.sector,
-    company.corporationDate,
-    company.teamIntro,
-    company.owner,
-  ]
-  const profileEvidenceScore = Math.round(
-    (profileFields.filter((field) => field.trim()).length / profileFields.length) * 100,
-  )
-  const evidenceScore = application?.progress ?? profileEvidenceScore
+  const result = calculateUnifiedMatch(program, company, application, config)
   const scores: ScoutingScore[] = [
     {
       label: 'Eligibility fit',
-      score: locationScore,
-      weight: 30,
-      explanation:
-        locationScore >= 80
-          ? `${company.location || 'Company location'} aligns with ${program.location}.`
-          : `Program coverage is ${program.location}; confirm location eligibility before applying.`,
+      score: result.eligibilityFit,
+      weight: config.weights.eligibilityFit,
+      explanation: `Geography ${result.eligibilityBreakdown.geography}%, company type ${result.eligibilityBreakdown.companyType}%, stage ${result.eligibilityBreakdown.businessStage}%, and amount/type ${result.eligibilityBreakdown.fundingAmountAndType}%.`,
     },
     {
-      label: 'Program fit',
-      score: companyProgramMatch,
-      weight: 25,
-      explanation: `Program requirements and company profile align at ${companyProgramMatch}%.`,
+      label: 'Company profile completeness',
+      score: result.companyProfileCompleteness,
+      weight: config.weights.companyProfileCompleteness,
+      explanation: `${company.name} has ${result.companyProfileCompleteness}% of the matching profile fields completed.`,
     },
     {
-      label: 'Company readiness',
-      score: company.readiness,
-      weight: 20,
-      explanation: `${company.name} profile readiness is ${company.readiness}%.`,
+      label: 'Policy match',
+      score: result.policyMatch,
+      weight: config.weights.policyMatch,
+      explanation: `Industry/sector ${result.policyBreakdown.industryAndSector}%, usage ${result.policyBreakdown.fundingUsage}%, and policy objectives ${result.policyBreakdown.policyObjectives}%.`,
     },
     {
-      label: 'Financial capacity',
-      score: financialScore,
-      weight: 15,
-      explanation:
-        revenue > 0
-          ? `Monthly revenue is CAD ${revenue.toLocaleString('en-CA')}.`
-          : 'Monthly revenue has not been provided.',
-    },
-    {
-      label: 'Evidence readiness',
-      score: evidenceScore,
-      weight: 10,
+      label: 'Document readiness',
+      score: result.documentReadiness,
+      weight: config.weights.documentReadiness,
       explanation: application
         ? `Linked application is ${application.progress}% complete.`
-        : `Company profile evidence is ${profileEvidenceScore}% complete.`,
+        : `Document readiness follows the completed company profile at ${result.documentReadiness}%.`,
     },
   ]
-  const overall = Math.round(
-    scores.reduce((total, item) => total + item.score * (item.weight / 100), 0),
-  )
-
-  return { scores, overall }
+  return { ...result, scores }
 }
 
 function getScoutingTone(score: number) {
@@ -2024,6 +1904,7 @@ function FundingReadinessPage() {
     selectedProgram,
     selectedCompany,
     matchingApplication,
+    config.matching,
   )
   const tone = getScoutingTone(scouting.overall)
   const conclusionKey = scouting.overall >= 85
@@ -2036,8 +1917,8 @@ function FundingReadinessPage() {
   const conclusion = t(`workspacePages.discovery.${conclusionKey}`)
   const strengths = [
     scouting.scores[0].score >= 80 ? `${selectedCompany.location} is inside the program's coverage area.` : '',
-    scouting.scores[1].score >= 85 ? `The catalog identifies ${selectedProgram.name} as a strong program match.` : '',
-    scouting.scores[2].score >= 80 ? `${selectedCompany.name} has a strong company profile.` : '',
+    scouting.scores[1].score >= 85 ? `${selectedCompany.name} has a complete company profile.` : '',
+    scouting.scores[2].score >= 80 ? `The company profile aligns with the program policy objectives.` : '',
     parseCompanyRevenue(selectedCompany) > 0 ? 'The company has reported operating revenue.' : '',
     matchingApplication && matchingApplication.progress >= 80 ? 'A linked application is already close to submission readiness.' : '',
   ].filter(Boolean)
@@ -2303,6 +2184,7 @@ function FundingReadinessPage() {
 function SavedProgramsPage() {
   const { t } = useTranslation()
   const { locale } = useLocale()
+  const { config } = usePlatformConfig()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const closingPidRef = useRef('')
@@ -2319,6 +2201,13 @@ function SavedProgramsPage() {
     'Recently saved' | 'Highest match' | 'Largest amount'
   >('Recently saved')
   const [selectedId, setSelectedId] = useState('')
+  const savedProgramCompany = loadCompanyRecords()[0] ?? null
+
+  function getSavedProgramMatch(program: FundingProgramRecord) {
+    return savedProgramCompany
+      ? calculateProgramCompanyMatch(program, savedProgramCompany, config.matching)
+      : program.match
+  }
 
   useEffect(() => {
     saveSavedProgramEntries(entries)
@@ -2417,7 +2306,7 @@ function SavedProgramsPage() {
       )
     })
     .sort((left, right) => {
-      if (sort === 'Highest match') return right.program.match - left.program.match
+      if (sort === 'Highest match') return getSavedProgramMatch(right.program) - getSavedProgramMatch(left.program)
       if (sort === 'Largest amount') return right.program.amount - left.program.amount
       return entries.indexOf(left.entry) - entries.indexOf(right.entry)
     })
@@ -2433,7 +2322,7 @@ function SavedProgramsPage() {
   )
   const averageMatch = savedPrograms.length
     ? Math.round(
-        savedPrograms.reduce((sum, { program }) => sum + program.match, 0) /
+        savedPrograms.reduce((sum, { program }) => sum + getSavedProgramMatch(program), 0) /
           savedPrograms.length,
       )
     : 0
@@ -2646,8 +2535,8 @@ function SavedProgramsPage() {
                   <small>{program.type}</small>
                 </span>
                 <span className="saved-program-match">
-                  <i style={{ '--saved-match': `${program.match}%` } as CSSProperties} />
-                  <strong>{program.match}%</strong>
+                  <i style={{ '--saved-match': `${getSavedProgramMatch(program)}%` } as CSSProperties} />
+                  <strong>{getSavedProgramMatch(program)}%</strong>
                 </span>
                 <button
                   type="button"
@@ -11750,6 +11639,12 @@ function OverviewPage({ userName }: { userName?: string }) {
   )[0] ?? null
   const applicationRows = activeApplications.slice(0, 3)
   const topMatches = [...fundingPrograms]
+    .map((program) => ({
+      program,
+      match: currentCompany
+        ? calculateProgramCompanyMatch(program, currentCompany, config.matching)
+        : program.match,
+    }))
     .sort((left, right) => right.match - left.match)
     .slice(0, 2)
   const matchedFunding = savedPrograms.reduce(
@@ -11773,6 +11668,7 @@ function OverviewPage({ userName }: { userName?: string }) {
         discoveryProgram,
         currentCompany,
         discoveryApplication,
+        config.matching,
       ).overall
     : 0
   const readinessTarget = 80
@@ -11936,12 +11832,12 @@ function OverviewPage({ userName }: { userName?: string }) {
             <Link to="/grants-loans">{t('workspacePages.dashboard.explore')}</Link>
           </div>
           <div className="dashboard-opportunity-list">
-            {topMatches.map((program) => (
+            {topMatches.map(({ program, match }) => (
               <Link to="/grants-loans" key={program.id}>
-                <span className="dashboard-match">{program.match}% match</span>
+                <span className="dashboard-match">{match}% match</span>
                 <strong>{program.name}</strong>
                 <small>Up to {formatDashboardCurrency(program.amount, true)} · {program.type}</small>
-                <b>{program.match >= 90 ? 'Strong fit for your growth stage' : 'Potential fit for your business'} <Glyph type="arrow" /></b>
+                <b>{match >= 90 ? 'Strong fit for your growth stage' : 'Potential fit for your business'} <Glyph type="arrow" /></b>
               </Link>
             ))}
             {topMatches.length === 0 ? (

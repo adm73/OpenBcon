@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   commercialLicenseDefaults,
   defaultNotificationBar,
+  defaultMatchingConfig,
   defaultPlatformConfig,
   normalizeAdvisoryHubSections,
   sanitizePlatformConfigForPersistence,
@@ -25,6 +26,13 @@ describe('platform config persistence', () => {
 
   it('defaults the platform language to English', () => {
     expect(defaultPlatformConfig.language).toBe('en-CA')
+  })
+
+  it('defaults the unified matching weights to the agreed scoring model', () => {
+    expect(defaultPlatformConfig.matching).toEqual(defaultMatchingConfig)
+    expect(Object.values(defaultPlatformConfig.matching.weights).reduce((sum, value) => sum + value, 0)).toBe(100)
+    expect(Object.values(defaultPlatformConfig.matching.eligibilityWeights).reduce((sum, value) => sum + value, 0)).toBe(50)
+    expect(Object.values(defaultPlatformConfig.matching.policyWeights).reduce((sum, value) => sum + value, 0)).toBe(20)
   })
 
   it('renames the Canadian funding source without changing its stable ID', () => {
@@ -196,6 +204,25 @@ describe('platform config persistence', () => {
 
     expect(persisted.ai.models[0]?.apiKey).toBe('')
     expect(persisted.ai.models[0]?.authorization).toBe('')
+  })
+
+  it('persists matching configuration with the shared platform config', () => {
+    const matching = {
+      ...defaultMatchingConfig,
+      weights: {
+        eligibilityFit: 40,
+        companyProfileCompleteness: 25,
+        policyMatch: 25,
+        documentReadiness: 10,
+      },
+    }
+
+    const persisted = sanitizePlatformConfigForPersistence({
+      ...defaultPlatformConfig,
+      matching,
+    })
+
+    expect(persisted.matching).toEqual(matching)
   })
 
   it('keeps commercial licensing terms fixed', () => {

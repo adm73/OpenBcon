@@ -29,6 +29,7 @@ import {
   type PaymentConfig,
   type PlatformConfig,
   type PlatformModuleId,
+  type MatchingConfig,
   sanitizePlatformConfigForPersistence,
   secureConfigValuePlaceholder,
 } from '../config/platform'
@@ -851,6 +852,27 @@ export function AdminPage() {
     value: PlatformConfig[Key],
   ) {
     setDraft((current) => ({ ...current, [field]: value }))
+    setSaved(false)
+  }
+
+  function updateMatchingWeight(
+    group: keyof MatchingConfig,
+    field: string,
+    value: number,
+  ) {
+    setDraft((current) => {
+      const groupValues = current.matching[group] as Record<string, number>
+      return {
+        ...current,
+        matching: {
+          ...current.matching,
+          [group]: {
+            ...groupValues,
+            [field]: Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0)),
+          },
+        },
+      }
+    })
     setSaved(false)
   }
 
@@ -2391,6 +2413,7 @@ export function AdminPage() {
           <a href="#pricing">Pricing</a>
           <a href="#revenue">Revenue</a>
           <a href="#advisory-hub">Strategic Report - Sections</a>
+          <a href="#matching">Matching</a>
           <a href="#layouts">Layouts</a>
           <a href="#advisory-hub-document-types">Strategic Report - Document Types</a>
           <a href="#advisory-hub-agents">Strategic Report - Agents</a>
@@ -4494,9 +4517,138 @@ export function AdminPage() {
             </div>
           </section>
 
-          <section className="admin-card admin-management-card" id="layouts">
+          <section className="admin-card admin-management-card" id="matching">
             <div className="admin-section-copy">
               <p className="admin-section-number">10</p>
+              <h2>Matching</h2>
+              <p>
+                Configure the unified company and funding-program match score.
+                Changes apply to Discovery and workspace recommendations.
+              </p>
+            </div>
+            <div className="admin-management-content">
+              <div className="admin-price-management">
+                <div className="admin-price-management-header">
+                  <div>
+                    <strong>Unified scoring weights</strong>
+                    <p>
+                      Keep each group at 100%. The four top-level weights define
+                      the final score: eligibility fit 50%, company profile
+                      completeness 20%, policy match 20%, and document readiness 10%.
+                    </p>
+                  </div>
+                </div>
+                <div className="admin-fields">
+                  <label>
+                    <span>Eligibility fit (%)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={draft.matching.weights.eligibilityFit}
+                      onChange={(event) => updateMatchingWeight('weights', 'eligibilityFit', Number(event.target.value))}
+                    />
+                  </label>
+                  <label>
+                    <span>Company profile completeness (%)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={draft.matching.weights.companyProfileCompleteness}
+                      onChange={(event) => updateMatchingWeight('weights', 'companyProfileCompleteness', Number(event.target.value))}
+                    />
+                  </label>
+                  <label>
+                    <span>Policy match (%)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={draft.matching.weights.policyMatch}
+                      onChange={(event) => updateMatchingWeight('weights', 'policyMatch', Number(event.target.value))}
+                    />
+                  </label>
+                  <label>
+                    <span>Document readiness (%)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={draft.matching.weights.documentReadiness}
+                      onChange={(event) => updateMatchingWeight('weights', 'documentReadiness', Number(event.target.value))}
+                    />
+                  </label>
+                </div>
+                <p className="admin-management-notice">
+                  Top-level total: {Object.values(draft.matching.weights).reduce((sum, value) => sum + value, 0)}%
+                  {Object.values(draft.matching.weights).reduce((sum, value) => sum + value, 0) === 100 ? ' (valid)' : ' (should be 100%)'}
+                </p>
+              </div>
+
+              <div className="admin-price-management">
+                <div className="admin-price-management-header">
+                  <div>
+                    <strong>Eligibility fit breakdown</strong>
+                    <p>How the 50% eligibility category is distributed.</p>
+                  </div>
+                </div>
+                <div className="admin-fields">
+                  <label>
+                    <span>Geography (%)</span>
+                    <input type="number" min="0" max="100" value={draft.matching.eligibilityWeights.geography} onChange={(event) => updateMatchingWeight('eligibilityWeights', 'geography', Number(event.target.value))} />
+                  </label>
+                  <label>
+                    <span>Company type (%)</span>
+                    <input type="number" min="0" max="100" value={draft.matching.eligibilityWeights.companyType} onChange={(event) => updateMatchingWeight('eligibilityWeights', 'companyType', Number(event.target.value))} />
+                  </label>
+                  <label>
+                    <span>Business stage (%)</span>
+                    <input type="number" min="0" max="100" value={draft.matching.eligibilityWeights.businessStage} onChange={(event) => updateMatchingWeight('eligibilityWeights', 'businessStage', Number(event.target.value))} />
+                  </label>
+                  <label>
+                    <span>Funding amount and type (%)</span>
+                    <input type="number" min="0" max="100" value={draft.matching.eligibilityWeights.fundingAmountAndType} onChange={(event) => updateMatchingWeight('eligibilityWeights', 'fundingAmountAndType', Number(event.target.value))} />
+                  </label>
+                </div>
+                <p className="admin-management-notice">
+                  Eligibility total: {Object.values(draft.matching.eligibilityWeights).reduce((sum, value) => sum + value, 0)}%
+                  {Object.values(draft.matching.eligibilityWeights).reduce((sum, value) => sum + value, 0) === 100 ? ' (valid)' : ' (should be 100%)'}
+                </p>
+              </div>
+
+              <div className="admin-price-management">
+                <div className="admin-price-management-header">
+                  <div>
+                    <strong>Policy match breakdown</strong>
+                    <p>How the 20% policy category is distributed.</p>
+                  </div>
+                </div>
+                <div className="admin-fields">
+                  <label>
+                    <span>Industry and sector (%)</span>
+                    <input type="number" min="0" max="100" value={draft.matching.policyWeights.industryAndSector} onChange={(event) => updateMatchingWeight('policyWeights', 'industryAndSector', Number(event.target.value))} />
+                  </label>
+                  <label>
+                    <span>Funding usage (%)</span>
+                    <input type="number" min="0" max="100" value={draft.matching.policyWeights.fundingUsage} onChange={(event) => updateMatchingWeight('policyWeights', 'fundingUsage', Number(event.target.value))} />
+                  </label>
+                  <label>
+                    <span>Policy objectives (%)</span>
+                    <input type="number" min="0" max="100" value={draft.matching.policyWeights.policyObjectives} onChange={(event) => updateMatchingWeight('policyWeights', 'policyObjectives', Number(event.target.value))} />
+                  </label>
+                </div>
+                <p className="admin-management-notice">
+                  Policy total: {Object.values(draft.matching.policyWeights).reduce((sum, value) => sum + value, 0)}%
+                  {Object.values(draft.matching.policyWeights).reduce((sum, value) => sum + value, 0) === 100 ? ' (valid)' : ' (should be 100%)'}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-card admin-management-card" id="layouts">
+            <div className="admin-section-copy">
+              <p className="admin-section-number">11</p>
               <h2>Layouts</h2>
               <p>Configure the reusable layout definitions used by Strategic Report sections.</p>
             </div>
