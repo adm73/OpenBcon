@@ -6,6 +6,11 @@ import {
   normalizeAdvisoryHubSections,
   sanitizePlatformConfigForPersistence,
 } from './platform'
+import {
+  canadianFundingDataSourceId,
+  canadianFundingDataSourceName,
+  normalizeFundingDataSources,
+} from '../data/fundingSources'
 
 describe('platform config persistence', () => {
   it('keeps the notification bar disabled by default', () => {
@@ -20,6 +25,22 @@ describe('platform config persistence', () => {
 
   it('defaults the platform language to English', () => {
     expect(defaultPlatformConfig.language).toBe('en-CA')
+  })
+
+  it('renames the Canadian funding source without changing its stable ID', () => {
+    const normalized = normalizeFundingDataSources([
+      {
+        ...defaultPlatformConfig.dataSources.find(
+          (source) => source.id === canadianFundingDataSourceId,
+        )!,
+        name: 'Business Benefits Finder - funding (中文)',
+      },
+    ])
+
+    expect(normalized[0]).toMatchObject({
+      id: canadianFundingDataSourceId,
+      name: canadianFundingDataSourceName,
+    })
   })
 
   it('links the landing page to the programs directory', () => {

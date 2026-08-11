@@ -17,6 +17,10 @@ import {
 } from './localSecureConfig'
 import { PlatformConfigContext } from './platform-config-context'
 import {
+  canadianFundingDataSourceId,
+  canadianFundingDataSourceName,
+} from '../data/fundingSources'
+import {
   removePersistentItem,
   setPersistentItem,
 } from '../persistence/storage'
@@ -40,6 +44,23 @@ export function PlatformConfigProvider({ children }: { children: ReactNode }) {
 
     if (existingValue !== sanitizedValue) {
       window.localStorage.setItem(platformConfigStorageKey, sanitizedValue)
+
+      try {
+        const previousConfig = JSON.parse(existingValue) as {
+          dataSources?: Array<{ id?: string; name?: string }>
+        }
+        const renamedCanadianSource = previousConfig.dataSources?.some(
+          (source) =>
+            source.id === canadianFundingDataSourceId &&
+            source.name !== canadianFundingDataSourceName,
+        )
+
+        if (renamedCanadianSource) {
+          setPersistentItem(platformConfigStorageKey, sanitizedValue)
+        }
+      } catch {
+        // Keep the normalized local config even if an older cache is malformed.
+      }
     }
   }, [config])
 

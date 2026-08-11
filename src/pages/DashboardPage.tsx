@@ -27,6 +27,7 @@ import {
   getCurrentAuthUser,
   getUserInitials,
   hasActiveSession,
+  refreshCurrentAuthUser,
   updateCurrentAuthUserProfile,
 } from '../auth/session'
 import { OpenBconAttribution } from '../components/OpenBconAttribution'
@@ -4039,9 +4040,10 @@ export function ProgramsPage() {
   )
 }
 
+const GRANTS_LOANS_PROGRAMS_PER_PAGE = 12
+
 function GrantsLoansPage() {
   const { t } = useTranslation()
-  const { locale } = useLocale()
   const { config } = usePlatformConfig()
   const platformName = getPlatformDisplayName(config)
   const [query, setQuery] = useState('')
@@ -4068,6 +4070,7 @@ function GrantsLoansPage() {
   const [programs, setPrograms] = useState<FundingProgramRecord[]>([])
   const [programsLoading, setProgramsLoading] = useState(true)
   const [programsError, setProgramsError] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
   const activeFundingDataSources = config.dataSources.filter(
     (source) => source.module === 'grants-loans' && source.enabled,
   )
@@ -4079,14 +4082,24 @@ function GrantsLoansPage() {
   useEffect(() => {
     let isCurrent = true
 
-    loadFundingProgramsViaApi(locale, seedDemoCatalogEnabled)
+    loadFundingProgramsViaApi('en-CA', seedDemoCatalogEnabled, true)
       .then((nextPrograms) => {
         if (!isCurrent) return
         const catalogPrograms = nextPrograms.filter(
           (program) =>
             program.sourceId !== 'seed-demo-catalog' || seedDemoCatalogEnabled,
         )
-        setPrograms(catalogPrograms)
+        const sourceNames = new Map(
+          config.dataSources.map((source) => [source.id, source.name]),
+        )
+        setPrograms(
+          catalogPrograms.map((program) => ({
+            ...program,
+            sourceName: program.sourceId
+              ? sourceNames.get(program.sourceId) ?? program.sourceName
+              : program.sourceName,
+          })),
+        )
         replaceFundingProgramCache(nextPrograms)
         setSavedEntries(loadSavedProgramEntries())
       })
@@ -4105,7 +4118,7 @@ function GrantsLoansPage() {
     return () => {
       isCurrent = false
     }
-  }, [locale, seedDemoCatalogEnabled])
+  }, [config.dataSources, seedDemoCatalogEnabled])
 
   useEffect(() => {
     if (programsLoading) return
@@ -4166,6 +4179,22 @@ function GrantsLoansPage() {
     amountRange !== 'All',
     deadlineType !== 'All',
   ].filter(Boolean).length
+  const totalPages = Math.max(
+    1,
+    Math.ceil(visiblePrograms.length / GRANTS_LOANS_PROGRAMS_PER_PAGE),
+  )
+  const paginatedPrograms = visiblePrograms.slice(
+    (currentPage - 1) * GRANTS_LOANS_PROGRAMS_PER_PAGE,
+    currentPage * GRANTS_LOANS_PROGRAMS_PER_PAGE,
+  )
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [query, type, location, sourceName, amountRange, deadlineType])
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages))
+  }, [totalPages])
   const connectedSources = config.dataSources.filter(
     (source) =>
       source.module === 'grants-loans' &&
@@ -4557,7 +4586,7 @@ function GrantsLoansPage() {
               <p>Reading active programs from the current database.</p>
             </div>
           ) : null}
-          {!programsLoading ? visiblePrograms.map((program) => (
+          {!programsLoading ? paginatedPrograms.map((program) => (
             <article key={program.id} className="funding-directory-card">
               <div className="funding-card-topline">
                 <span className={`funding-card-type is-${program.type.toLowerCase()}`}>
@@ -4591,6 +4620,36 @@ function GrantsLoansPage() {
             </article>
           )) : null}
         </div>
+
+        {!programsLoading && !programsError && visiblePrograms.length > 0 ? (
+          <nav
+            className="funding-directory-pagination"
+            aria-label={t('workspacePages.programs.pagination')}
+          >
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+            >
+              {t('workspacePages.programs.previous')}
+            </button>
+            <span>
+              {t('workspacePages.programs.pageOf', {
+                current: currentPage,
+                total: totalPages,
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPage((page) => Math.min(totalPages, page + 1))
+              }
+              disabled={currentPage === totalPages}
+            >
+              {t('workspacePages.programs.next')}
+            </button>
+          </nav>
+        ) : null}
 
         {!programsLoading && !programsError && visiblePrograms.length === 0 ? (
           <div className="workspace-empty">
@@ -6546,6 +6605,12 @@ const defaultUserSettings: UserSettings = {
   activePriceItemId: '',
 }
 
+function settingsRoleFromAuthRole(role: string | undefined) {
+  return role === 'admin' || role === 'owner' || role === 'Admin'
+    ? 'Admin'
+    : 'Default'
+}
+
 function loadUserSettings() {
   const normalizeSettings = (settings: UserSettings): UserSettings => {
     const companies = loadCompanyRecords()
@@ -6813,7 +6878,18 @@ function SettingsPage() {
       ? (initialHash as SettingsSection)
       : 'profile',
   )
-  const [settings, setSettings] = useState<UserSettings>(loadUserSettings)
+  const [settings, setSettings] = useState<UserSettings>(() => {
+    const storedSettings = loadUserSettings()
+    const authUser = getCurrentAuthUser()
+    if (!authUser) return storedSettings
+
+    return {
+      ...storedSettings,
+      fullName: authUser.fullName,
+      email: authUser.email,
+      role: settingsRoleFromAuthRole(authUser.role),
+    }
+  })
   const [billingTransactions, setBillingTransactions] = useState<BillingTransaction[]>(
     loadBillingTransactions,
   )
@@ -6912,6 +6988,23 @@ function SettingsPage() {
       setActiveSection(hashSection as SettingsSection)
     }
   }, [location.hash])
+
+  useEffect(() => {
+    let active = true
+    void refreshCurrentAuthUser().then((authUser) => {
+      if (!active || !authUser) return
+      setSettings((current) => ({
+        ...current,
+        fullName: authUser.fullName,
+        email: authUser.email,
+        role: settingsRoleFromAuthRole(authUser.role),
+      }))
+    })
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     const persistedTransactions = window.localStorage.getItem(
@@ -7329,9 +7422,14 @@ function SettingsPage() {
               </div>
               <div className="settings-form-grid">
                 <label><span>{t('settings.fullName')}</span><input value={settings.fullName} onChange={(event) => updateSetting('fullName', event.target.value)} /></label>
-                <label><span>{t('settings.role')}</span><input value={settings.role} onChange={(event) => updateSetting('role', event.target.value)} /></label>
+                <label>
+                  <span>{t('settings.role')}</span>
+                  <select value={settings.role} disabled aria-readonly="true">
+                    <option value="Default">Default</option>
+                    <option value="Admin">Admin</option>
+                  </select>
+                </label>
                 <label><span>{t('settings.emailAddress')}</span><input type="email" value={settings.email} onChange={(event) => updateSetting('email', event.target.value)} /></label>
-                <label><span>{t('settings.phoneNumber')}</span><input value={settings.phone} onChange={(event) => updateSetting('phone', event.target.value)} /></label>
               </div>
             </section>
           ) : null}

@@ -165,9 +165,14 @@ async function readError(response: Response, fallback: string) {
 export async function loadFundingProgramsViaApi(
   language: FundingProgramLanguage = 'en-CA',
   includeBuiltIn = false,
+  loadAllLanguages = false,
 ) {
+  const params = new URLSearchParams({
+    language: loadAllLanguages ? 'all' : language,
+    includeBuiltIn: includeBuiltIn ? 'true' : 'false',
+  })
   const response = await fetch(
-    `/api/funding-programs?language=${encodeURIComponent(language)}&includeBuiltIn=${includeBuiltIn ? 'true' : 'false'}`,
+    `/api/funding-programs?${params.toString()}`,
     {
       credentials: 'include',
     },

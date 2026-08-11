@@ -1,5 +1,6 @@
 import {
   defaultFundingDataSources,
+  normalizeFundingDataSources,
   type FundingDataSource,
 } from '../data/fundingSources'
 import type { SupportedLocale } from '../i18n'
@@ -1910,10 +1911,10 @@ export function loadPlatformConfig(): PlatformConfig {
         ),
       },
       dataSources: [
-        ...(parsedConfig.dataSources ?? []),
+        ...normalizeFundingDataSources(parsedConfig.dataSources),
         ...defaultPlatformConfig.dataSources.filter(
           (defaultSource) =>
-            !(parsedConfig.dataSources ?? []).some(
+            !normalizeFundingDataSources(parsedConfig.dataSources).some(
               (savedSource) => savedSource.id === defaultSource.id,
             ),
         ),

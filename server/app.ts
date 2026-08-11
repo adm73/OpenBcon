@@ -972,6 +972,56 @@ export function createApp(
     response.json({ enabled: isGoogleOAuthConfigured(authConfig.googleOAuth) })
   })
 
+  app.get('/api/auth/me', async (request, response, next) => {
+    try {
+      const context = await requireRequestContext(database, request, response)
+      if (!context) return
+
+      const result = await database.query<{
+        id: string
+        email: string
+        display_name: string
+        role: string
+        created_at: Date
+        email_verified_at: Date | null
+        google_subject: string | null
+      }>(
+        `
+          SELECT id, email, display_name, role, created_at,
+                 email_verified_at, google_subject
+          FROM app_users
+          WHERE id = $1
+            AND status = 'active'
+          LIMIT 1
+        `,
+        [context.userId],
+      )
+      const user = result.rows[0]
+      if (!user) {
+        response.status(401).json({
+          error: 'unauthorized',
+          message: 'The current account could not be found.',
+        })
+        return
+      }
+
+      response.json({
+        user: {
+          id: String(user.id),
+          fullName: user.display_name,
+          email: user.email,
+          companyName: '',
+          role: user.role,
+          createdAt: user.created_at.toISOString(),
+          emailVerified: user.email_verified_at !== null || Boolean(user.google_subject),
+        },
+        context,
+      })
+    } catch (error) {
+      next(error)
+    }
+  })
+
   app.get('/api/auth/google/start', async (request, response) => {
     const authConfig = await getRuntimeAuthConfig(sharedDocumentStore)
     if (!isGoogleOAuthConfigured(authConfig.googleOAuth)) {
@@ -1155,7 +1205,9 @@ export function createApp(
           ? request.query.language
           : ''
       const requestedLanguage =
-        rawLanguage === 'zh-CN' || rawLanguage === 'fr-CA'
+        rawLanguage === 'all'
+          ? 'all'
+          : rawLanguage === 'zh-CN' || rawLanguage === 'fr-CA'
           ? rawLanguage
           : 'en-CA'
       const includeBuiltIn = request.query.includeBuiltIn === 'true'
@@ -1192,7 +1244,7 @@ export function createApp(
             funding_programs.metadata
           FROM funding_programs
           WHERE funding_programs.status = 'active'
-            AND funding_programs.language = $1
+            AND (funding_programs.language = $1 OR $1 = 'all')
             AND ($2::boolean OR funding_programs.source_type <> 'builtin')
           ORDER BY funding_programs.updated_at DESC, funding_programs.name ASC
         `,

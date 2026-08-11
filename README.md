@@ -20,6 +20,21 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 3.0
+
+Version 3.0 expands the funding catalog experience and makes the workspace
+Grants & Loans page independent from the interface language:
+
+- Grants & Loans now loads every active program language from the shared catalog.
+  English and Chinese program records remain associated with their own data
+  sources instead of being filtered by the user's workspace language.
+- The Grants & Loans directory displays at most 12 programs per page, with
+  pagination that resets when search or filters change.
+- Data-source names shown on funding cards use the latest Admin Console
+  configuration, so renamed sources are reflected without re-importing records.
+- Existing language-specific API consumers continue to receive their requested
+  language; the all-language catalog query is used only by Grants & Loans.
+
 ## Version 2.5.6
 
 Version 2.5.6 improves local build visibility and Admin Console update feedback:
@@ -331,6 +346,7 @@ The current repository snapshot includes the landing experience, dashboard works
 - Google Sheets and Airtable funding data-source integrations
 - Admin data-source search, create, edit, delete, enable, and manual sync controls
 - Dynamic Grants & Loans directory with source attribution and Quick Build import
+- Grants & Loans catalog with all active data-source languages and 12-program pagination
 - PostgreSQL domain data plus MongoDB-backed dynamic configuration and workspace state
 - One Strategic Report per application, persisted in `strategic_reports` with LangGraph trace and final result data
 - Three-year, 36-month financial forecasts with monthly revenue and expense rows, annual summaries, and Strategic Report visualizations

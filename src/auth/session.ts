@@ -21,6 +21,14 @@ type DatabaseLoginResponse = {
   user: Omit<AuthUser, 'password'>
 }
 
+type DatabaseCurrentUserResponse = DatabaseLoginResponse & {
+  context?: {
+    userId: string
+    workspaceId: string
+    role: string
+  }
+}
+
 export type RegistrationPending = {
   verificationRequired: true
   email: string
@@ -112,6 +120,29 @@ export function getCurrentAuthUser() {
   }
 
   return loadAuthUsers().find((user) => user.id === session.userId) ?? null
+}
+
+export async function refreshCurrentAuthUser() {
+  try {
+    const response = await fetch(`${authApiBaseUrl}/auth/me`, {
+      credentials: 'include',
+      signal: AbortSignal.timeout(3_000),
+    })
+    if (!response.ok) return null
+
+    const payload = (await response.json()) as DatabaseCurrentUserResponse
+    const user: AuthUser = {
+      ...payload.user,
+      password: '',
+    }
+    const users = loadAuthUsers().filter((item) => item.id !== user.id)
+    saveAuthUsers([...users, user])
+    persistSession(user)
+    window.dispatchEvent(new Event(authUserUpdatedEvent))
+    return user
+  } catch {
+    return null
+  }
 }
 
 export function updateCurrentAuthUserProfile(input: {

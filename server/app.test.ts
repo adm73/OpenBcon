@@ -563,6 +563,38 @@ describe('persistence API', () => {
     expect(response.body.user.password).toBeUndefined()
   })
 
+  it('returns the current database user for the settings profile', async () => {
+    const database = {
+      query: vi.fn(async (query: string) => {
+        if (query.includes('FROM app_users') && query.includes("status = 'active'")) {
+          return {
+            rows: [{
+              id: '1',
+              email: 'adam@example.test',
+              display_name: 'Adam Chen',
+              role: 'admin',
+              created_at: new Date('2026-07-31T00:00:00.000Z'),
+              email_verified_at: new Date('2026-07-31T00:00:00.000Z'),
+              google_subject: null,
+            }],
+            rowCount: 1,
+          }
+        }
+        return { rows: [], rowCount: 1 }
+      }),
+    } as unknown as Pool
+
+    const response = await request(createApp(database)).get('/api/auth/me')
+
+    expect(response.status).toBe(200)
+    expect(response.body.user).toMatchObject({
+      id: '1',
+      fullName: 'Adam Chen',
+      email: 'adam@example.test',
+      role: 'admin',
+    })
+  })
+
   it('creates password accounts, signs them in, and sends verification email', async () => {
     const database = {
       query: vi.fn(async (query: string) => {

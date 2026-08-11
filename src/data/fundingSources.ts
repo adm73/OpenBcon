@@ -171,6 +171,9 @@ export type JsonFundingCatalog = {
   records: Array<Record<string, unknown>>
 }
 
+export const canadianFundingDataSourceId = 'business-benefits-finder-funding-zh-CN'
+export const canadianFundingDataSourceName = '加拿大政府补贴'
+
 export const defaultFundingDataSources: FundingDataSource[] = [
   {
     id: 'google-sheets-funding-catalog',
@@ -232,8 +235,8 @@ export const defaultFundingDataSources: FundingDataSource[] = [
     language: 'en-CA',
   },
   {
-    id: 'business-benefits-finder-funding-zh-CN',
-    name: 'Business Benefits Finder - funding (中文)',
+    id: canadianFundingDataSourceId,
+    name: canadianFundingDataSourceName,
     module: 'grants-loans',
     provider: 'json-file',
     enabled: true,
@@ -415,6 +418,16 @@ export const defaultFundingDataSources: FundingDataSource[] = [
     lastError: '',
   },
 ]
+
+export function normalizeFundingDataSources(
+  savedSources: FundingDataSource[] | undefined,
+): FundingDataSource[] {
+  return (savedSources ?? []).map((source) =>
+    source.id === canadianFundingDataSourceId
+      ? { ...source, name: canadianFundingDataSourceName }
+      : source,
+  )
+}
 
 export const builtInFundingPrograms: FundingProgramRecord[] = [
   {
