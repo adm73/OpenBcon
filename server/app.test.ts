@@ -47,6 +47,7 @@ vi.mock('stripe', () => {
 })
 
 import { createApp } from './app'
+import { createInMemoryDocumentStore } from './documentStore'
 
 function createDatabaseStub() {
   return {
@@ -544,6 +545,42 @@ describe('persistence API', () => {
 
     expect(response.status).toBe(200)
     expect(response.body.values).toEqual({})
+  })
+
+  it('serves redacted shared platform config to public pages', async () => {
+    const sharedDocumentStore = createInMemoryDocumentStore()
+    await sharedDocumentStore.upsertState({
+      scope: 'platform',
+      ownerId: 'platform',
+      key: 'bconomics-platform-config-v1',
+      value: {
+        payments: {
+          priceCatalog: [{ id: 'starter', active: true, amount: 4900 }],
+        },
+        authentication: {
+          smtp: { password: 'do-not-expose' },
+        },
+      },
+      updatedAt: new Date(),
+    })
+
+    const response = await request(
+      createApp(
+        createDatabaseStub(),
+        createInMemoryDocumentStore(),
+        {},
+        createDatabaseStub(),
+        sharedDocumentStore,
+      ),
+    ).get('/api/public-config')
+
+    expect(response.status).toBe(200)
+    expect(response.body.config.payments.priceCatalog).toEqual([
+      { id: 'starter', active: true, amount: 4900 },
+    ])
+    expect(response.body.config.authentication.smtp.password).not.toBe(
+      'do-not-expose',
+    )
   })
 
   it('authenticates a database user with its password hash', async () => {

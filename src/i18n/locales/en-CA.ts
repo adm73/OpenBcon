@@ -55,6 +55,7 @@ const enCA = {
       aboutUs: 'About Us',
       openHomepageMenu: 'Open Homepage menu',
       'sign-in': 'Sign in / Sign up',
+      signIn: 'Sign in / Sign up',
       dashboard: 'Go to dashboard',
       'grants-loans': 'Grants & Loans',
     },

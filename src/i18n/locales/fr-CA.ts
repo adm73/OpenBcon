@@ -47,7 +47,7 @@ const frCA = {
   },
   publicSite: {
     nav: {
-      home: 'Accueil', features: 'Fonctionnalités', workflow: 'Fonctionnement', programs: 'Subventions et prêts', pricing: 'Tarification', 'open-source': 'Confiance et sécurité', openSource: 'Confiance et sécurité', caseStudies: 'Études de cas', documents: 'Documents', aboutUs: 'À propos', openHomepageMenu: 'Ouvrir le menu Accueil', 'sign-in': 'Se connecter / S’inscrire', dashboard: 'Aller au tableau de bord', 'grants-loans': 'Subventions et prêts',
+      home: 'Accueil', features: 'Fonctionnalités', workflow: 'Fonctionnement', programs: 'Subventions et prêts', pricing: 'Tarification', 'open-source': 'Confiance et sécurité', openSource: 'Confiance et sécurité', caseStudies: 'Études de cas', documents: 'Documents', aboutUs: 'À propos', openHomepageMenu: 'Ouvrir le menu Accueil', 'sign-in': 'Se connecter / S’inscrire', signIn: 'Se connecter / S’inscrire', dashboard: 'Aller au tableau de bord', 'grants-loans': 'Subventions et prêts',
     },
     heroEyebrow: 'Infrastructure de financement pour les entreprises ambitieuses',
     content: {

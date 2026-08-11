@@ -47,7 +47,7 @@ const zhCN = {
   },
   publicSite: {
     nav: {
-      home: '首页', features: '功能', workflow: '工作方式', programs: '补助与贷款', pricing: '价格', 'open-source': '信任与安全', openSource: '信任与安全', caseStudies: '案例研究', documents: '文档', aboutUs: '关于我们', openHomepageMenu: '打开首页菜单', 'sign-in': '登录 / 注册', dashboard: '进入仪表盘', 'grants-loans': '补助与贷款',
+      home: '首页', features: '功能', workflow: '工作方式', programs: '补助与贷款', pricing: '价格', 'open-source': '信任与安全', openSource: '信任与安全', caseStudies: '案例研究', documents: '文档', aboutUs: '关于我们', openHomepageMenu: '打开首页菜单', 'sign-in': '登录 / 注册', signIn: '登录 / 注册', dashboard: '进入仪表盘', 'grants-loans': '补助与贷款',
     },
     heroEyebrow: '为有 ambition 的企业提供融资基础设施',
     content: {

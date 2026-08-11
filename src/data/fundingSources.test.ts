@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   buildGoogleSheetsCsvUrl,
+  defaultFundingDataSources,
   normalizeFundingRecords,
   normalizeResourceRecords,
   parseJsonFundingCatalog,
@@ -31,6 +32,27 @@ const source: FundingDataSource = {
 }
 
 describe('funding data sources', () => {
+  it('includes the China grant and loan catalogs as enabled Chinese sources', () => {
+    expect(defaultFundingDataSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'china-grants-zh-CN',
+          name: 'China Grants (中文)',
+          jsonFileName: 'china_grants.json',
+          language: 'zh-CN',
+          recordCount: 13605,
+        }),
+        expect.objectContaining({
+          id: 'china-loans-zh-CN',
+          name: 'China Loans (中文)',
+          jsonFileName: 'china_loans.json',
+          language: 'zh-CN',
+          recordCount: 448,
+        }),
+      ]),
+    )
+  })
+
   it('validates scraped JSON catalogs and preserves structured records', () => {
     const catalog = parseJsonFundingCatalog({
       category: 'Loans',

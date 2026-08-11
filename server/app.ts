@@ -30,7 +30,9 @@ import {
   applyStateBatch,
   AuthorizationError,
   readBootstrapState,
+  readPlatformStateValue,
 } from './stateRepository'
+import { redactPlatformConfigForClient } from './secureState'
 import { isPersistentStateKey } from './stateScope'
 import {
   createStripeBillingPortalSession,
@@ -3026,6 +3028,25 @@ export function createApp(
         ...state,
         context,
       })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  // Public pages need shared presentation settings, such as pricing, without
+  // receiving authenticated workspace, user, or application state.
+  app.get('/api/public-config', async (_request, response, next) => {
+    try {
+      const value = await readPlatformStateValue(
+        sharedDocumentStore,
+        'bconomics-platform-config-v1',
+      )
+      const config =
+        value && typeof value === 'object' && !Array.isArray(value)
+          ? redactPlatformConfigForClient(value)
+          : null
+
+      response.json({ config })
     } catch (error) {
       next(error)
     }

@@ -216,6 +216,8 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
   if (!persistenceEnabled) return 'local'
 
   const localValues = collectLocalState()
+  const isPublicSitePath =
+    window.location.pathname === '/' || window.location.pathname === '/programs'
   let mode = getClientEnvironmentMode()
   try {
     const runtimeResponse = await fetch(`${apiBaseUrl}/runtime/environment`, {
@@ -235,37 +237,60 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
       signal: AbortSignal.timeout(3_000),
       credentials: 'include',
     })
-    if (!response.ok) return 'local'
+    let authenticatedBootstrap = response.ok
+    let remoteValues: Record<string, unknown> = {}
+    if (response.ok) {
+      const bootstrap = (await response.json()) as BootstrapResponse
+      remoteValues = bootstrap.values ?? {}
+    } else if (isPublicSitePath) {
+      const publicConfigResponse = await fetch(`${apiBaseUrl}/public-config`, {
+        signal: AbortSignal.timeout(3_000),
+        credentials: 'include',
+      })
+      if (!publicConfigResponse.ok) return 'local'
 
-    const bootstrap = (await response.json()) as BootstrapResponse
-    const remoteValues = bootstrap.values ?? {}
+      const publicConfig = (await publicConfigResponse.json()) as {
+        config?: unknown
+      }
+      if (publicConfig.config && typeof publicConfig.config === 'object') {
+        remoteValues = {
+          [platformConfigStorageKey]: publicConfig.config,
+        }
+      }
+      authenticatedBootstrap = false
+    } else {
+      return 'local'
+    }
+
     let companiesLoaded = false
     let fundingProgramsLoaded = false
-    const companiesResponse = await fetch(`${apiBaseUrl}/companies`, {
-      signal: AbortSignal.timeout(3_000),
-      credentials: 'include',
-    })
-    if (companiesResponse.ok) {
-      const companiesBody = (await companiesResponse.json()) as {
-        companies?: unknown[]
+    if (authenticatedBootstrap) {
+      const companiesResponse = await fetch(`${apiBaseUrl}/companies`, {
+        signal: AbortSignal.timeout(3_000),
+        credentials: 'include',
+      })
+      if (companiesResponse.ok) {
+        const companiesBody = (await companiesResponse.json()) as {
+          companies?: unknown[]
+        }
+        remoteValues[companyPortfolioStorageKey] = Array.isArray(companiesBody.companies)
+          ? companiesBody.companies
+          : []
+        companiesLoaded = true
       }
-      remoteValues[companyPortfolioStorageKey] = Array.isArray(companiesBody.companies)
-        ? companiesBody.companies
-        : []
-      companiesLoaded = true
-    }
-    const fundingProgramsResponse = await fetch(`${apiBaseUrl}/funding-programs`, {
-      signal: AbortSignal.timeout(3_000),
-      credentials: 'include',
-    })
-    if (fundingProgramsResponse.ok) {
-      const fundingProgramsBody = (await fundingProgramsResponse.json()) as {
-        programs?: unknown[]
+      const fundingProgramsResponse = await fetch(`${apiBaseUrl}/funding-programs`, {
+        signal: AbortSignal.timeout(3_000),
+        credentials: 'include',
+      })
+      if (fundingProgramsResponse.ok) {
+        const fundingProgramsBody = (await fundingProgramsResponse.json()) as {
+          programs?: unknown[]
+        }
+        remoteValues[fundingProgramStorageKey] = Array.isArray(fundingProgramsBody.programs)
+          ? fundingProgramsBody.programs
+          : []
+        fundingProgramsLoaded = true
       }
-      remoteValues[fundingProgramStorageKey] = Array.isArray(fundingProgramsBody.programs)
-        ? fundingProgramsBody.programs
-        : []
-      fundingProgramsLoaded = true
     }
     const localPlatformConfig = localValues[platformConfigStorageKey]
     for (const [key, value] of Object.entries(remoteValues)) {
