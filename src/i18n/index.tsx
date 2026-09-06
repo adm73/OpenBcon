@@ -43,7 +43,7 @@ export function normalizeLocale(value: unknown): SupportedLocale {
 }
 
 function isPublicPath(pathname: string): boolean {
-  return pathname === '/' || pathname === '/programs'
+  return pathname === '/' || pathname === '/programs' || pathname === '/news' || pathname.startsWith('/news/') || pathname === '/case-studies' || pathname === '/about-us'
 }
 
 function getStorageKey(pathname: string): string {

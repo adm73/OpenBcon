@@ -34,6 +34,10 @@ export function isWorkspacePath(pathname: string) {
   return workspacePaths.has(pathname)
 }
 
+export function isPublicContentPath(pathname: string) {
+  return pathname === '/programs' || pathname === '/news' || pathname.startsWith('/news/') || pathname === '/case-studies' || pathname === '/about-us'
+}
+
 export function isDashboardHost() {
   if (typeof window === 'undefined') return false
   if (dashboardOrigin && dashboardOrigin !== window.location.origin) {

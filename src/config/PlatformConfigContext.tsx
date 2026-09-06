@@ -48,14 +48,39 @@ export function PlatformConfigProvider({ children }: { children: ReactNode }) {
       try {
         const previousConfig = JSON.parse(existingValue) as {
           dataSources?: Array<{ id?: string; name?: string }>
+          advisoryHub?: {
+            schemaVersion?: number
+            documentTypes?: Array<{ id?: string }>
+            sections?: Array<{ documentTypeId?: string }>
+          }
         }
         const renamedCanadianSource = previousConfig.dataSources?.some(
           (source) =>
             source.id === canadianFundingDataSourceId &&
             source.name !== canadianFundingDataSourceName,
         )
+        const hadInterviewGuide = previousConfig.advisoryHub?.documentTypes?.some(
+          (documentType) => documentType.id?.trim() === 'interview-guide',
+        )
+        const hasInterviewGuide = config.advisoryHub.documentTypes.some(
+          (documentType) => documentType.id === 'interview-guide',
+        )
+        const hadInterviewGuideSections = previousConfig.advisoryHub?.sections?.some(
+          (section) => section.documentTypeId?.trim() === 'interview-guide',
+        )
+        const hasInterviewGuideSections = config.advisoryHub.sections.some(
+          (section) => section.documentTypeId === 'interview-guide',
+        )
+        const advisoryHubSchemaMigrated =
+          Number(previousConfig.advisoryHub?.schemaVersion ?? 1) <
+          config.advisoryHub.schemaVersion
 
-        if (renamedCanadianSource) {
+        if (
+          renamedCanadianSource ||
+          advisoryHubSchemaMigrated ||
+          (!hadInterviewGuide && hasInterviewGuide) ||
+          (!hadInterviewGuideSections && hasInterviewGuideSections)
+        ) {
           setPersistentItem(platformConfigStorageKey, sanitizedValue)
         }
       } catch {

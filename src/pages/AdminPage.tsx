@@ -130,12 +130,37 @@ const dataSourceModuleLabels: Record<DataSourceModule, string> = {
   templates: 'Templates',
   'social-resources': 'Social Resources',
   tools: 'Tools',
+  news: 'News',
+  'case-studies': 'Case Studies',
 }
 
 const dataSourceProviderLabels: Record<FundingDataSourceProvider, string> = {
   'google-sheets': 'Google Sheets',
   airtable: 'Airtable',
   'json-file': 'JSON File',
+}
+
+const dataSourceFrequencyLabels: Record<FundingDataSource['frequency'], string> = {
+  manual: 'Manual',
+  hourly: 'Hourly',
+  daily: 'Daily',
+  'six-hourly': 'Every 6 hours',
+}
+
+type NewsPipelineStatus = {
+  intervalHours: 6
+  status: 'idle' | 'running' | 'success' | 'error'
+  lastRunAt: string | null
+  nextRunAt: string | null
+  lastSuccessAt: string | null
+  lastError: string
+  lastRunSummary: {
+    sources: number
+    records: number
+    added: number
+    updated: number
+    removed: number
+  }
 }
 
 function createFundingDataSource(): FundingDataSource {
@@ -692,6 +717,8 @@ export function AdminPage() {
   const [syncingSourceId, setSyncingSourceId] = useState('')
   const [deleteSourceId, setDeleteSourceId] = useState('')
   const [sourceNotice, setSourceNotice] = useState('')
+  const [newsPipelineStatus, setNewsPipelineStatus] = useState<NewsPipelineStatus | null>(null)
+  const [newsPipelineRunning, setNewsPipelineRunning] = useState(false)
   const [updateCheck, setUpdateCheck] = useState<UpdateCheckState>(
     initialUpdateCheckState,
   )
@@ -727,6 +754,22 @@ export function AdminPage() {
   useEffect(() => {
     document.title = `Admin Console | ${getPlatformDisplayName(config)}`
   }, [config])
+
+  useEffect(() => {
+    let active = true
+    void fetch('/api/admin/news-pipeline/status', { credentials: 'include' })
+      .then(async (response) => {
+        if (!response.ok) return null
+        return response.json() as Promise<NewsPipelineStatus>
+      })
+      .then((status) => {
+        if (active && status) setNewsPipelineStatus(status)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -1947,6 +1990,27 @@ export function AdminPage() {
       setSourceNotice(message)
     } finally {
       setSyncingSourceId('')
+    }
+  }
+
+  async function runNewsPipelineNow() {
+    setNewsPipelineRunning(true)
+    setSourceNotice('')
+    try {
+      const response = await fetch('/api/admin/news-pipeline/run', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const payload = await response.json().catch(() => null) as NewsPipelineStatus & { message?: string }
+      if (!response.ok) throw new Error(payload?.message ?? 'The news pipeline could not complete.')
+      setNewsPipelineStatus(payload)
+      setSourceNotice(
+        `News pipeline completed: ${payload.lastRunSummary.records} records refreshed.`,
+      )
+    } catch (error) {
+      setSourceNotice(error instanceof Error ? error.message : 'The news pipeline could not complete.')
+    } finally {
+      setNewsPipelineRunning(false)
     }
   }
 
@@ -3584,7 +3648,7 @@ export function AdminPage() {
               <h2>Data source management</h2>
               <p>
                 Control the external catalogs behind funding programs, templates,
-                social resources, and tools.
+                social resources, tools, news, and case studies.
               </p>
             </div>
             <div className="admin-data-source-content">
@@ -3640,6 +3704,30 @@ export function AdminPage() {
                 </div>
               ) : null}
 
+              <div className="admin-management-status">
+                <span>
+                  <strong>News pipeline</strong>
+                  <small>
+                    Runs every 6 hours and refreshes News and Case Studies from enabled Google Sheets sources.
+                    {newsPipelineStatus?.lastSuccessAt
+                      ? ` Last successful run ${new Date(newsPipelineStatus.lastSuccessAt).toLocaleString()}.`
+                      : ' It has not completed a run yet.'}
+                  </small>
+                </span>
+                <button
+                  type="button"
+                  disabled={newsPipelineRunning}
+                  onClick={runNewsPipelineNow}
+                >
+                  {newsPipelineRunning ? 'Running…' : 'Run news pipeline now'}
+                </button>
+              </div>
+              {newsPipelineStatus?.lastError ? (
+                <div className="admin-management-notice is-error" role="alert">
+                  Last pipeline error: {newsPipelineStatus.lastError}
+                </div>
+              ) : null}
+
               <div className="admin-data-source-list">
                 {visibleDataSources.map((source) => (
                   <article key={source.id} className="admin-data-source-row">
@@ -3662,7 +3750,7 @@ export function AdminPage() {
                         <strong>{source.name}</strong>
                       </span>
                       <small>
-                        {dataSourceModuleLabels[source.module]} · {source.frequency} sync
+                        {dataSourceModuleLabels[source.module]} · {dataSourceFrequencyLabels[source.frequency]} sync
                       </small>
                       {source.lastError ? <b>{source.lastError}</b> : null}
                     </div>
@@ -5780,6 +5868,7 @@ export function AdminPage() {
                     <option value="manual">Manual</option>
                     <option value="hourly">Hourly</option>
                     <option value="daily">Daily</option>
+                    <option value="six-hourly">Every 6 hours</option>
                   </select>
                 </label>
 

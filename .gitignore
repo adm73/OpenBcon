@@ -31,6 +31,10 @@ venv/
 artifacts/
 tmp/
 
+# Locally generated client reports and document previews
+/output/
+/outputs/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

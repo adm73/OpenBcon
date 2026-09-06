@@ -47,7 +47,7 @@ const zhCN = {
   },
   publicSite: {
     nav: {
-      home: '首页', features: '功能', workflow: '工作方式', programs: '补助与贷款', pricing: '价格', 'open-source': '信任与安全', openSource: '信任与安全', caseStudies: '案例研究', documents: '文档', aboutUs: '关于我们', openHomepageMenu: '打开首页菜单', 'sign-in': '登录 / 注册', signIn: '登录 / 注册', dashboard: '进入仪表盘', 'grants-loans': '补助与贷款',
+      home: '首页', features: '功能', workflow: '工作方式', programs: '补助与贷款', news: '新闻', pricing: '价格', 'open-source': '信任与安全', openSource: '信任与安全', caseStudies: '案例研究', documents: '文档', aboutUs: '关于我们', openHomepageMenu: '打开首页菜单', 'sign-in': '登录 / 注册', signIn: '登录 / 注册', dashboard: '进入仪表盘', 'grants-loans': '补助与贷款',
     },
     heroEyebrow: '为有 ambition 的企业提供融资基础设施',
     content: {
@@ -84,6 +84,49 @@ const zhCN = {
     pricing: { eyebrow: '灵活的价格方案', heading: '选择适合团队融资工作方式的配置。', body: '下面的方案在管理控制台中配置，也可以连接 Stripe 或 Waffo Pancake 商品用于正式结账。', oneTime: '一次性收费', annual: '按年计费', monthly: '按月计费', getStarted: '开始使用', topline: '价格', emptyTitle: '价格正在配置中', emptyBody: '请在管理控制台添加有效的产品或服务，以便在这里发布价格方案。', adminCta: '打开管理控制台' },
     openSource: { communityEdition: '社区版本', license: 'AGPL-3.0', description: '完整源代码访问权，并遵守网络 copyleft 义务。', commercialLicense: '商业许可', metrics: [{ label: '活跃项目', value: '12' }, { label: '已生成文档', value: '148' }, { label: '审批率目标', value: '82%' }, { label: '顾问席位', value: '4' }] },
     footer: { description: '为下一代企业提供开放的融资基础设施。', sitemap: '网站地图', explore: '探索', platform: '平台', privacy: '隐私政策', terms: '服务条款', poweredBy: '由 OpenBcon 提供支持。' },
+    news: {
+      pageTitle: '新闻', eyebrow: 'OpenBcon 新闻', heading: '产品想法、更新与实用的融资洞察。', description: '了解产品更新、融资信息，以及开放融资基础设施背后的思考。', featured: '精选文章', latest: '最新文章', latestHeading: '我们正在学习和构建的内容。', moreStories: '更多 OpenBcon 内容', all: '全部', filterLabel: '筛选新闻', listLabel: '新闻列表', paginationLabel: '新闻分页', previous: '上一页', next: '下一页', pageOf: '第 {{current}} 页，共 {{total}} 页', storiesCount: '{{count}} 篇文章', readStory: '阅读文章', readMinutes: '{{count}} 分钟阅读', backToNews: '返回新闻',
+      categories: { product: '产品', funding: '融资信息', community: '社区', practice: '顾问实践', fundingAlerts: '融资提醒', aiBusiness: '企业 AI', startupCapital: '创业与资本' },
+      articles: {
+        connectedWorkflow: { title: '一条连贯的融资工作流。', summary: 'OpenBcon 将项目发现、公司背景和战略报告放进一条可追踪的流程。', sections: { context: { heading: '工作从文档之前就开始了。', body: '一份好的融资申请不只是文字漂亮，还需要正确的项目、最新的公司资料，以及对评审重点的清晰理解。' }, workflow: { heading: '从信号到可提交的文件包。', body: '平台把项目匹配、结构化公司信息、财务规划和报告生成连接起来，让每一步都建立在上一步之上。' }, next: { heading: '保持可编辑。', body: '团队可以查看章节、改进语言、下载文件包，并持续更新源信息。' } } },
+        fundingCatalog: { title: '让补助和贷款更容易找到方向。', summary: '有用的融资目录不应该只是长列表，而应该帮助企业决定下一步调查什么。', sections: { problem: { heading: '列表不是策略。', body: '项目名称、金额和截止时间是起点，还需要资格要求、可使用范围、流程和匹配方式。' }, signal: { heading: '上下文让目录真正有用。', body: 'OpenBcon 把项目数据和公司信息结合起来，显示积极信号、风险关注点和下一步建议。' }, practice: { heading: '更好的日常工作方式。', body: '保持目录更新，查看最强匹配，并为每个下一步明确负责人。' } } },
+        openInfrastructure: { title: '为什么开放的融资基础设施很重要。', summary: '当工作流透明、可检查并且可以适应本地需求时，融资支持会更有价值。', sections: { belief: { heading: '基础设施应该容易理解。', body: '顾问和创始人需要知道信息来自哪里、匹配如何评分，以及报告哪些部分可以修改。' }, community: { heading: '开源让适配成为可能。', body: '不同地区、项目和组织的要求不同。开放基础可以让团队扩展流程，而不必从零开始。' }, invitation: { heading: '和我们一起构建。', body: 'OpenBcon 欢迎反馈、贡献和实际试验，告诉我们什么能让融资工作更清晰。' } } },
+        advisorySystem: { title: '从一份融资文件包到可复用的顾问系统。', summary: '目标不只是生成一份文档，而是在不失去判断力的前提下，让高质量顾问工作可以重复。', sections: { shift: { heading: '文件包只是旅程中的一个时刻。', body: '企业可能会探索多个项目、完善故事、更新预测，并反复使用同一批证据。' }, system: { heading: '可复用结构保护质量。', body: '模板、文档类型、代理、提示词、布局和源数据共同形成顾问与客户共享的工作方式。' }, outcome: { heading: '把时间用在重要决策上。', body: '当重复性准备工作被组织起来，顾问可以更多关注定位、证据、风险和下一步战略。' } } },
+      },
+    },
+    caseStudies: {
+      pageTitle: '案例研究',
+      eyebrow: '真实工作中的结果',
+      heading: '让融资工作跟着企业一起向前走。',
+      description: '了解创始人、顾问和经济发展团队如何把分散的信息转化为清晰的下一步行动。',
+      listLabel: '案例研究',
+      explore: '探索融资项目',
+      items: {
+        founder: { label: '创始人工作流', title: '从候选清单到有把握的第一版草稿。', body: '创始人只需维护一份公司资料，就能在发现页面比较真实机会，并得到一份可以继续编辑的结构化文件包。' },
+        advisor: { label: '顾问实践', title: '为每次客户沟通建立可复用的流程。', body: '顾问使用共享模板、章节提示词和源数据，减少重复搭建文档，把更多时间用于改进建议。' },
+        economicDevelopment: { label: '经济发展', title: '从项目数据到更清晰的本地影响路径。', body: '团队可以把融资目录和公司背景连接起来，找到更强的匹配，并给企业一个实际的下一步。' },
+      },
+    },
+    aboutUs: {
+      pageTitle: '关于我们',
+      eyebrow: '关于 OpenBcon',
+      heading: '为真正参与融资工作的人提供开放的基础设施。',
+      description: 'OpenBcon 将项目发现、公司背景、匹配和文档生成放进一个透明的工作区。',
+      storyEyebrow: '我们为什么构建它',
+      storyHeading: '好的融资支持应该清晰、实用，并且可以重复使用。',
+      storyBody: '企业不应该在了解自己的选择之前，先把故事翻译成十几个互不相连的表格。顾问也不应该为每个客户重新搭建同一套流程。',
+      storyBodyTwo: 'OpenBcon 正在成为这项工作的开放基础：可以适配不同的项目和团队，同时保留清晰可见的事实来源。',
+      valuesEyebrow: '我们的观点',
+      valuesHeading: '平台背后的原则。',
+      values: {
+        clarity: { title: '复杂之前先清晰', body: '用团队真正可以执行的语言，说明机会、证据和下一步。' },
+        openness: { title: '开放地设计', body: '让工作流可检查、可适配，让组织可以在其上构建，而不是重新开始。' },
+        momentum: { title: '进展胜过文书', body: '把准备工作变成前进动力：更好的匹配、更有力的故事和可以审核的文件包。' },
+      },
+      ctaEyebrow: '从机会开始',
+      ctaHeading: '查看你的企业可以探索的融资项目。',
+      cta: '浏览补助与贷款',
+    },
   },
   onboarding: {
     ...enCA.onboarding,

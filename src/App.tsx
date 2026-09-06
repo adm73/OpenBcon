@@ -13,8 +13,10 @@ import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { SignupPage } from './pages/SignupPage'
+import { NewsDetailPage, NewsListingPage } from './pages/PublicNewsPage'
+import { AboutUsPage, CaseStudiesPage } from './pages/PublicContentPages'
 import { PersistenceProvider } from './persistence/PersistenceProvider'
-import { dashboardHref, isDashboardHost, isWorkspacePath, publicSiteHref } from './lib/domainRouting'
+import { dashboardHref, isDashboardHost, isPublicContentPath, isWorkspacePath, publicSiteHref } from './lib/domainRouting'
 
 function RequireAuthRoute({ children }: { children: ReactNode }) {
   const location = useLocation()
@@ -48,13 +50,25 @@ function DomainBoundary({ children }: { children: ReactNode }) {
   const currentPath = `${location.pathname}${location.search}${location.hash}`
   let target = ''
 
-  if (dashboardHost && location.pathname === '/programs') {
+  if (dashboardHost && isPublicContentPath(location.pathname)) {
     target = publicSiteHref(currentPath)
   } else if (!dashboardHost && isWorkspacePath(location.pathname)) {
     target = dashboardHref(currentPath)
   }
 
-  if (target && target !== `${window.location.origin}${currentPath}`) {
+  // Local development uses one origin for both public and workspace routes.
+  // Only replace the page when the calculated destination is genuinely on a
+  // different origin; replacing `/login` with `/login` causes a reload loop.
+  let targetIsCrossOrigin = false
+  if (target) {
+    try {
+      targetIsCrossOrigin = new URL(target, window.location.href).origin !== window.location.origin
+    } catch {
+      targetIsCrossOrigin = false
+    }
+  }
+
+  if (target && targetIsCrossOrigin) {
     window.location.replace(target)
     return null
   }
@@ -101,6 +115,10 @@ function App() {
                 <Route path="/admin" element={<AdminRoute />} />
                 <Route path="/dashboard" element={<RequireAuthRoute><DashboardPage /></RequireAuthRoute>} />
                 <Route path="/programs" element={<ProgramsPage />} />
+                <Route path="/news" element={<NewsListingPage />} />
+                <Route path="/news/:slug" element={<NewsDetailPage />} />
+                <Route path="/case-studies" element={<CaseStudiesPage />} />
+                <Route path="/about-us" element={<AboutUsPage />} />
                 <Route path="/404" element={<NotFoundPage />} />
                 <Route path="/:sectionId" element={<RequireAuthRoute><DashboardPage /></RequireAuthRoute>} />
                 <Route path="*" element={<Navigate to="/404" replace />} />

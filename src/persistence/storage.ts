@@ -217,7 +217,11 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
 
   const localValues = collectLocalState()
   const isPublicSitePath =
-    window.location.pathname === '/' || window.location.pathname === '/programs'
+    window.location.pathname === '/' ||
+    window.location.pathname === '/programs' ||
+    window.location.pathname === '/news' ||
+    window.location.pathname.startsWith('/news/') ||
+    window.location.pathname === '/case-studies'
   let mode = getClientEnvironmentMode()
   try {
     const runtimeResponse = await fetch(`${apiBaseUrl}/runtime/environment`, {
@@ -251,11 +255,15 @@ export async function hydratePersistentStorage(): Promise<PersistenceMode> {
 
       const publicConfig = (await publicConfigResponse.json()) as {
         config?: unknown
+        resources?: unknown
       }
       if (publicConfig.config && typeof publicConfig.config === 'object') {
         remoteValues = {
           [platformConfigStorageKey]: publicConfig.config,
         }
+      }
+      if (Array.isArray(publicConfig.resources)) {
+        remoteValues['bconomics-synced-resource-records-v1'] = publicConfig.resources
       }
       authenticatedBootstrap = false
     } else {

@@ -20,6 +20,73 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 5.0
+
+Release tag: [`v5.0`](https://github.com/adm73/OpenBcon/releases/tag/v5.0).
+The npm package version is `5.0.0`.
+
+This release brings the latest public content pages and consultant workflow
+updates together:
+
+- Public News at `/news` shows 10 articles per page with an image, title, and
+  estimated reading time. Articles open at `/news/:slug`.
+- Case Studies and About Us reuse the public header and footer. The Documents
+  navigation entry is hidden.
+- A server-side Google Sheets pipeline synchronizes news and case studies at
+  API startup and every six hours. Shared MongoDB state stores the content,
+  synchronization results, and recent run history. Admin Console shows pipeline
+  status and provides a manual run action.
+- Interview Guide is a configurable document type with seven sections covering
+  preparation, likely questions, recommended answers, evidence, reviewer
+  concerns, and an interview checklist, plus its cover page.
+- Local login and dashboard routes no longer reload when the computed public
+  and workspace destinations share the same origin. Persistence startup has a
+  fallback when hydration stalls, and Strategic Reports refreshes applications
+  from persisted state before selecting or generating a report.
+- The financial forecast uses a revised three-year launch scenario with 1.5%
+  monthly revenue growth and lean staffing assumptions.
+
+### Configure public content
+
+In **Admin Console > Data Sources**, configure Google Sheets sources for the
+**News** and **Case Studies** modules. Sheets must be readable by the server
+through their CSV export URLs. Supported columns include `title`, `content`,
+`description`, `date` (`YYYY-MM-DD`), `slug`, `url`, `image_url`, and `category`.
+The pipeline imports and classifies spreadsheet entries; it does not crawl
+government websites or write original news articles. Without configured enabled
+sheet sources, it uses the bundled default sheet locations.
+
+### Forecast scope
+
+The revised forecast is a positive operating-case scenario. Its starting-revenue
+floor may exceed stored company revenue, its loan-cost estimate is simplified,
+and it does not reconcile an application's detailed start-up spending budget.
+Verify revenue, staffing, loan terms, and use of funds before treating generated
+figures as an application-ready financial model. Client-specific DOCX, XLSX,
+PDF, and preview files in `output/` and `outputs/` stay outside Git releases.
+
+### Validation and deployment
+
+Local release validation passed `npm run check`: 16 test files / 92 tests,
+server and frontend TypeScript checks, and the Vite production build. Lint
+reports existing React warnings; the build reports a large-bundle warning.
+These checks do not certify the current configuration of a remote deployment.
+
+Existing deployments can install the release using **Admin Console > Updates**
+when the update service is configured. For a terminal update, run the following
+from the existing checkout (commonly `/opt/openbcon`):
+
+```bash
+git fetch origin --tags
+git switch main
+git pull --ff-only origin main
+git describe --tags --always
+./deploy/deploy.sh
+```
+
+The deployment script uses the existing `deploy/.env.production` and data
+volumes. Review and back up server-local changes if Git refuses the update.
+
 ## Version 3.0.1
 
 Version 3.0.1 makes administrator-triggered updates deterministic and clears

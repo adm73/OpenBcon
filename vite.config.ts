@@ -34,6 +34,9 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
     },
     server: {
+      // Listen on the local dual-stack loopback so localhost works whether a
+      // browser resolves it to 127.0.0.1 or ::1.
+      host: '::',
       proxy: {
         '/api': {
           target: process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8787',

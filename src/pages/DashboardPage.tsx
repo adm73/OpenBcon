@@ -8508,18 +8508,30 @@ function StrategicReportsPage() {
   const [generationStatus, setGenerationStatus] = useState<'idle' | 'generating' | 'failed'>('idle')
   const [financialPreviewOpen, setFinancialPreviewOpen] = useState(false)
   const [, setRemoteStateRevision] = useState(0)
+  const [applications, setApplications] = useState<ApplicationRecord[]>(() => loadApplications())
+  const [isHydrating, setIsHydrating] = useState(true)
   const generationApplicationRef = useRef<string | null>(null)
   useEffect(() => {
     let active = true
+    setIsHydrating(true)
     void hydratePersistentStorage().then(() => {
-      if (active) setRemoteStateRevision((revision) => revision + 1)
+      if (!active) return
+      // The database snapshot is authoritative after hydration; localStorage
+      // remains only the fast first paint and offline fallback.
+      setApplications(loadApplications())
+      setRemoteStateRevision((revision) => revision + 1)
+      setIsHydrating(false)
+    }).catch(() => {
+      if (active) {
+        setApplications(loadApplications())
+        setIsHydrating(false)
+      }
     })
     return () => {
       active = false
     }
   }, [location.search])
 
-  const applications = loadApplications()
   const reports = getStrategicReviewReports(applications)
   const requestedAppId =
     new URLSearchParams(location.search).get('app_id')?.trim() ?? ''
@@ -8542,6 +8554,7 @@ function StrategicReportsPage() {
 
   useEffect(() => {
     if (
+      isHydrating ||
       !requestedAppId ||
       !selectedApplicationId ||
       hasSelectedReport
@@ -8624,6 +8637,7 @@ function StrategicReportsPage() {
     config.advisoryHub.agents,
     config.advisoryHub.documentTypes,
     config.advisoryHub.sections,
+    isHydrating,
     locale,
     hasSelectedReport,
     requestedAppId,
@@ -8770,6 +8784,7 @@ function StrategicReportsPage() {
       })
 
       saveApplications(nextApplications)
+      setApplications(loadApplications())
       setRemoteStateRevision((revision) => revision + 1)
     }
 
@@ -9130,6 +9145,32 @@ function createGeneratedPackageFromBackend(
           document.sections,
           /financial|forecast|cash[-_\s]?flow|use[-_\s]?of[-_\s]?funds/iu,
         ),
+      'interview-guide-cover-page':
+        `${document.program_name} Interview Guide for ${document.business_name}.`,
+      'interview-preparation': findBackendSectionBody(
+        document.sections,
+        /interview|preparation|company|overview|summary/iu,
+      ),
+      'likely-interview-questions': findBackendSectionBody(
+        document.sections,
+        /question|reviewer|eligibility|risk|concern/iu,
+      ),
+      'recommended-answers': findBackendSectionBody(
+        document.sections,
+        /answer|narrative|evidence|explain|response/iu,
+      ),
+      'evidence-proof-points': findBackendSectionBody(
+        document.sections,
+        /evidence|proof|metric|traction|document|support/iu,
+      ),
+      'reviewer-concerns': findBackendSectionBody(
+        document.sections,
+        /concern|risk|review|gap|challenge/iu,
+      ),
+      'interview-checklist': findBackendSectionBody(
+        document.sections,
+        /checklist|next[-_\s]?steps|milestone|action|prepare/iu,
+      ),
       'funding-narrative':
         findBackendSectionBody(
           document.sections,

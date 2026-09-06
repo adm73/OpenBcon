@@ -41,11 +41,17 @@ export type SyncedResourceRecord = {
   updatedAt: string
   sourceId: string
   sourceName: string
+  slug?: string
+  date?: string
+  readMinutes?: number
+  imageUrl?: string
+  content?: string
+  metadata?: Record<string, string>
 }
 
 export type FundingDataSourceProvider = 'google-sheets' | 'airtable' | 'json-file'
 export type FundingDataSourceStatus = 'draft' | 'connected' | 'error'
-export type FundingDataSourceFrequency = 'manual' | 'hourly' | 'daily'
+export type FundingDataSourceFrequency = 'manual' | 'hourly' | 'daily' | 'six-hourly'
 export type FundingProgramMappingField =
   | 'name'
   | 'provider'
@@ -71,6 +77,8 @@ export type DataSourceModule =
   | 'templates'
   | 'social-resources'
   | 'tools'
+  | 'news'
+  | 'case-studies'
 
 export type FundingDataSource = {
   id: string
@@ -458,6 +466,48 @@ export const defaultFundingDataSources: FundingDataSource[] = [
     recordCount: 0,
     lastSyncedAt: '',
     lastError: '',
+  },
+  {
+    id: 'google-sheets-news',
+    name: 'News',
+    module: 'news',
+    provider: 'google-sheets',
+    enabled: true,
+    frequency: 'six-hourly',
+    spreadsheetUrl:
+      'https://docs.google.com/spreadsheets/d/12Ae0WAJC-tU_xjEBwLCBxKEgMHZU-5YppUzhP4r90TI/edit?gid=1860086141#gid=1860086141',
+    sheetName: '',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'draft',
+    recordCount: 0,
+    lastSyncedAt: '',
+    lastError: '',
+    language: 'en-CA',
+  },
+  {
+    id: 'google-sheets-case-studies',
+    name: 'Case Studies',
+    module: 'case-studies',
+    provider: 'google-sheets',
+    enabled: true,
+    frequency: 'six-hourly',
+    spreadsheetUrl:
+      'https://docs.google.com/spreadsheets/d/12Ae0WAJC-tU_xjEBwLCBxKEgMHZU-5YppUzhP4r90TI/edit',
+    sheetName: 'Case Studies',
+    airtableBaseId: '',
+    airtableTableName: '',
+    airtableView: '',
+    proxyUrl: '',
+    credentialReference: '',
+    status: 'draft',
+    recordCount: 0,
+    lastSyncedAt: '',
+    lastError: '',
+    language: 'en-CA',
   },
 ]
 
@@ -923,6 +973,17 @@ export function normalizeResourceRecords(
           ? 'Saved'
           : 'Active'
 
+      const metadata = Object.fromEntries(
+        Object.entries(row).map(([key, value]) => [key, String(value ?? '').trim()]),
+      )
+      const readMinutesValue = readField(row, [
+        'read minutes',
+        'reading minutes',
+        'minutes to read',
+        'read time',
+      ])
+      const parsedReadMinutes = Number.parseInt(readMinutesValue, 10)
+
       return {
         id: makeRecordId(source.id, title, index),
         module,
@@ -939,6 +1000,12 @@ export function normalizeResourceRecords(
           'Synced recently',
         sourceId: source.id,
         sourceName: source.name,
+        slug: readField(row, ['slug', 'path', 'handle']) || undefined,
+        date: readField(row, ['date', 'published', 'published at', 'publish date']) || undefined,
+        readMinutes: Number.isFinite(parsedReadMinutes) ? parsedReadMinutes : undefined,
+        imageUrl: readField(row, ['image', 'image url', 'image_url', 'thumbnail']) || undefined,
+        content: readField(row, ['content', 'body', 'article', 'full text']) || undefined,
+        metadata,
       }
     })
     .filter((record): record is SyncedResourceRecord => record !== null)

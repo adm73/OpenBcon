@@ -49,6 +49,10 @@ import {
   readOpenBconUpdateStatus,
   requestOpenBconUpdate,
 } from './updateAgent'
+import {
+  readNewsPipelineState,
+  runNewsPipeline,
+} from './newsPipeline'
 import { sendPasswordResetEmail, sendVerificationEmail } from './email'
 import { getRuntimeAuthConfig } from './runtimeAuthConfig'
 import {
@@ -3041,12 +3045,45 @@ export function createApp(
         sharedDocumentStore,
         'bconomics-platform-config-v1',
       )
+      const resourcesValue = await readPlatformStateValue(
+        sharedDocumentStore,
+        'bconomics-synced-resource-records-v1',
+      )
       const config =
         value && typeof value === 'object' && !Array.isArray(value)
           ? redactPlatformConfigForClient(value)
           : null
+      const resources = Array.isArray(resourcesValue)
+        ? resourcesValue.filter((resource) => {
+            if (!resource || typeof resource !== 'object' || Array.isArray(resource)) {
+              return false
+            }
+            const module = (resource as { module?: unknown }).module
+            return module === 'news' || module === 'case-studies'
+          })
+        : []
 
-      response.json({ config })
+      response.json({ config, resources })
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  app.get('/api/admin/news-pipeline/status', async (request, response, next) => {
+    try {
+      const context = await requireAdminContext(database, request, response)
+      if (!context) return
+      response.json(await readNewsPipelineState(sharedDocumentStore))
+    } catch (error) {
+      next(error)
+    }
+  })
+
+  app.post('/api/admin/news-pipeline/run', async (request, response, next) => {
+    try {
+      const context = await requireAdminContext(database, request, response)
+      if (!context) return
+      response.json(await runNewsPipeline(sharedDocumentStore))
     } catch (error) {
       next(error)
     }

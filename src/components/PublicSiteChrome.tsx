@@ -21,8 +21,8 @@ const TTE_WEBSITE_URL = 'https://www.tritrient.com'
 type PublicNavIconName =
   | 'home'
   | 'programs'
+  | 'news'
   | 'case-studies'
-  | 'documents'
   | 'about'
   | 'features'
   | 'workflow'
@@ -46,10 +46,10 @@ function PublicNavIcon({ name }: { name: PublicNavIconName }) {
       return <svg {...commonProps}><path d="m3 10 9-7 9 7" /><path d="M5 9v11h14V9" /><path d="M9 20v-6h6v6" /></svg>
     case 'programs':
       return <svg {...commonProps}><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M8 9h8M8 13h5M8 16h3" /></svg>
+    case 'news':
+      return <svg {...commonProps}><path d="M5 4h11a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2Z" /><path d="M8 8h7M8 12h7M8 16h4" /></svg>
     case 'case-studies':
       return <svg {...commonProps}><path d="M4 19V5M4 19h16" /><path d="m7 15 4-4 3 2 5-6" /></svg>
-    case 'documents':
-      return <svg {...commonProps}><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v5h5M9 13h6M9 17h6" /></svg>
     case 'about':
       return <svg {...commonProps}><circle cx="12" cy="12" r="9" /><path d="M12 10v6M12 7h.01" /></svg>
     case 'features':
@@ -154,9 +154,9 @@ export function PublicSiteHeader() {
           </details>
         </div>
         <a className="public-nav-link" href="/programs"><PublicNavIcon name="programs" />{t('publicSite.nav.programs')}</a>
-        <a className="public-nav-link" href="/#case-studies"><PublicNavIcon name="case-studies" />{t('publicSite.nav.caseStudies')}</a>
-        <a className="public-nav-link" href="/#documents"><PublicNavIcon name="documents" />{t('publicSite.nav.documents')}</a>
-        <a className="public-nav-link" href="/#about-us"><PublicNavIcon name="about" />{t('publicSite.nav.aboutUs')}</a>
+        <a className="public-nav-link" href="/news"><PublicNavIcon name="news" />{t('publicSite.nav.news')}</a>
+        <a className="public-nav-link" href="/case-studies"><PublicNavIcon name="case-studies" />{t('publicSite.nav.caseStudies')}</a>
+        <a className="public-nav-link" href="/about-us"><PublicNavIcon name="about" />{t('publicSite.nav.aboutUs')}</a>
       </nav>
       <div className="landing-v2-header-actions">
         <label className="public-language-picker">
@@ -224,7 +224,7 @@ export function PublicSiteFooter() {
                 ? t('publicSite.footer.sitemap')
                 : footer.sitemapLabel}
             </span>
-            {footer.sitemapItems.map((item) =>
+            {footer.sitemapItems.filter((item) => item.id !== 'documents').map((item) =>
               renderPublicLink(
                 item.href,
                 item.label === defaultFooter.sitemapItems.find((candidate) => candidate.id === item.id)?.label
@@ -237,9 +237,9 @@ export function PublicSiteFooter() {
           <div className="landing-v2-footer-column">
             <span>{t('publicSite.footer.explore')}</span>
             {renderPublicLink('/programs', t('publicSite.nav.programs'), 'footer-explore-programs')}
-            {renderPublicLink('/#case-studies', t('publicSite.nav.caseStudies'), 'footer-explore-case-studies')}
-            {renderPublicLink('/#documents', t('publicSite.nav.documents'), 'footer-explore-documents')}
-            {renderPublicLink('/#about-us', t('publicSite.nav.aboutUs'), 'footer-explore-about-us')}
+            {renderPublicLink('/news', t('publicSite.nav.news'), 'footer-explore-news')}
+            {renderPublicLink('/case-studies', t('publicSite.nav.caseStudies'), 'footer-explore-case-studies')}
+            {renderPublicLink('/about-us', t('publicSite.nav.aboutUs'), 'footer-explore-about-us')}
           </div>
           <div className="landing-v2-footer-column">
             <span>

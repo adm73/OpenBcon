@@ -4,6 +4,7 @@ import {
   defaultNotificationBar,
   defaultMatchingConfig,
   defaultPlatformConfig,
+  normalizeAdvisoryHubDocumentTypes,
   normalizeAdvisoryHubSections,
   sanitizePlatformConfigForPersistence,
 } from './platform'
@@ -68,10 +69,12 @@ describe('platform config persistence', () => {
   })
 
   it('provides a prompt for every Strategic Report document type', () => {
+    expect(defaultPlatformConfig.advisoryHub.schemaVersion).toBe(2)
     expect(defaultPlatformConfig.advisoryHub.documentTypes.map((documentType) => documentType.name)).toEqual([
       'Business Analysis',
       'Technical Analysis',
       'Financial Model',
+      'Interview Guide',
     ])
     expect(
       defaultPlatformConfig.advisoryHub.documentTypes.every(
@@ -113,6 +116,22 @@ describe('platform config persistence', () => {
     ])
   })
 
+  it('provides the default Interview Guide section outline', () => {
+    expect(
+      defaultPlatformConfig.advisoryHub.sections
+        .filter((section) => section.documentTypeId === 'interview-guide')
+        .map((section) => section.title),
+    ).toEqual([
+      'Cover Page',
+      'Interview Preparation',
+      'Likely Interview Questions',
+      'Recommended Answers',
+      'Evidence & Proof Points',
+      'Reviewer Concerns',
+      'Interview Checklist',
+    ])
+  })
+
   it('assigns cover-page layout only to the default cover sections', () => {
     const coverSections = defaultPlatformConfig.advisoryHub.sections.filter(
       (section) => section.layout === 'cover-page',
@@ -121,6 +140,7 @@ describe('platform config persistence', () => {
     expect(coverSections.map((section) => section.id)).toEqual([
       'cover-page',
       'technology-cover-page',
+      'interview-guide-cover-page',
     ])
     expect(
       defaultPlatformConfig.advisoryHub.sections
@@ -156,6 +176,33 @@ describe('platform config persistence', () => {
     expect(sections.find((section) => section.id === 'cover-page')?.priority).toBe('high')
     expect(sections.find((section) => section.id === 'executive-summary')?.priority).toBe('low')
     expect(sections.find((section) => section.id === 'business-overview')?.priority).toBe('default')
+  })
+
+  it('upgrades untouched pre-Interview Guide defaults without restoring deleted sections', () => {
+    const oldDocumentTypes = defaultPlatformConfig.advisoryHub.documentTypes.filter(
+      (documentType) => documentType.id !== 'interview-guide',
+    )
+    const oldSections = defaultPlatformConfig.advisoryHub.sections.filter(
+      (section) => section.documentTypeId !== 'interview-guide',
+    )
+
+    expect(normalizeAdvisoryHubDocumentTypes(oldDocumentTypes).some(
+      (documentType) => documentType.id === 'interview-guide',
+    )).toBe(true)
+    expect(
+      normalizeAdvisoryHubSections(
+        oldSections,
+        defaultPlatformConfig.advisoryHub.agents,
+        defaultPlatformConfig.advisoryHub.documentTypes,
+      ).some((section) => section.documentTypeId === 'interview-guide'),
+    ).toBe(true)
+    expect(
+      normalizeAdvisoryHubSections(
+        oldSections.filter((section) => section.id !== 'funding-narrative'),
+        defaultPlatformConfig.advisoryHub.agents,
+        defaultPlatformConfig.advisoryHub.documentTypes,
+      ).some((section) => section.id === 'interview-guide-cover-page'),
+    ).toBe(false)
   })
 
   it('provides editable definitions for the report layouts', () => {

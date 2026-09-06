@@ -4,6 +4,7 @@ import { runMigrations } from './db/migrate'
 import { createDatabasePool, databasePool } from './db/pool'
 import { seedDatabase } from './db/seed'
 import { createDocumentStore, createSharedDocumentStore } from './documentStore'
+import { startNewsPipelineScheduler } from './newsPipeline'
 
 let liveDatabasePool: ReturnType<typeof createDatabasePool> | undefined
 let sharedDatabasePool: ReturnType<typeof createDatabasePool> | undefined
@@ -43,6 +44,7 @@ async function startServer() {
         ? { database: liveDatabasePool, documentStore: liveDocumentStore }
         : undefined,
   }, sharedDatabasePool, sharedDocumentStore)
+  const stopNewsPipeline = startNewsPipelineScheduler(sharedDocumentStore)
   const server = app.listen(
     environment.API_PORT,
     environment.API_HOST,
@@ -54,6 +56,7 @@ async function startServer() {
   )
 
   async function shutDown() {
+    stopNewsPipeline()
     server.close(async () => {
       await databasePool.end()
       await liveDatabasePool?.end()

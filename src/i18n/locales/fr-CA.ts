@@ -47,7 +47,7 @@ const frCA = {
   },
   publicSite: {
     nav: {
-      home: 'Accueil', features: 'Fonctionnalités', workflow: 'Fonctionnement', programs: 'Subventions et prêts', pricing: 'Tarification', 'open-source': 'Confiance et sécurité', openSource: 'Confiance et sécurité', caseStudies: 'Études de cas', documents: 'Documents', aboutUs: 'À propos', openHomepageMenu: 'Ouvrir le menu Accueil', 'sign-in': 'Se connecter / S’inscrire', signIn: 'Se connecter / S’inscrire', dashboard: 'Aller au tableau de bord', 'grants-loans': 'Subventions et prêts',
+      home: 'Accueil', features: 'Fonctionnalités', workflow: 'Fonctionnement', programs: 'Subventions et prêts', news: 'Actualités', pricing: 'Tarification', 'open-source': 'Confiance et sécurité', openSource: 'Confiance et sécurité', caseStudies: 'Études de cas', documents: 'Documents', aboutUs: 'À propos', openHomepageMenu: 'Ouvrir le menu Accueil', 'sign-in': 'Se connecter / S’inscrire', signIn: 'Se connecter / S’inscrire', dashboard: 'Aller au tableau de bord', 'grants-loans': 'Subventions et prêts',
     },
     heroEyebrow: 'Infrastructure de financement pour les entreprises ambitieuses',
     content: {
@@ -86,6 +86,49 @@ const frCA = {
     pricing: { eyebrow: 'Tarification flexible', heading: 'Choisissez la configuration adaptée à votre façon de travailler.', body: 'Les offres ci-dessous sont configurées dans la console d’administration et peuvent être reliées aux produits Stripe ou Waffo Pancake.', oneTime: 'Paiement unique', annual: 'Facturé annuellement', monthly: 'Facturé mensuellement', getStarted: 'Commencer', topline: 'Tarification', emptyTitle: 'Tarification en cours de configuration', emptyBody: 'Ajoutez des produits ou services actifs dans la console d’administration pour publier les options ici.', adminCta: 'Ouvrir la console d’administration' },
     openSource: { communityEdition: 'Édition communautaire', license: 'AGPL-3.0', description: 'Accès complet au code source avec obligations de copyleft réseau.', commercialLicense: 'Licence commerciale', metrics: [{ label: 'Projets actifs', value: '12' }, { label: 'Documents générés', value: '148' }, { label: 'Objectif d’approbation', value: '82%' }, { label: 'Places de consultant', value: '4' }] },
     footer: { description: 'Une infrastructure de financement ouverte pour la prochaine génération d’entreprises.', sitemap: 'Plan du site', explore: 'Explorer', platform: 'Plateforme', privacy: 'Politique de confidentialité', terms: 'Conditions d’utilisation', poweredBy: 'Propulsé par OpenBcon.' },
+    news: {
+      pageTitle: 'Actualités', eyebrow: 'Actualités OpenBcon', heading: 'Idées, mises à jour et conseils pratiques sur le financement.', description: 'Suivez les nouveautés du produit, l’intelligence de financement et les idées derrière une infrastructure ouverte.', featured: 'À la une', latest: 'Dernières histoires', latestHeading: 'Ce que nous apprenons et construisons.', moreStories: 'Plus d’OpenBcon', all: 'Tout', filterLabel: 'Filtrer les actualités', listLabel: 'Articles d’actualité', paginationLabel: 'Pages d’actualité', previous: 'Précédent', next: 'Suivant', pageOf: 'Page {{current}} sur {{total}}', storiesCount: '{{count}} articles', readStory: 'Lire l’article', readMinutes: '{{count}} min de lecture', backToNews: 'Retour aux actualités',
+      categories: { product: 'Produit', funding: 'Intelligence de financement', community: 'Communauté', practice: 'Pratique-conseil', fundingAlerts: 'Alertes de financement', aiBusiness: 'IA pour les entreprises', startupCapital: 'Startups et capital' },
+      articles: {
+        connectedWorkflow: { title: 'Un flux connecté pour le travail de financement.', summary: 'OpenBcon réunit la découverte, le contexte de l’entreprise et les rapports stratégiques dans un flux responsable.', sections: { context: { heading: 'Le travail commence avant le document.', body: 'Une demande solide dépend de plus qu’une rédaction soignée. Elle commence par la bonne occasion, un profil à jour et une compréhension claire des attentes.' }, workflow: { heading: 'Du signal au dossier prêt à soumettre.', body: 'La plateforme relie la mise en correspondance, les données structurées, la planification financière et la génération de rapports.' }, next: { heading: 'Conçu pour rester modifiable.', body: 'Les équipes peuvent examiner les sections, améliorer le texte, télécharger le dossier et garder leurs données à jour.' } } },
+        fundingCatalog: { title: 'Rendre les subventions et les prêts plus faciles à parcourir.', summary: 'Un bon catalogue aide une entreprise à décider quoi examiner ensuite, au lieu d’afficher seulement une longue liste.', sections: { problem: { heading: 'Une liste n’est pas une stratégie.', body: 'Les noms, montants et échéances sont un point de départ. Il faut aussi l’admissibilité, les utilisations et le processus.' }, signal: { heading: 'Le contexte rend le catalogue utile.', body: 'OpenBcon combine les données des programmes avec celles de l’entreprise pour faire ressortir les signaux et les préoccupations.' }, practice: { heading: 'Une meilleure pratique quotidienne.', body: 'Gardez le catalogue à jour, examinez les meilleures correspondances et donnez un responsable à chaque prochaine action.' } } },
+        openInfrastructure: { title: 'Pourquoi une infrastructure ouverte de financement est importante.', summary: 'Le soutien au financement est plus utile quand le flux est transparent, vérifiable et adaptable.', sections: { belief: { heading: 'L’infrastructure doit être compréhensible.', body: 'Les équipes doivent savoir d’où viennent les données et comment le score a été calculé.' }, community: { heading: 'L’open source laisse de la place à l’adaptation.', body: 'Les régions et organisations ont des exigences différentes. Une base ouverte facilite l’extension du flux.' }, invitation: { heading: 'Construisons ensemble.', body: 'OpenBcon est conçu pour les commentaires, les contributions et l’expérimentation pratique.' } } },
+        advisorySystem: { title: 'D’un dossier de financement à un système-conseil répétable.', summary: 'L’objectif dépasse la génération d’un document : il s’agit de rendre le bon conseil répétable sans perdre le jugement.', sections: { shift: { heading: 'Un dossier est un moment du parcours.', body: 'Une entreprise peut explorer plusieurs programmes, affiner son récit et mettre à jour ses prévisions.' }, system: { heading: 'Une structure réutilisable protège la qualité.', body: 'Modèles, types de documents, agents, invites et données sources créent un modèle de travail partagé.' }, outcome: { heading: 'Plus de temps pour les décisions importantes.', body: 'Quand la préparation répétitive est organisée, les conseillers peuvent se concentrer sur les preuves, les risques et la prochaine décision.' } } },
+      },
+    },
+    caseStudies: {
+      pageTitle: 'Études de cas',
+      eyebrow: 'La preuve en pratique',
+      heading: 'Un travail de financement qui avance avec l’entreprise.',
+      description: 'Voyez comment les fondateurs, les conseillers et les équipes de développement économique transforment des informations dispersées en prochaine action claire.',
+      listLabel: 'Études de cas',
+      explore: 'Explorer les programmes',
+      items: {
+        founder: { label: 'Flux du fondateur', title: 'D’une sélection courte à une première ébauche solide.', body: 'Un fondateur utilise un seul profil d’entreprise pour comparer de vraies occasions et repartir avec un dossier structuré et modifiable.' },
+        advisor: { label: 'Pratique-conseil', title: 'Un processus réutilisable pour chaque client.', body: 'Les conseillers utilisent des modèles et des données partagées pour reconstruire moins de documents et améliorer davantage leurs recommandations.' },
+        economicDevelopment: { label: 'Développement économique', title: 'Des données de programmes à un impact local plus clair.', body: 'Les équipes relient les catalogues au contexte des entreprises, font ressortir les meilleures correspondances et donnent une prochaine action pratique.' },
+      },
+    },
+    aboutUs: {
+      pageTitle: 'À propos',
+      eyebrow: 'À propos d’OpenBcon',
+      heading: 'Une infrastructure ouverte de financement pour les équipes qui font le travail.',
+      description: 'OpenBcon réunit la découverte des programmes, le contexte de l’entreprise, la mise en correspondance et la génération de documents dans un espace transparent.',
+      storyEyebrow: 'Pourquoi nous le construisons',
+      storyHeading: 'Un bon soutien au financement devrait être clair, pratique et réutilisable.',
+      storyBody: 'Les entreprises ne devraient pas devoir traduire leur histoire dans une douzaine de formulaires avant de comprendre leurs options. Les conseillers ne devraient pas reconstruire le même flux pour chaque client.',
+      storyBodyTwo: 'OpenBcon devient une base ouverte pour ce travail : configurable pour différents programmes et équipes, mais suffisamment structurée pour garder la source de vérité visible.',
+      valuesEyebrow: 'Notre point de vue',
+      valuesHeading: 'Les principes derrière la plateforme.',
+      values: {
+        clarity: { title: 'La clarté avant la complexité', body: 'Présenter l’occasion, les preuves et la prochaine étape dans un langage directement utilisable.' },
+        openness: { title: 'Ouvert par conception', body: 'Rendre le flux vérifiable et adaptable afin que les organisations puissent le faire évoluer.' },
+        momentum: { title: 'Le progrès plutôt que la paperasse', body: 'Transformer la préparation en mouvement : une meilleure correspondance, un récit plus solide et un dossier prêt à réviser.' },
+      },
+      ctaEyebrow: 'Commencer par l’occasion',
+      ctaHeading: 'Découvrez les programmes que votre entreprise peut explorer.',
+      cta: 'Parcourir les subventions et prêts',
+    },
   },
   onboarding: {
     ...enCA.onboarding,

@@ -108,6 +108,13 @@ export type AdvisoryHubSectionId =
   | 'technology-roadmap'
   | 'technology-ai-review'
   | 'financial-model'
+  | 'interview-guide-cover-page'
+  | 'interview-preparation'
+  | 'likely-interview-questions'
+  | 'recommended-answers'
+  | 'evidence-proof-points'
+  | 'reviewer-concerns'
+  | 'interview-checklist'
   | 'funding-narrative'
   | 'ai-review'
   | 'company-overview'
@@ -149,6 +156,7 @@ export type AdvisoryHubSectionConfig = {
 }
 
 export type AdvisoryHubConfig = {
+  schemaVersion: number
   agents: AdvisoryHubAgentConfig[]
   documentTypes: AdvisoryHubDocumentTypeConfig[]
   layouts: AdvisoryHubLayoutConfig[]
@@ -753,6 +761,76 @@ const defaultAdvisoryHubSections: AdvisoryHubSectionConfig[] = [
     enabled: true,
   },
   {
+    id: 'interview-guide-cover-page',
+    title: 'Cover Page',
+    documentTypeId: 'interview-guide',
+    prompt: 'Create a clear interview guide cover page with the business, opportunity, interview context, and preparation date.',
+    agentId: 'grant-writer',
+    layout: 'cover-page',
+    priority: 'high',
+    enabled: true,
+  },
+  {
+    id: 'interview-preparation',
+    title: 'Interview Preparation',
+    documentTypeId: 'interview-guide',
+    prompt: 'Summarize the interview objective, the funding request, the company story, and the key facts the applicant should be ready to explain.',
+    agentId: 'business-consultant',
+    layout: 'main-content',
+    priority: 'default',
+    enabled: true,
+  },
+  {
+    id: 'likely-interview-questions',
+    title: 'Likely Interview Questions',
+    documentTypeId: 'interview-guide',
+    prompt: 'Create a practical list of questions a funding provider, lender, or program officer is likely to ask based on the program requirements, company profile, funding request, and risks.',
+    agentId: 'program-analyst',
+    layout: 'main-content',
+    priority: 'default',
+    enabled: true,
+  },
+  {
+    id: 'recommended-answers',
+    title: 'Recommended Answers',
+    documentTypeId: 'interview-guide',
+    prompt: 'Prepare concise, evidence-based answer guidance for the likely interview questions, using the company facts and funding program requirements without inventing evidence.',
+    agentId: 'grant-writer',
+    layout: 'main-content',
+    priority: 'default',
+    enabled: true,
+  },
+  {
+    id: 'evidence-proof-points',
+    title: 'Evidence & Proof Points',
+    documentTypeId: 'interview-guide',
+    prompt: 'List the documents, metrics, examples, and proof points the applicant should bring or reference to support each important answer.',
+    agentId: 'program-analyst',
+    layout: 'main-content',
+    priority: 'default',
+    enabled: true,
+  },
+  {
+    id: 'reviewer-concerns',
+    title: 'Reviewer Concerns',
+    documentTypeId: 'interview-guide',
+    prompt: 'Identify likely reviewer concerns, difficult follow-up questions, and clear ways to address them with transparent evidence and realistic commitments.',
+    agentId: 'reviewer',
+    layout: 'main-content',
+    priority: 'default',
+    enabled: true,
+  },
+  {
+    id: 'interview-checklist',
+    title: 'Interview Checklist',
+    documentTypeId: 'interview-guide',
+    prompt: 'Create a final interview-day checklist covering preparation, documents, numbers, responsibilities, questions to ask, and next steps.',
+    agentId: 'business-consultant',
+    layout: 'main-content',
+    priority: 'default',
+    enabled: true,
+  },
+  {
     id: 'funding-narrative',
     title: 'Funding Narrative',
     documentTypeId: 'business-analysis',
@@ -792,6 +870,12 @@ const defaultAdvisoryHubDocumentTypes: AdvisoryHubDocumentTypeConfig[] = [
     name: 'Financial Model',
     prompt:
       'Build a credible monthly financial forecast with transparent assumptions, revenue drivers, expenses, runway, and use-of-funds logic.',
+  },
+  {
+    id: 'interview-guide',
+    name: 'Interview Guide',
+    prompt:
+      'Prepare the applicant for funding interviews with likely questions, evidence-based answer guidance, reviewer concerns, and a practical preparation checklist.',
   },
 ]
 
@@ -1040,7 +1124,7 @@ function normalizeAdvisoryHubAgents(
     : defaultAdvisoryHubAgents.map((agent) => ({ ...agent }))
 }
 
-function normalizeAdvisoryHubDocumentTypes(
+export function normalizeAdvisoryHubDocumentTypes(
   documentTypes: Partial<AdvisoryHubDocumentTypeConfig>[] | undefined,
 ): AdvisoryHubDocumentTypeConfig[] {
   if (!documentTypes || documentTypes.length === 0) {
@@ -1058,6 +1142,27 @@ function normalizeAdvisoryHubDocumentTypes(
     documentTypes.every((documentType) => legacyDefaultIds.has(documentType.id?.trim() || ''))
 
   if (isLegacyDefaultSet) {
+    return defaultAdvisoryHubDocumentTypes.map((documentType) => ({ ...documentType }))
+  }
+
+  // Add newly shipped defaults only when the saved list is still the untouched
+  // pre-Interview Guide default. Deliberate admin deletions must persist.
+  const preInterviewDefaults = defaultAdvisoryHubDocumentTypes.filter(
+    (documentType) => documentType.id !== 'interview-guide',
+  )
+  const isUntouchedPreInterviewDefaultSet =
+    documentTypes.length === preInterviewDefaults.length &&
+    documentTypes.every((documentType) => {
+      const rawId = documentType.id?.trim() || ''
+      const fallback = preInterviewDefaults.find((item) => item.id === rawId)
+      return (
+        Boolean(fallback) &&
+        (!documentType.name?.trim() || documentType.name.trim() === fallback?.name) &&
+        (!documentType.prompt?.trim() || documentType.prompt.trim() === fallback?.prompt)
+      )
+    })
+
+  if (isUntouchedPreInterviewDefaultSet) {
     return defaultAdvisoryHubDocumentTypes.map((documentType) => ({ ...documentType }))
   }
 
@@ -1141,6 +1246,52 @@ export function normalizeAdvisoryHubSections(
         const rawId = candidate.id?.trim() || ''
         return (legacyAdvisoryHubSectionIdMap[rawId] || rawId) === section.id
       })
+
+      return {
+        ...section,
+        agentId: previousSection?.agentId?.trim() || section.agentId,
+        documentTypeId:
+          resolveAdvisoryHubDocumentTypeId(previousSection?.documentTypeId) ||
+          section.documentTypeId,
+        layout: normalizeAdvisoryHubSectionLayout(
+          previousSection?.layout,
+          section.id,
+          section.title,
+          section.layout,
+        ),
+        priority: normalizeAdvisoryHubSectionPriority(
+          previousSection?.priority,
+          section.id,
+          section.title,
+          section.priority,
+        ),
+        enabled: previousSection?.enabled ?? section.enabled,
+      }
+    })
+  }
+
+  // Upgrade an untouched pre-Interview Guide section set while preserving
+  // admin-controlled fields such as order, agent, layout, priority, and state.
+  const preInterviewDefaultSections = defaultAdvisoryHubSections.filter(
+    (section) => section.documentTypeId !== 'interview-guide',
+  )
+  const isUntouchedPreInterviewDefaultSet =
+    sections.length === preInterviewDefaultSections.length &&
+    sections.every((section) => {
+      const rawId = section.id?.trim() || ''
+      const fallback = preInterviewDefaultSections.find((item) => item.id === rawId)
+      return (
+        Boolean(fallback) &&
+        (!section.title?.trim() || section.title.trim() === fallback?.title) &&
+        (!section.prompt?.trim() || section.prompt.trim() === fallback?.prompt)
+      )
+    })
+
+  if (isUntouchedPreInterviewDefaultSet) {
+    return defaultAdvisoryHubSections.map((section) => {
+      const previousSection = sections.find(
+        (candidate) => candidate.id?.trim() === section.id,
+      )
 
       return {
         ...section,
@@ -1356,6 +1507,7 @@ export const defaultPlatformConfig: PlatformConfig = {
     mockModeEnabled: true,
   },
   advisoryHub: {
+    schemaVersion: 2,
     agents: defaultAdvisoryHubAgents,
     documentTypes: defaultAdvisoryHubDocumentTypes,
     layouts: defaultAdvisoryHubLayouts,
@@ -1640,10 +1792,44 @@ export function loadPlatformConfig(): PlatformConfig {
         parsedAIModels[0]?.id ??
         ''
     const parsedAdvisoryHubAgents = normalizeAdvisoryHubAgents(parsedAdvisoryHub.agents)
-    const parsedAdvisoryHubDocumentTypes = normalizeAdvisoryHubDocumentTypes(
+    const normalizedAdvisoryHubDocumentTypes = normalizeAdvisoryHubDocumentTypes(
       parsedAdvisoryHub.documentTypes,
     )
+    const storedAdvisoryHubSchemaVersion = Number(parsedAdvisoryHub.schemaVersion)
+    const advisoryHubSchemaVersion = Number.isFinite(storedAdvisoryHubSchemaVersion)
+      ? storedAdvisoryHubSchemaVersion
+      : 1
+    const shouldMigrateInterviewGuide = advisoryHubSchemaVersion < 2
+    const parsedAdvisoryHubDocumentTypes =
+      shouldMigrateInterviewGuide &&
+      !normalizedAdvisoryHubDocumentTypes.some(
+        (documentType) => documentType.id === 'interview-guide',
+      )
+        ? [
+            ...normalizedAdvisoryHubDocumentTypes,
+            defaultPlatformConfig.advisoryHub.documentTypes.find(
+              (documentType) => documentType.id === 'interview-guide',
+            )!,
+          ]
+        : normalizedAdvisoryHubDocumentTypes
     const parsedAdvisoryHubLayouts = normalizeAdvisoryHubLayouts(parsedAdvisoryHub.layouts)
+    const normalizedAdvisoryHubSections = normalizeAdvisoryHubSections(
+      parsedAdvisoryHub.sections,
+      parsedAdvisoryHubAgents,
+      parsedAdvisoryHubDocumentTypes,
+    )
+    const parsedAdvisoryHubSections =
+      shouldMigrateInterviewGuide &&
+      !normalizedAdvisoryHubSections.some(
+        (section) => section.documentTypeId === 'interview-guide',
+      )
+        ? [
+            ...normalizedAdvisoryHubSections,
+            ...defaultPlatformConfig.advisoryHub.sections.filter(
+              (section) => section.documentTypeId === 'interview-guide',
+            ),
+          ]
+        : normalizedAdvisoryHubSections
     const parsedProofItems = parsedLandingContent.proofItems ?? []
     const parsedPriceCatalog = parsedPayments.priceCatalog ?? []
     const legacyPlatformName = `${parsedConfig.productName ?? ''}${
@@ -1951,14 +2137,11 @@ export function loadPlatformConfig(): PlatformConfig {
       advisoryHub: {
         ...defaultPlatformConfig.advisoryHub,
         ...parsedAdvisoryHub,
+        schemaVersion: Math.max(2, advisoryHubSchemaVersion),
         agents: parsedAdvisoryHubAgents,
         documentTypes: parsedAdvisoryHubDocumentTypes,
         layouts: parsedAdvisoryHubLayouts,
-        sections: normalizeAdvisoryHubSections(
-          parsedAdvisoryHub.sections,
-          parsedAdvisoryHubAgents,
-          parsedAdvisoryHubDocumentTypes,
-        ),
+        sections: parsedAdvisoryHubSections,
       },
       matching: {
         ...defaultMatchingConfig,
