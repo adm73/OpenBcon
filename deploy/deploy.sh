@@ -160,12 +160,12 @@ if [ -z "$(get_env_value CORS_ORIGIN)" ]; then
   set_env_value CORS_ORIGIN "${public_site_url},${dashboard_app_url}"
 fi
 
-# The update agent runs this script from its /workspace bind mount. In that
-# context, keep the host path already stored in the env file. Compose must use
-# that host path when the Docker daemon recreates the services.
-if [ "${OPENBCON_SKIP_UPDATE_AGENT:-0}" != "1" ]; then
-  set_env_value OPENBCON_ROOT "$ROOT_DIR"
-fi
+# Explicitly export the saved host path: Compose gives process variables
+# precedence over --env-file, and older updater images export /workspace here.
+source "$ROOT_DIR/deploy/host-path.sh"
+OPENBCON_ROOT="$(resolve_openbcon_host_root "$ROOT_DIR" "$(get_env_value OPENBCON_ROOT)" "${OPENBCON_SKIP_UPDATE_AGENT:-0}")"
+export OPENBCON_ROOT
+set_env_value OPENBCON_ROOT "$OPENBCON_ROOT"
 
 # Older setup sessions generated a relative Caddyfile path. The update agent
 # runs Compose inside a container, but the Docker daemon mounts paths from the

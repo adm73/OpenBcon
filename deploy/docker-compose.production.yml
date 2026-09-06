@@ -145,7 +145,12 @@ services:
     volumes:
       # Use the host checkout path because the update agent runs Compose from
       # inside a container while Docker creates the Caddy container on the host.
-      - "${OPENBCON_ROOT:-/opt/openbcon}/deploy/Caddyfile:/etc/caddy/Caddyfile:ro"
+      - type: bind
+        source: "${OPENBCON_ROOT:-/opt/openbcon}/deploy/Caddyfile"
+        target: /etc/caddy/Caddyfile
+        read_only: true
+        bind:
+          create_host_path: false
       - caddy-data:/data
       - caddy-config:/config
     healthcheck:
@@ -167,6 +172,7 @@ services:
     restart: unless-stopped
     environment:
       OPENBCON_CHECKOUT_ROOT: /workspace
+      OPENBCON_ROOT: ${OPENBCON_ROOT:-/opt/openbcon}
       OPENBCON_UPDATE_TOKEN: ${OPENBCON_UPDATE_TOKEN:?Set OPENBCON_UPDATE_TOKEN in deploy/.env.production}
       UPDATE_AGENT_BIND_ADDRESS: 0.0.0.0
       UPDATE_AGENT_PORT: 8788

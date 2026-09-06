@@ -20,6 +20,51 @@ OpenBcon helps consultants, advisors, incubators, and funding teams run the full
 >
 > See [COMMERCIAL-LICENSE.md](./COMMERCIAL-LICENSE.md) and [CLA.md](./CLA.md).
 
+## Version 5.0.1
+
+Release tag: [`v5.0.1`](https://github.com/adm73/OpenBcon/releases/tag/v5.0.1).
+The npm package version is `5.0.1`.
+
+This patch repairs Admin Console updates that fail while mounting Caddy's
+configuration from `/workspace/deploy/Caddyfile`:
+
+- The updater keeps its internal checkout path separate from the server bind
+  source. The deployment explicitly exports the host path from the production
+  environment file, overriding the incorrect value injected by older agents.
+- Missing or container-local host paths are recovered from the updater's bind
+  mount when possible; otherwise deployment stops with recovery instructions.
+- Caddy's configuration mount no longer creates a directory if the source file
+  is missing. PostgreSQL, MongoDB, and certificate volume names are preserved.
+- An update request rebuilds and checks the deployment even when Git already
+  points to the requested commit. A previous failed deployment can therefore
+  be retried without reporting a false "already up to date" result.
+
+Validation: 98 tests across 17 files passed, including six deployment regression
+tests. TypeScript checks, the production build, and shell/Node syntax checks
+passed. Docker Compose configuration was validated locally; container recreation
+was not exercised because the local Docker daemon was unavailable.
+
+### Recover an affected server
+
+Use the VPS provider's web terminal in the existing server checkout. This
+one-time terminal deployment also recreates the updater with the corrected
+agent code:
+
+```bash
+cd /opt/openbcon
+cp -p deploy/.env.production "deploy/.env.production.backup-$(date +%Y%m%d-%H%M%S)"
+git fetch origin --tags
+git switch main
+git pull --ff-only origin main
+env -u OPENBCON_ROOT -u OPENBCON_SKIP_UPDATE_AGENT bash ./deploy/deploy.sh
+```
+
+Use your actual checkout directory if it differs from `/opt/openbcon`. If Git
+reports conflicting local edits, preserve and inspect those changes before
+continuing. Do not delete the database volumes or the existing `.env.production`.
+Warnings about Caddy volumes originally belonging to project `deploy` are not
+the mount failure and do not require deleting certificate data.
+
 ## Version 5.0
 
 Release tag: [`v5.0`](https://github.com/adm73/OpenBcon/releases/tag/v5.0).

@@ -93,7 +93,7 @@ function run(command, args, options = {}) {
   return new Promise((resolve) => {
     const child = spawn(command, args, {
       cwd: root,
-      env: { ...process.env, OPENBCON_ROOT: root, OPENBCON_SKIP_UPDATE_AGENT: '1' },
+      env: { ...process.env, OPENBCON_CHECKOUT_ROOT: root, OPENBCON_SKIP_UPDATE_AGENT: '1' },
       ...options,
       stdio: ['ignore', 'pipe', 'pipe'],
     })
@@ -128,9 +128,8 @@ async function runUpdate(requestedCommit) {
       throw new Error('The requested update commit is not the latest commit on origin/main.')
     }
 
-    if (currentCommit === targetCommit) {
-      return updateStatus({ status: 'succeeded', phase: 'current', message: 'OpenBcon is already up to date.', currentCommit, targetCommit, startedAt, finishedAt: now() })
-    }
+    // HEAD may already be at the target after a failed build or restart.
+    // Only a completed deployment can prove that the running app was updated.
 
     updateStatus({
       status: 'running',
@@ -206,5 +205,7 @@ const server = createServer(async (request, response) => {
 })
 
 server.listen(port, bindAddress, () => {
-  process.stdout.write(`OpenBcon update agent listening on ${bindAddress}:${port}\n`)
+  const address = server.address()
+  const listeningPort = address && typeof address === 'object' ? address.port : port
+  process.stdout.write(`OpenBcon update agent listening on ${bindAddress}:${listeningPort}\n`)
 })
